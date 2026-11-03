@@ -11,5 +11,6 @@ let package = Package(
         .testTarget(name: "WakeupAppKitTests", dependencies: ["WakeupAppKit"]),
         .target(name: "WakeupHelperKit", dependencies: ["WakeupShared"]),
         .testTarget(name: "WakeupHelperKitTests", dependencies: ["WakeupHelperKit"]),
+        .executableTarget(name: "WakeupHelper", dependencies: ["WakeupHelperKit", "WakeupShared"]),
     ]
 )
