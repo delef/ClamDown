@@ -57,6 +57,26 @@ public actor HelperCore {
         enabled = false
     }
 
+    /// True while the mode is on; also pushes the watchdog deadline out.
+    public func heartbeat(now: SuspendingClock.Instant = .now) -> Bool {
+        guard enabled else { return false }
+        lastHeartbeat = now
+        return true
+    }
+
+    /// Resets the machine when no heartbeat arrived within the timeout. True when it did reset.
+    /// A failed reset leaves the mode enabled, so the next tick tries again.
+    /// `SuspendingClock` does not advance while the Mac sleeps, so a manual sleep is not a missed heartbeat.
+    public func checkWatchdog(now: SuspendingClock.Instant = .now) -> Bool {
+        guard enabled, lastHeartbeat.duration(to: now) > watchdogTimeout else { return false }
+        do {
+            try disable()
+            return true
+        } catch {
+            return false
+        }
+    }
+
     public func setLowPowerOnBattery(_ on: Bool) throws {
         guard enabled else { throw HelperError.notEnabled }
         try applyLowPower(on)
