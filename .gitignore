@@ -1,0 +1,4 @@
+.build/
+build/
+Config/Signing.local.xcconfig
+.DS_Store
