@@ -17,7 +17,7 @@ public final class WakeupController: ObservableObject {
     @Published public private(set) var state: SwitchState = .off
     /// One line for the menu: why the switch is off, or what went wrong.
     @Published public private(set) var notice: String?
-    public private(set) var settings: Settings
+    @Published public private(set) var settings: Settings
 
     private let helper: HelperControlling
     private let registrar: HelperRegistering
@@ -47,12 +47,67 @@ public final class WakeupController: ObservableObject {
         self.settings = settingsStore.load()
     }
 
+    /// Call once at launch: starts watching the system and cleans up after a killed or hung previous run.
+    public func start() async {
+        monitor.start { [weak self] in
+            Task { @MainActor in await self?.handleSystemChange() }
+        }
+        if !state.isOn, let leftover = try? await helper.isEnabled(), leftover {
+            try? await helper.disable()
+        }
+    }
+
     public func toggle() async {
         if state.isOn {
             await turnOff()
         } else {
             await turnOn()
         }
+    }
+
+    /// Re-checks the cut-off rules after any power, battery, thermal or wake event.
+    /// While on and still allowed to run, it also confirms with the helper that the mode is still on.
+    public func handleSystemChange() async {
+        guard state.isOn else { return }
+        if let reason = AutoOffPolicy.reason(for: monitor.snapshot(), settings: settings) {
+            await autoOff(reason)
+            return
+        }
+        await sendHeartbeat()
+    }
+
+    /// Tells the helper the app is alive. If the helper says the mode is off, or cannot be reached, so is the switch.
+    public func sendHeartbeat() async {
+        guard state.isOn else { return }
+        let stillOn: Bool
+        do {
+            stillOn = try await helper.heartbeat()
+        } catch {
+            stillOn = false
+        }
+        guard !stillOn, state.isOn else { return }
+        finishOff()
+        announce("Turned off: the helper stopped the mode.")
+    }
+
+    public func updateSettings(_ new: Settings) async {
+        let previous = settings
+        settings = new.clamped()
+        settingsStore.save(settings)
+        if state.isOn, settings.autoLowPowerOnBattery != previous.autoLowPowerOnBattery {
+            do {
+                try await helper.setLowPowerOnBattery(settings.autoLowPowerOnBattery)
+            } catch {
+                notice = "Could not change Low Power Mode: \(Self.describe(error))"
+            }
+        }
+        await handleSystemChange()
+    }
+
+    /// Call when the app quits.
+    public func shutdown() async {
+        monitor.stop()
+        if state.isOn { await turnOff() }
     }
 
     // MARK: - Switching
@@ -87,6 +142,24 @@ public final class WakeupController: ObservableObject {
             return
         }
         finishOff()
+    }
+
+    private func autoOff(_ reason: AutoOffReason) async {
+        do {
+            try await helper.disable()
+        } catch {
+            // Stop the heartbeat on purpose: the helper's own watchdog then resets the Mac within about 90 seconds.
+            finishOff()
+            announce("Turned off: \(reason.summary). The helper did not confirm, so it will reset by itself within 90 seconds.")
+            return
+        }
+        finishOff()
+        announce("Turned off: \(reason.summary). The Mac can sleep now.")
+    }
+
+    private func announce(_ text: String) {
+        notice = text
+        notifier.post(title: "Wakeup", body: text)
     }
 
     private func finishOff() {
@@ -133,8 +206,8 @@ public final class WakeupController: ObservableObject {
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
-                guard self != nil, !Task.isCancelled else { return }
-                // Task 10 sends the heartbeat here.
+                guard !Task.isCancelled else { return }
+                await self?.sendHeartbeat()
             }
         }
     }
