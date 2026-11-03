@@ -207,7 +207,8 @@ public final class WakeupController: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
                 guard !Task.isCancelled else { return }
-                await self?.sendHeartbeat()
+                // Also re-checks the cut-offs, so a missed system notification cannot disable the safety net.
+                await self?.handleSystemChange()
             }
         }
     }

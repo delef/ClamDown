@@ -35,7 +35,7 @@ public final class LiveSystemMonitor: SystemMonitoring {
             guard let context else { return }
             Unmanaged<LiveSystemMonitor>.fromOpaque(context).takeUnretainedValue().onChange?()
         }, context).takeRetainedValue()
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         powerSource = source
 
         observers.append(NotificationCenter.default.addObserver(
@@ -48,7 +48,7 @@ public final class LiveSystemMonitor: SystemMonitoring {
 
     public func stop() {
         if let powerSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSource, .defaultMode)
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSource, .commonModes)
             self.powerSource = nil
         }
         for observer in observers {

@@ -91,6 +91,29 @@ import Testing
         #expect(rig.helper.heartbeatCount == 0)
     }
 
+    // MARK: periodic tick
+
+    @Test func periodicTickReevaluatesCutoffsWithoutAnyNotification() async throws {
+        let rig = Rig(heartbeatInterval: .milliseconds(20))
+        await rig.controller.toggle()
+        rig.monitor.current = snapshot(10, onBattery: true)  // no handleSystemChange() call: a missed notification
+        for _ in 0..<100 where rig.controller.state == .on {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(rig.controller.state == .off)
+        #expect(rig.helper.disableCount == 1)
+    }
+
+    @Test func periodicTickSendsHeartbeatWhileAllowed() async throws {
+        let rig = Rig(heartbeatInterval: .milliseconds(20))
+        await rig.controller.toggle()
+        for _ in 0..<100 where rig.helper.heartbeatCount == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(rig.helper.heartbeatCount > 0)
+        #expect(rig.controller.state == .on)
+    }
+
     // MARK: heartbeat
 
     @Test func heartbeatTrueKeepsOn() async {

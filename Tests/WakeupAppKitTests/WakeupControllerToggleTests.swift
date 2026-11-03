@@ -12,7 +12,12 @@ struct Rig {
     let activity = FakeActivity()
     let store: FakeSettingsStore
 
-    init(availability: [HelperAvailability] = [.ready], snapshot: SystemSnapshot = .calm, settings: Settings = Settings()) {
+    init(
+        availability: [HelperAvailability] = [.ready],
+        snapshot: SystemSnapshot = .calm,
+        settings: Settings = Settings(),
+        heartbeatInterval: Duration = .seconds(3600)
+    ) {
         registrar = FakeRegistrar(availability)
         monitor = FakeMonitor(snapshot)
         store = FakeSettingsStore(settings)
@@ -23,7 +28,7 @@ struct Rig {
             settingsStore: store,
             notifier: notifier,
             activity: activity,
-            heartbeatInterval: .seconds(3600)
+            heartbeatInterval: heartbeatInterval
         )
     }
 }
