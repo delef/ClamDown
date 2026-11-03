@@ -17,6 +17,24 @@ public protocol HelperControlling: Sendable {
     func isEnabled() async throws -> Bool
 }
 
+/// Reads power, battery and thermal state and reports changes (including wake from sleep).
+public protocol SystemMonitoring: AnyObject {
+    func snapshot() -> SystemSnapshot
+    func start(onChange: @escaping @Sendable () -> Void)
+    func stop()
+}
+
+/// Shows the user a notification.
+public protocol Notifying: Sendable {
+    func post(title: String, body: String)
+}
+
+/// Keeps the process from being throttled while the mode is on, so timers still fire with the lid closed.
+public protocol ProcessActivityHolding: AnyObject {
+    func begin()
+    func end()
+}
+
 /// Registration of the helper daemon with the system.
 public protocol HelperRegistering: Sendable {
     func availability() -> HelperAvailability
