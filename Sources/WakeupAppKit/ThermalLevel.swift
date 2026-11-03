@@ -13,6 +13,15 @@ public enum ThermalLevel: Int, Comparable, Sendable {
         }
     }
 
+    public var name: String {
+        switch self {
+        case .nominal: "nominal"
+        case .fair: "fair"
+        case .serious: "serious"
+        case .critical: "critical"
+        }
+    }
+
     public static func < (lhs: ThermalLevel, rhs: ThermalLevel) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
