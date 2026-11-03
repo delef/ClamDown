@@ -47,12 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let controller = controller
         Task {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await controller.shutdown() }
-                group.addTask { try? await Task.sleep(for: .seconds(5)) }
-                await group.next()
-                group.cancelAll()
-            }
+            await awaitingAtMost(.seconds(5)) { await controller.shutdown() }
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
