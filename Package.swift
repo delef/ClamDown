@@ -9,5 +9,7 @@ let package = Package(
         .testTarget(name: "WakeupSharedTests", dependencies: ["WakeupShared"]),
         .target(name: "WakeupAppKit", dependencies: ["WakeupShared"]),
         .testTarget(name: "WakeupAppKitTests", dependencies: ["WakeupAppKit"]),
+        .target(name: "WakeupHelperKit", dependencies: ["WakeupShared"]),
+        .testTarget(name: "WakeupHelperKitTests", dependencies: ["WakeupHelperKit"]),
     ]
 )
