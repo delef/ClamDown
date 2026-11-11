@@ -1,3 +1,4 @@
+import ClamDownSensors
 import ClamDownShared
 
 public enum HelperError: Error, Equatable {

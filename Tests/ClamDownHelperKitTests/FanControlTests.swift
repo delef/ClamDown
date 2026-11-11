@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import ClamDownSensors
 import ClamDownShared
 @testable import ClamDownHelperKit
 

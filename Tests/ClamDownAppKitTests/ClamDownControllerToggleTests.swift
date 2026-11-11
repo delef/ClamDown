@@ -1,3 +1,4 @@
+import ClamDownSensors
 import Testing
 @testable import ClamDownAppKit
 
@@ -22,7 +23,8 @@ struct Rig {
         settings: Settings = Settings(),
         helperFingerprint: String? = nil,
         installedFingerprint: String? = nil,
-        heartbeatInterval: Duration = .seconds(3600)
+        heartbeatInterval: Duration = .seconds(3600),
+        sensors: SensorReading? = nil
     ) {
         registrar = FakeRegistrar(availability)
         monitor = FakeMonitor(snapshot)
@@ -40,6 +42,7 @@ struct Rig {
             heartbeatInterval: heartbeatInterval,
             lidMonitor: lid,
             screenLocker: locker,
+            sensors: sensors,
             now: { [clock] in clock.now }
         )
     }

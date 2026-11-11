@@ -1,3 +1,4 @@
+import ClamDownSensors
 import ClamDownShared
 import Foundation
 @testable import ClamDownAppKit
@@ -215,4 +216,12 @@ final class FakeClock: @unchecked Sendable {
     var now: Date { lock.withLock { current } }
 
     func advance(by seconds: TimeInterval) { lock.withLock { current += seconds } }
+}
+
+struct FakeSensors: SensorReading {
+    let reading: HardwareReading
+
+    init(_ reading: HardwareReading) { self.reading = reading }
+
+    func read() throws -> HardwareReading { reading }
 }

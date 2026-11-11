@@ -1,3 +1,4 @@
+import ClamDownSensors
 import ClamDownShared
 import Combine
 import Foundation
@@ -34,6 +35,8 @@ public final class ClamDownController: ObservableObject {
     private let heartbeatInterval: Duration
     private let lidMonitor: LidMonitoring?
     private let screenLocker: ScreenLocking?
+    /// Reads temperatures and fans directly when the helper cannot answer, for example before it is installed.
+    private let sensors: SensorReading?
     private let now: @Sendable () -> Date
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
@@ -50,6 +53,7 @@ public final class ClamDownController: ObservableObject {
         heartbeatInterval: Duration = .seconds(30),
         lidMonitor: LidMonitoring? = nil,
         screenLocker: ScreenLocking? = nil,
+        sensors: SensorReading? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.helper = helper
@@ -63,6 +67,7 @@ public final class ClamDownController: ObservableObject {
         self.heartbeatInterval = heartbeatInterval
         self.lidMonitor = lidMonitor
         self.screenLocker = screenLocker
+        self.sensors = sensors
         self.now = now
         self.settings = settingsStore.load()
     }
@@ -146,10 +151,22 @@ public final class ClamDownController: ObservableObject {
         await handleSystemChange()
     }
 
-    /// Temperatures and fans as the helper reads them. Nil when the helper cannot be reached.
+    /// Temperatures and fans as the helper reads them. Without the helper, the app reads them itself
+    /// and says that the fans cannot be driven yet. Nil when neither can read them.
     public func coolingStatus() async -> CoolingStatus? {
-        try? await helper.coolingStatus()
+        if let status = try? await helper.coolingStatus() { return status }
+        guard let sensors else { return nil }
+        let reading = await Task.detached { try? sensors.read() }.value
+        guard let reading else { return nil }
+        return CoolingStatus(
+            cpuTemperature: reading.cpuTemperature,
+            fans: reading.fans,
+            isControlling: false,
+            problem: Self.noHelperForFans
+        )
     }
+
+    static let noHelperForFans = "The helper is not running, so ClamDown cannot drive the fans yet. Turn ClamDown on once to set it up."
 
     /// Call when the app quits.
     public func shutdown() async {

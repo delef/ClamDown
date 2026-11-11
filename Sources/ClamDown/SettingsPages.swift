@@ -237,7 +237,7 @@ struct CoolingPage: View {
 
     private var statusProblem: String? {
         if let problem = status?.problem { return problem }
-        if statusLoaded, status == nil { return "Readings appear once the helper is installed. Turn ClamDown on once to set it up." }
+        if statusLoaded, status == nil { return "Cannot read the temperature sensors." }
         return nil
     }
 

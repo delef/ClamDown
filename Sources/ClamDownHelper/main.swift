@@ -1,5 +1,6 @@
 import Foundation
 import ClamDownHelperKit
+import ClamDownSensors
 import ClamDownShared
 
 private func log(_ message: String) {

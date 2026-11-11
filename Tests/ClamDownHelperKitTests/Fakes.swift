@@ -1,5 +1,6 @@
 import Foundation
 @testable import ClamDownHelperKit
+import ClamDownSensors
 import ClamDownShared
 
 struct FakeFailure: Error, Equatable {}

@@ -1,5 +1,6 @@
 import AppKit
 import ClamDownAppKit
+import ClamDownSensors
 import ClamDownShared
 import Combine
 import CryptoKit
@@ -43,7 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             installedHelper: UserDefaultsInstalledHelperStore(),
             helperFingerprint: Self.helperFingerprint(),
             lidMonitor: LiveLidMonitor(),
-            screenLocker: LiveScreenLocker()
+            screenLocker: LiveScreenLocker(),
+            sensors: SMCFanHardware()
         )
         super.init()
     }

@@ -7,11 +7,12 @@ let package = Package(
     targets: [
         .target(name: "ClamDownShared"),
         .testTarget(name: "ClamDownSharedTests", dependencies: ["ClamDownShared"]),
-        .target(name: "ClamDownAppKit", dependencies: ["ClamDownShared"]),
-        .testTarget(name: "ClamDownAppKitTests", dependencies: ["ClamDownAppKit"]),
-        .target(name: "ClamDownHelperKit", dependencies: ["ClamDownShared"]),
-        .testTarget(name: "ClamDownHelperKitTests", dependencies: ["ClamDownHelperKit"]),
-        .executableTarget(name: "ClamDownHelper", dependencies: ["ClamDownHelperKit", "ClamDownShared"]),
-        .executableTarget(name: "ClamDown", dependencies: ["ClamDownAppKit", "ClamDownShared"]),
+        .target(name: "ClamDownSensors", dependencies: ["ClamDownShared"]),
+        .target(name: "ClamDownAppKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
+        .testTarget(name: "ClamDownAppKitTests", dependencies: ["ClamDownAppKit", "ClamDownSensors"]),
+        .target(name: "ClamDownHelperKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
+        .testTarget(name: "ClamDownHelperKitTests", dependencies: ["ClamDownHelperKit", "ClamDownSensors"]),
+        .executableTarget(name: "ClamDownHelper", dependencies: ["ClamDownHelperKit", "ClamDownShared", "ClamDownSensors"]),
+        .executableTarget(name: "ClamDown", dependencies: ["ClamDownAppKit", "ClamDownShared", "ClamDownSensors"]),
     ]
 )

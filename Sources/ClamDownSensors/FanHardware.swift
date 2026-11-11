@@ -31,11 +31,15 @@ public enum FanHardwareError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// The fans, temperature sensors and lid. Everything here needs root to write.
-public protocol FanHardware: Sendable {
+/// Temperatures, fans and lid. Reading needs no privileges, so the app uses it too.
+public protocol SensorReading: Sendable {
+    func read() throws -> HardwareReading
+}
+
+/// The fans, temperature sensors and lid. Writing needs root, so only the helper drives the fans.
+public protocol FanHardware: SensorReading {
     /// False when the fans can only be read, for example on an Intel Mac.
     var supportsControl: Bool { get }
-    func read() throws -> HardwareReading
     /// Takes the fans from macOS when needed and sets each fan's target speed in rpm, in fan order.
     func setTargets(_ rpms: [Double]) throws
     /// Hands every fan back to macOS. Safe to call when ClamDown does not hold them.
