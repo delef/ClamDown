@@ -39,7 +39,8 @@ private func runHelper() async -> Never {
 
     // launchd stops the daemon with SIGTERM: put the sleep setting back before exiting.
     // SIGKILL cannot be caught; the recovery on the next start covers that case.
-    for sig in [SIGTERM, SIGINT] {
+    // A dispatch source is cancelled once released, so the sources are kept alive below with everything else.
+    let signalSources = [SIGTERM, SIGINT].map { sig in
         signal(sig, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: sig, queue: .global(qos: .utility))
         source.setEventHandler {
@@ -49,6 +50,7 @@ private func runHelper() async -> Never {
             }
         }
         source.resume()
+        return source
     }
 
     let listener = NSXPCListener(machServiceName: Identifiers.helperLabel(appBundleID: appBundleID))
@@ -62,8 +64,10 @@ private func runHelper() async -> Never {
     timer.setEventHandler { Task { _ = await core.checkWatchdog() } }
     timer.resume()
 
-    // Never resumed on purpose: keeps this frame, and everything above, alive.
+    // Never resumed on purpose. The objects used after the await stay alive while it waits;
+    // a live frame alone does not guarantee that, because Swift may release an object after its last use.
     await withCheckedContinuation { (_: CheckedContinuation<Void, Never>) in }
+    withExtendedLifetime((listener, delegate, timer, signalSources)) {}
     fatalError("unreachable")
 }
 

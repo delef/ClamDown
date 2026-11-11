@@ -310,6 +310,7 @@ public final class ClamDownController: ObservableObject {
                 }
             }
             availability = registrar.availability()
+            recordInstalledBuild(after: availability)
         }
         guard reportReadiness(availability) else { return false }
         return syncHelperIfNeeded()
@@ -343,9 +344,16 @@ public final class ClamDownController: ObservableObject {
             state = .failed("Could not update the helper: \(Self.describe(error))")
             return false
         }
-        guard reportReadiness(registrar.availability()) else { return false }
-        installedHelper.fingerprint = fingerprint
-        return true
+        let availability = registrar.availability()
+        recordInstalledBuild(after: availability)
+        return reportReadiness(availability)
+    }
+
+    /// Records this build as the registered helper once registering it went through, even while approval is pending.
+    /// Without the record, the next Turn On would reinstall the same build and could ask for approval again.
+    private func recordInstalledBuild(after availability: HelperAvailability) {
+        guard let helperFingerprint, availability == .ready || availability == .requiresApproval else { return }
+        installedHelper.fingerprint = helperFingerprint
     }
 
     /// Unregisters and registers the helper again. Approval still pending after registering is not an error.

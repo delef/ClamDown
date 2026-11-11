@@ -19,13 +19,25 @@ import Testing
         #expect(rig.controller.state == .on)
     }
 
-    @Test func updateNeedingApprovalStaysOffAndKeepsOldRecord() async {
+    @Test func updateNeedingApprovalStaysOffAndRecordsNewBuild() async {
         let rig = Rig(availability: [.ready, .requiresApproval], helperFingerprint: "new", installedFingerprint: "old")
         await rig.controller.toggle()
         #expect(rig.controller.state == .needsApproval)
         #expect(rig.helper.enableCalls.isEmpty)
         #expect(rig.registrar.openApprovalCount == 1)
-        #expect(rig.installed.fingerprint == "old")
+        // The registered helper is already this build, so approving it must not trigger another reinstall.
+        #expect(rig.installed.fingerprint == "new")
+    }
+
+    @Test func approvingFirstRegistrationDoesNotReinstallOnNextTurnOn() async {
+        let rig = Rig(availability: [.notRegistered, .requiresApproval, .ready], helperFingerprint: "new", installedFingerprint: nil)
+        await rig.controller.toggle()
+        #expect(rig.controller.state == .needsApproval)
+        #expect(rig.installed.fingerprint == "new")
+        await rig.controller.toggle()
+        #expect(rig.registrar.registerCount == 1)
+        #expect(rig.registrar.unregisterCount == 0)
+        #expect(rig.controller.state == .on)
     }
 
     @Test func failedUpdateStaysOffAndReports() async {
