@@ -1,3 +1,4 @@
+import ClamDownShared
 import Combine
 import Foundation
 
@@ -139,7 +140,15 @@ public final class ClamDownController: ObservableObject {
                 notice = "Could not change Low Power Mode: \(Self.describe(error))"
             }
         }
+        if state.isOn, settings.fanPolicy != previous.fanPolicy {
+            await applyFanPolicy()
+        }
         await handleSystemChange()
+    }
+
+    /// Temperatures and fans as the helper reads them. Nil when the helper cannot be reached.
+    public func coolingStatus() async -> CoolingStatus? {
+        try? await helper.coolingStatus()
     }
 
     /// Call when the app quits.
@@ -222,6 +231,17 @@ public final class ClamDownController: ObservableObject {
         startAutoOffTimer(duration)
         lidMonitor?.start { [weak self] in
             Task { @MainActor in self?.lidDidClose() }
+        }
+        await applyFanPolicy()
+    }
+
+    /// The helper drops the fan policy on every switch-off, so it is sent on every switch-on and setting change.
+    /// A failure leaves the fans with macOS and the mode on: keeping the Mac awake matters more.
+    private func applyFanPolicy() async {
+        do {
+            try await helper.setFanPolicy(settings.fanPolicy)
+        } catch {
+            notice = "Could not control the fans: \(Self.describe(error))"
         }
     }
 

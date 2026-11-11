@@ -19,7 +19,8 @@ private func runHelper() async -> Never {
     // still puts the user's sleep setting back.
     let core = HelperCore(
         runner: SystemPmsetRunner(),
-        store: FileSavedStateStore(url: URL(fileURLWithPath: "/var/db/clamdown/state.json"))
+        store: FileSavedStateStore(url: URL(fileURLWithPath: "/var/db/clamdown/state.json")),
+        fans: SMCFanHardware()
     )
     // A failure here must not stop the helper from serving.
     do { try await core.recoverOnStart() } catch { log("recovery on start failed: \(error)") }
@@ -60,8 +61,14 @@ private func runHelper() async -> Never {
     listener.resume()
 
     let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
-    timer.schedule(deadline: .now() + 10, repeating: 10)
-    timer.setEventHandler { Task { _ = await core.checkWatchdog() } }
+    // Every 3 seconds: the watchdog check, then the fan speeds (which also hands the fans back once the mode is off).
+    timer.schedule(deadline: .now() + 3, repeating: 3)
+    timer.setEventHandler {
+        Task {
+            _ = await core.checkWatchdog()
+            await core.updateFans()
+        }
+    }
     timer.resume()
 
     // Never resumed on purpose. The objects used after the await stay alive while it waits;

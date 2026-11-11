@@ -1,3 +1,5 @@
+import ClamDownShared
+
 public enum ThermalCutoff: String, Codable, CaseIterable, Sendable {
     case fair, serious, critical, never
 
@@ -77,6 +79,12 @@ public struct Settings: Codable, Equatable, Sendable {
     public var batteryCutoffPercent = 10
     public var thermalCutoff: ThermalCutoff = .serious
 
+    // Cooling
+    public var fanMode: FanMode = .curve
+    public var fanStartTemperature = 60
+    public var fanFullSpeedTemperature = 85
+    public var fansOnlyWhenLidClosed = true
+
     // General
     public var launchAtLogin = false
     public var showDockIcon = false
@@ -87,9 +95,18 @@ public struct Settings: Codable, Equatable, Sendable {
 
     public init() {}
 
+    /// What the helper gets for the fans.
+    public var fanPolicy: FanPolicy {
+        FanPolicy(mode: fanMode, startTemperature: fanStartTemperature,
+                  fullSpeedTemperature: fanFullSpeedTemperature, onlyWhenLidClosed: fansOnlyWhenLidClosed)
+    }
+
     public func clamped() -> Settings {
         var copy = self
         copy.batteryCutoffPercent = min(max(batteryCutoffPercent, Self.batteryCutoffRange.lowerBound), Self.batteryCutoffRange.upperBound)
+        let fans = fanPolicy.clamped()
+        copy.fanStartTemperature = fans.startTemperature
+        copy.fanFullSpeedTemperature = fans.fullSpeedTemperature
         return copy
     }
 
@@ -98,6 +115,7 @@ public struct Settings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case autoOffTimer, lockScreenWhenLidClosed, turnOffWhenUnplugged, autoLowPowerOnBattery
         case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff
+        case fanMode, fanStartTemperature, fanFullSpeedTemperature, fansOnlyWhenLidClosed
         case launchAtLogin, showDockIcon, notificationsEnabled, menuBarIcon
     }
 
@@ -111,6 +129,10 @@ public struct Settings: Codable, Equatable, Sendable {
         batteryCutoffEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .batteryCutoffEnabled)) ?? batteryCutoffEnabled
         batteryCutoffPercent = (try? c.decodeIfPresent(Int.self, forKey: .batteryCutoffPercent)) ?? batteryCutoffPercent
         thermalCutoff = (try? c.decodeIfPresent(ThermalCutoff.self, forKey: .thermalCutoff)) ?? thermalCutoff
+        fanMode = (try? c.decodeIfPresent(FanMode.self, forKey: .fanMode)) ?? fanMode
+        fanStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanStartTemperature)) ?? fanStartTemperature
+        fanFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanFullSpeedTemperature)) ?? fanFullSpeedTemperature
+        fansOnlyWhenLidClosed = (try? c.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) ?? fansOnlyWhenLidClosed
         launchAtLogin = (try? c.decodeIfPresent(Bool.self, forKey: .launchAtLogin)) ?? launchAtLogin
         showDockIcon = (try? c.decodeIfPresent(Bool.self, forKey: .showDockIcon)) ?? showDockIcon
         notificationsEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled)) ?? notificationsEnabled

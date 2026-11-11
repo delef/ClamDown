@@ -1,16 +1,19 @@
 import Foundation
 
 /// What the helper must put back when it switches the mode off.
-/// Nil fields mean "not recorded". Files from older versions decode with both fields nil or present.
+/// Nil fields mean "not recorded". Files from older versions decode with the missing fields nil.
 public struct SavedState: Codable, Equatable, Sendable {
     /// The battery profile's Low Power Mode before ClamDown changed it.
     public var batteryLowPowerMode: Bool?
     /// The user's own `SleepDisabled` value before ClamDown turned it on.
     public var sleepDisabled: Bool?
+    /// True when ClamDown took the fans from macOS and has not handed them back yet.
+    public var fansManual: Bool?
 
-    public init(batteryLowPowerMode: Bool? = nil, sleepDisabled: Bool? = nil) {
+    public init(batteryLowPowerMode: Bool? = nil, sleepDisabled: Bool? = nil, fansManual: Bool? = nil) {
         self.batteryLowPowerMode = batteryLowPowerMode
         self.sleepDisabled = sleepDisabled
+        self.fansManual = fansManual
     }
 }
 

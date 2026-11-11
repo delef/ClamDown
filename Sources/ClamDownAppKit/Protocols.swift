@@ -1,3 +1,5 @@
+import ClamDownShared
+
 public enum HelperClientError: Error, Equatable {
     /// The helper ran the request and reported a failure.
     case helper(String)
@@ -15,6 +17,9 @@ public protocol HelperControlling: Sendable {
     /// True while the helper still considers the mode on.
     func heartbeat() async throws -> Bool
     func isEnabled() async throws -> Bool
+    /// Tells the helper how to drive the fans for the rest of this session.
+    func setFanPolicy(_ policy: FanPolicy) async throws
+    func coolingStatus() async throws -> CoolingStatus
 }
 
 /// Reads power, battery and thermal state and reports changes (including wake from sleep).

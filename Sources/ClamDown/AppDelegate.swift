@@ -12,6 +12,8 @@ private struct UnsignedHelper: HelperControlling {
     func setLowPowerOnBattery(_ on: Bool) async throws { throw HelperClientError.unsigned }
     func heartbeat() async throws -> Bool { throw HelperClientError.unsigned }
     func isEnabled() async throws -> Bool { throw HelperClientError.unsigned }
+    func setFanPolicy(_ policy: FanPolicy) async throws { throw HelperClientError.unsigned }
+    func coolingStatus() async throws -> CoolingStatus { throw HelperClientError.unsigned }
 }
 
 @MainActor

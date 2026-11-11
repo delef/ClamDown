@@ -1,5 +1,6 @@
 import SwiftUI
 import ClamDownAppKit
+import ClamDownShared
 
 /// SwiftUI has its own `Settings` scene type, so name ours explicitly.
 typealias AppSettings = ClamDownAppKit.Settings
@@ -172,6 +173,104 @@ struct ProtectionPage: View {
     }
 }
 
+// MARK: - Cooling
+
+struct CoolingPage: View {
+    @ObservedObject var controller: ClamDownController
+    @State private var status: CoolingStatus?
+    @State private var statusLoaded = false
+
+    var body: some View {
+        SettingsPage(title: "Cooling") {
+            SettingsSection(title: "Fans", icon: "fan") {
+                SettingRow(icon: "fan", title: "Fan Control",
+                           help: "Applies only while ClamDown is on. ClamDown hands the fans back to macOS when it switches off, quits or crashes.") {
+                    Picker("", selection: controller.binding(\.fanMode)) {
+                        ForEach(FanMode.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 170)
+                }
+                if controller.settings.fanMode == .curve {
+                    SettingDetail {
+                        VStack(alignment: .leading, spacing: 6) {
+                            temperatureSlider("Speed up from", \.fanStartTemperature, range: FanPolicy.startRange)
+                            temperatureSlider("Full speed at", \.fanFullSpeedTemperature, range: FanPolicy.fullSpeedRange)
+                            Text("Fans stay at their lowest speed up to the first point and reach full speed at the second, following the average CPU temperature.")
+                                .font(.caption)
+                        }
+                    }
+                }
+                RowDivider()
+                SettingRow(icon: "laptopcomputer", title: "Only With Lid Closed",
+                           help: "Leaves the fans to macOS while the lid is open, so they stay quiet while you work at the Mac.") {
+                    StatusToggle(isOn: controller.binding(\.fansOnlyWhenLidClosed))
+                }
+            }
+            SettingsSection(title: "Now", icon: "gauge.with.dots.needle.33percent") {
+                SettingRow(icon: "cpu", title: "CPU Temperature") {
+                    Text(status?.cpuTemperature.map { "\(Int($0.rounded())) °C" } ?? "—").monospacedDigit()
+                }
+                ForEach(Array((status?.fans ?? []).enumerated()), id: \.offset) { index, fan in
+                    RowDivider()
+                    SettingRow(icon: "fan", title: "Fan \(index + 1)") {
+                        Text("\(Int(fan.rpm)) rpm").monospacedDigit()
+                    }
+                }
+                RowDivider()
+                SettingRow(icon: "hand.raised", title: "Controlled By") {
+                    Text(status?.isControlling == true ? "ClamDown" : "macOS")
+                }
+                if let problem = statusProblem {
+                    SettingDetail { Text(problem).foregroundStyle(.orange) }
+                }
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                status = await controller.coolingStatus()
+                statusLoaded = true
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    private var statusProblem: String? {
+        if let problem = status?.problem { return problem }
+        if statusLoaded, status == nil { return "Readings appear once the helper is installed. Turn ClamDown on once to set it up." }
+        return nil
+    }
+
+    private func temperatureSlider(_ title: String, _ keyPath: WritableKeyPath<AppSettings, Int>, range: ClosedRange<Int>) -> some View {
+        HStack {
+            Text(title).frame(width: 110, alignment: .leading)
+            Slider(
+                value: Binding(
+                    get: { Double(controller.settings[keyPath: keyPath]) },
+                    set: { value in
+                        var updated = controller.settings
+                        updated[keyPath: keyPath] = Int(value.rounded())
+                        Task { await controller.updateSettings(updated) }
+                    }
+                ),
+                in: Double(range.lowerBound)...Double(range.upperBound),
+                step: 1
+            )
+            Text("\(controller.settings[keyPath: keyPath]) °C")
+                .monospacedDigit()
+                .frame(width: 52, alignment: .trailing)
+        }
+    }
+
+    private static func label(for mode: FanMode) -> String {
+        switch mode {
+        case .system: "macOS (no change)"
+        case .curve: "Temperature Curve"
+        case .fullSpeed: "Full Speed"
+        }
+    }
+}
+
 // MARK: - Appearance
 
 struct AppearancePage: View {
@@ -238,7 +337,7 @@ struct HelperPage: View {
         SettingsPage(title: "Helper") {
             SettingsSection(title: "Helper Application", icon: "gearshape.2") {
                 SettingRow(icon: "circle.fill", title: "Status",
-                           help: "ClamDown needs a small background helper with administrator rights to change the sleep setting. It does nothing else.") {
+                           help: "ClamDown needs a small background helper with administrator rights to change the sleep setting and drive the fans. It does nothing else.") {
                     Text(statusText).foregroundStyle(statusColor)
                 }
                 if let notice = controller.notice {

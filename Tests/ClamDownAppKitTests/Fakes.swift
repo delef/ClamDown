@@ -1,3 +1,4 @@
+import ClamDownShared
 import Foundation
 @testable import ClamDownAppKit
 
@@ -19,6 +20,10 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         var disableError: Error?
         var lowPowerError: Error?
         var heartbeatResult: Result<Bool, Error> = .success(true)
+        var fanPolicyCalls: [FanPolicy] = []
+        var fanPolicyError: Error?
+        var cooling: Result<CoolingStatus, Error> = .success(
+            CoolingStatus(cpuTemperature: 70, fans: [], isControlling: false, problem: nil))
     }
 
     private let lock = NSLock()
@@ -30,6 +35,7 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
     var lowPowerCalls: [Bool] { with { $0.lowPowerCalls } }
     var disableCount: Int { with { $0.disableCount } }
     var heartbeatCount: Int { with { $0.heartbeatCount } }
+    var fanPolicyCalls: [FanPolicy] { with { $0.fanPolicyCalls } }
 
     func enable(lowPowerOnBattery: Bool) async throws {
         try with { state in
@@ -62,6 +68,15 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
     }
 
     func isEnabled() async throws -> Bool { with { $0.enabled } }
+
+    func setFanPolicy(_ policy: FanPolicy) async throws {
+        try with { state in
+            state.fanPolicyCalls.append(policy)
+            if let error = state.fanPolicyError { throw error }
+        }
+    }
+
+    func coolingStatus() async throws -> CoolingStatus { try with { try $0.cooling.get() } }
 }
 
 /// Answers `availability()` from a script, repeating the last entry once the script runs out.

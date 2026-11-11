@@ -54,6 +54,21 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
         try await sendForFlag { proxy, reply in proxy.status(reply: reply) }
     }
 
+    public func setFanPolicy(_ policy: FanPolicy) async throws {
+        let data = try JSONEncoder().encode(policy)
+        try await sendForError { proxy, reply in proxy.setFanPolicy(data, reply: reply) }
+    }
+
+    public func coolingStatus() async throws -> CoolingStatus {
+        let data: Data? = try await send { proxy, reply in proxy.coolingStatus(reply: reply) }
+        guard let data else { throw HelperClientError.helper("The helper could not read the sensors.") }
+        do {
+            return try JSONDecoder().decode(CoolingStatus.self, from: data)
+        } catch {
+            throw HelperClientError.helper("The helper sent an unreadable sensor report.")
+        }
+    }
+
     // MARK: - Plumbing
 
     private func sendForError(

@@ -5,6 +5,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "General"
     case sleep = "Sleep"
     case protection = "Protection"
+    case cooling = "Cooling"
     case appearance = "Appearance"
     case helper = "Helper"
 
@@ -15,6 +16,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .sleep: "moon.zzz"
         case .protection: "shield.lefthalf.filled"
+        case .cooling: "fan"
         case .appearance: "paintbrush"
         case .helper: "wrench.and.screwdriver"
         }
@@ -96,6 +98,7 @@ struct SettingsRootView: View {
         case .general: GeneralPage(controller: controller)
         case .sleep: SleepPage(controller: controller)
         case .protection: ProtectionPage(controller: controller)
+        case .cooling: CoolingPage(controller: controller)
         case .appearance: AppearancePage(controller: controller)
         case .helper: HelperPage(controller: controller)
         }

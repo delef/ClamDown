@@ -10,4 +10,8 @@ import Foundation
     func heartbeat(reply: @escaping @Sendable (Bool) -> Void)
     /// Replies true while the mode is on.
     func status(reply: @escaping @Sendable (Bool) -> Void)
+    /// `policy` is a JSON-encoded `FanPolicy`. Works only while the mode is on; switching off drops it.
+    func setFanPolicy(_ policy: Data, reply: @escaping @Sendable (String?) -> Void)
+    /// Replies with a JSON-encoded `CoolingStatus`, or nil when it cannot be built.
+    func coolingStatus(reply: @escaping @Sendable (Data?) -> Void)
 }

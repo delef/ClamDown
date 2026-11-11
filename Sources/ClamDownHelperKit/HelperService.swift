@@ -33,6 +33,20 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
         Task { reply(await core.isEnabled) }
     }
 
+    public func setFanPolicy(_ policy: Data, reply: @escaping @Sendable (String?) -> Void) {
+        let core = core
+        Task {
+            reply(await Self.errorText {
+                try await core.setFanPolicy(JSONDecoder().decode(FanPolicy.self, from: policy))
+            })
+        }
+    }
+
+    public func coolingStatus(reply: @escaping @Sendable (Data?) -> Void) {
+        let core = core
+        Task { reply(try? JSONEncoder().encode(await core.coolingStatus())) }
+    }
+
     private static func errorText(_ body: @Sendable () async throws -> Void) async -> String? {
         do {
             try await body()

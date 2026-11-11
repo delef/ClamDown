@@ -1,5 +1,6 @@
 import Foundation
 @testable import ClamDownHelperKit
+import ClamDownShared
 
 struct FakeFailure: Error, Equatable {}
 
@@ -70,4 +71,50 @@ final class FakeStore: SavedStateStoring, @unchecked Sendable {
 
     func save(_ newState: SavedState) throws { lock.withLock { state = newState } }
     func clear() throws { lock.withLock { state = nil } }
+}
+
+/// Fans and sensors the test sets by hand. Records every target it was given.
+final class FakeFans: FanHardware, @unchecked Sendable {
+    private let lock = NSLock()
+    private var reading: HardwareReading
+    private var setCalls: [[Double]] = []
+    private var releases = 0
+    private var setFails = false
+    private var releaseFails = false
+    private var held = false
+    let supportsControl: Bool
+
+    init(temperature: Double? = 70, lidClosed: Bool? = true, supportsControl: Bool = true,
+         fans: [FanReading] = [FanReading(rpm: 1300, minimum: 1000, maximum: 5000)]) {
+        reading = HardwareReading(cpuTemperature: temperature, fans: fans, lidClosed: lidClosed)
+        self.supportsControl = supportsControl
+    }
+
+    var targets: [[Double]] { lock.withLock { setCalls } }
+    var releaseCount: Int { lock.withLock { releases } }
+    /// True while the fake fans are under manual control.
+    var isHeld: Bool { lock.withLock { held } }
+
+    func set(temperature: Double?) { lock.withLock { reading.cpuTemperature = temperature } }
+    func set(lidClosed: Bool?) { lock.withLock { reading.lidClosed = lidClosed } }
+    func failSet(_ fails: Bool = true) { lock.withLock { setFails = fails } }
+    func failRelease(_ fails: Bool = true) { lock.withLock { releaseFails = fails } }
+
+    func read() throws -> HardwareReading { lock.withLock { reading } }
+
+    func setTargets(_ rpms: [Double]) throws {
+        try lock.withLock {
+            if setFails { throw FakeFailure() }
+            held = true
+            setCalls.append(rpms)
+        }
+    }
+
+    func releaseFans() throws {
+        try lock.withLock {
+            releases += 1
+            if releaseFails { throw FakeFailure() }
+            held = false
+        }
+    }
 }

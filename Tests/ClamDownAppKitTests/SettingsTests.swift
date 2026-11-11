@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import ClamDownAppKit
+import ClamDownShared
 
 @Suite struct SettingsTests {
     private func makeDefaults() -> UserDefaults {
@@ -93,5 +94,35 @@ import Testing
     @Test func iconSymbols() {
         #expect(MenuBarIconStyle.cup.offSymbol == "cup.and.saucer" && MenuBarIconStyle.cup.onSymbol == "cup.and.saucer.fill")
         #expect(MenuBarIconStyle.bolt.onSymbol == "bolt.fill")
+    }
+}
+
+@Suite struct FanSettingsTests {
+    @Test func defaultsDriveTheFansOnlyWithTheLidClosed() {
+        let s = Settings()
+        #expect(s.fanMode == .curve && s.fansOnlyWhenLidClosed)
+        #expect(s.fanPolicy == FanPolicy(mode: .curve, startTemperature: 60, fullSpeedTemperature: 85, onlyWhenLidClosed: true))
+    }
+
+    @Test func clampingKeepsTheCurveValid() {
+        var s = Settings()
+        s.fanStartTemperature = 88
+        s.fanFullSpeedTemperature = 70
+        let clamped = s.clamped()
+        #expect(clamped.fanStartTemperature == 88 && clamped.fanFullSpeedTemperature == 93)
+    }
+
+    @Test func settingsFromBeforeFanControlGetTheDefaults() throws {
+        let old = Data(#"{"batteryCutoffPercent":20,"thermalCutoff":"fair"}"#.utf8)
+        let s = try JSONDecoder().decode(Settings.self, from: old)
+        #expect(s.batteryCutoffPercent == 20 && s.fanMode == .curve && s.fanFullSpeedTemperature == 85)
+    }
+
+    @Test func fanSettingsRoundTrip() throws {
+        var s = Settings()
+        s.fanMode = .fullSpeed
+        s.fansOnlyWhenLidClosed = false
+        let decoded = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
+        #expect(decoded == s)
     }
 }
