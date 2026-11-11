@@ -5,7 +5,7 @@
     <key>Label</key>
     <string>@BUNDLE_ID@.helper</string>
     <key>BundleProgram</key>
-    <string>Contents/MacOS/WakeupHelper</string>
+    <string>Contents/MacOS/ClamDownHelper</string>
     <key>AssociatedBundleIdentifiers</key>
     <array>
         <string>@BUNDLE_ID@</string>

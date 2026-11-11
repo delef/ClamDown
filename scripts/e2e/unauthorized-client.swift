@@ -1,6 +1,6 @@
 import Foundation
 
-// Connects to the Wakeup helper's Mach service from a process that is not the signed Wakeup app
+// Connects to the ClamDown helper's Mach service from a process that is not the signed ClamDown app
 // and asks for its status. A correctly locked-down helper refuses: expect "REFUSED", never "ACCEPTED".
 // Only meaningful while the helper is registered and running; with no helper you get REFUSED for the wrong reason.
 //

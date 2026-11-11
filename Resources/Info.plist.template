@@ -5,11 +5,11 @@
     <key>CFBundleIdentifier</key>
     <string>@BUNDLE_ID@</string>
     <key>CFBundleName</key>
-    <string>Wakeup</string>
+    <string>ClamDown</string>
     <key>CFBundleDisplayName</key>
-    <string>Wakeup</string>
+    <string>ClamDown</string>
     <key>CFBundleExecutable</key>
-    <string>Wakeup</string>
+    <string>ClamDown</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -25,6 +25,6 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © Wakeup contributors. Licensed under the Apache License, Version 2.0.</string>
+    <string>Copyright © ClamDown contributors. Licensed under the Apache License, Version 2.0.</string>
 </dict>
 </plist>

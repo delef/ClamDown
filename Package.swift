@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "Wakeup",
+    name: "ClamDown",
     platforms: [.macOS(.v13)],
     targets: [
-        .target(name: "WakeupShared"),
-        .testTarget(name: "WakeupSharedTests", dependencies: ["WakeupShared"]),
-        .target(name: "WakeupAppKit", dependencies: ["WakeupShared"]),
-        .testTarget(name: "WakeupAppKitTests", dependencies: ["WakeupAppKit"]),
-        .target(name: "WakeupHelperKit", dependencies: ["WakeupShared"]),
-        .testTarget(name: "WakeupHelperKitTests", dependencies: ["WakeupHelperKit"]),
-        .executableTarget(name: "WakeupHelper", dependencies: ["WakeupHelperKit", "WakeupShared"]),
-        .executableTarget(name: "Wakeup", dependencies: ["WakeupAppKit", "WakeupShared"]),
+        .target(name: "ClamDownShared"),
+        .testTarget(name: "ClamDownSharedTests", dependencies: ["ClamDownShared"]),
+        .target(name: "ClamDownAppKit", dependencies: ["ClamDownShared"]),
+        .testTarget(name: "ClamDownAppKitTests", dependencies: ["ClamDownAppKit"]),
+        .target(name: "ClamDownHelperKit", dependencies: ["ClamDownShared"]),
+        .testTarget(name: "ClamDownHelperKitTests", dependencies: ["ClamDownHelperKit"]),
+        .executableTarget(name: "ClamDownHelper", dependencies: ["ClamDownHelperKit", "ClamDownShared"]),
+        .executableTarget(name: "ClamDown", dependencies: ["ClamDownAppKit", "ClamDownShared"]),
     ]
 )

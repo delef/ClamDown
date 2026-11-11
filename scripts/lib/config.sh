@@ -15,7 +15,7 @@ require_setting() {
 }
 
 # load_signing_config debug|release|notarize
-# Sets WAKEUP_BUNDLE_ID, and SIGN_IDENTITY (debug, release) or WAKEUP_NOTARY_PROFILE (notarize).
+# Sets CLAMDOWN_BUNDLE_ID, and SIGN_IDENTITY (debug, release) or CLAMDOWN_NOTARY_PROFILE (notarize).
 load_signing_config() {
   local mode="$1"
   if [ ! -f "$CONFIG_FILE" ]; then
@@ -23,28 +23,28 @@ load_signing_config() {
     echo "Copy Config/Signing.xcconfig.example to Config/Signing.local.xcconfig and fill in your values." >&2
     return 1
   fi
-  WAKEUP_BUNDLE_ID=$(xcconfig_value WAKEUP_BUNDLE_ID)
-  require_setting WAKEUP_BUNDLE_ID || return 1
-  if ! [[ "$WAKEUP_BUNDLE_ID" =~ ^[A-Za-z0-9.-]+$ ]]; then
-    echo "error: WAKEUP_BUNDLE_ID may contain only letters, digits, dots and dashes" >&2
+  CLAMDOWN_BUNDLE_ID=$(xcconfig_value CLAMDOWN_BUNDLE_ID)
+  require_setting CLAMDOWN_BUNDLE_ID || return 1
+  if ! [[ "$CLAMDOWN_BUNDLE_ID" =~ ^[A-Za-z0-9.-]+$ ]]; then
+    echo "error: CLAMDOWN_BUNDLE_ID may contain only letters, digits, dots and dashes" >&2
     return 1
   fi
   case "$mode" in
     debug)
-      SIGN_IDENTITY=$(xcconfig_value WAKEUP_DEV_SIGN_IDENTITY)
+      SIGN_IDENTITY=$(xcconfig_value CLAMDOWN_DEV_SIGN_IDENTITY)
       require_setting SIGN_IDENTITY || return 1
       ;;
     release|notarize)
-      if [[ "$WAKEUP_BUNDLE_ID" == com.example.* ]]; then
-        echo "error: set a real WAKEUP_BUNDLE_ID in $CONFIG_FILE before a release build" >&2
+      if [[ "$CLAMDOWN_BUNDLE_ID" == com.example.* ]]; then
+        echo "error: set a real CLAMDOWN_BUNDLE_ID in $CONFIG_FILE before a release build" >&2
         return 1
       fi
       if [ "$mode" = release ]; then
-        SIGN_IDENTITY=$(xcconfig_value WAKEUP_SIGN_IDENTITY)
+        SIGN_IDENTITY=$(xcconfig_value CLAMDOWN_SIGN_IDENTITY)
         require_setting SIGN_IDENTITY || return 1
       else
-        WAKEUP_NOTARY_PROFILE=$(xcconfig_value WAKEUP_NOTARY_PROFILE)
-        require_setting WAKEUP_NOTARY_PROFILE || return 1
+        CLAMDOWN_NOTARY_PROFILE=$(xcconfig_value CLAMDOWN_NOTARY_PROFILE)
+        require_setting CLAMDOWN_NOTARY_PROFILE || return 1
       fi
       ;;
     *)

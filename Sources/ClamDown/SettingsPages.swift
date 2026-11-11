@@ -1,0 +1,292 @@
+import SwiftUI
+import ClamDownAppKit
+
+/// SwiftUI has its own `Settings` scene type, so name ours explicitly.
+typealias AppSettings = ClamDownAppKit.Settings
+
+extension ClamDownController {
+    /// Edits one setting and sends the whole settings value back to the controller.
+    func binding<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { self.settings[keyPath: keyPath] },
+            set: { newValue in
+                var updated = self.settings
+                updated[keyPath: keyPath] = newValue
+                Task { await self.updateSettings(updated) }
+            }
+        )
+    }
+}
+
+// MARK: - General
+
+struct GeneralPage: View {
+    @ObservedObject var controller: ClamDownController
+    @State private var launchAtLoginError: String?
+
+    var body: some View {
+        SettingsPage(title: "General") {
+            SettingsSection(title: "Startup", icon: "power") {
+                SettingRow(icon: "arrow.right.circle", title: "Launch at Login",
+                           help: "Opens ClamDown in the menu bar when you log in.") {
+                    StatusToggle(isOn: launchAtLoginBinding)
+                }
+                if let launchAtLoginError {
+                    SettingDetail { Text(launchAtLoginError).foregroundStyle(.red) }
+                }
+                RowDivider()
+                SettingRow(icon: "dock.rectangle", title: "Show Dock Icon",
+                           help: "Adds ClamDown to the Dock. Clicking it opens these settings.") {
+                    StatusToggle(isOn: controller.binding(\.showDockIcon))
+                }
+            }
+            SettingsSection(title: "Notifications", icon: "bell") {
+                SettingRow(icon: "bell.badge", title: "Notify When Switched Off",
+                           help: "Shows a notification when ClamDown switches itself off, for example at low battery. The menu always shows the reason.") {
+                    StatusToggle(isOn: controller.binding(\.notificationsEnabled))
+                }
+            }
+            SettingsSection(title: "Settings", icon: "arrow.counterclockwise") {
+                SettingRow(icon: "arrow.uturn.backward", title: "Reset All Settings",
+                           help: "Restores every setting to its default. Launch at Login stays as it is.") {
+                    Button("Reset") { Task { await controller.resetSettings() } }
+                }
+            }
+        }
+    }
+
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { controller.settings.launchAtLogin },
+            set: { wanted in
+                launchAtLoginError = nil
+                do {
+                    try LaunchAtLogin.apply(wanted)
+                } catch {
+                    launchAtLoginError = "Could not change Launch at Login: \(error.localizedDescription)"
+                }
+                var updated = controller.settings
+                updated.launchAtLogin = LaunchAtLogin.isEnabled
+                Task { await controller.updateSettings(updated) }
+            }
+        )
+    }
+}
+
+// MARK: - Sleep
+
+struct SleepPage: View {
+    @ObservedObject var controller: ClamDownController
+
+    var body: some View {
+        SettingsPage(title: "Sleep") {
+            SettingsSection(title: "Keep Awake", icon: "moon.zzz") {
+                SettingRow(icon: "timer", title: "Switch Off After",
+                           help: "Turns the mode off by itself after this time. \"Turn On For…\" in the menu overrides it for one session.") {
+                    Picker("", selection: controller.binding(\.autoOffTimer)) {
+                        ForEach(AutoOffTimer.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 130)
+                }
+                RowDivider()
+                SettingRow(icon: "powerplug", title: "Switch Off When Unplugged",
+                           help: "Lets the Mac sleep as soon as the power adapter is disconnected, and refuses to turn on without it.") {
+                    StatusToggle(isOn: controller.binding(\.turnOffWhenUnplugged))
+                }
+            }
+            SettingsSection(title: "Security", icon: "lock") {
+                SettingRow(icon: "lock.laptopcomputer", title: "Lock Screen When Closed",
+                           help: "Without this, a Mac kept awake with the lid closed opens without a password. ClamDown locks the screen the moment the lid closes while the mode is on.") {
+                    StatusToggle(isOn: controller.binding(\.lockScreenWhenLidClosed))
+                }
+            }
+            SettingsSection(title: "Power", icon: "bolt") {
+                SettingRow(icon: "battery.50", title: "Low Power Mode on Battery",
+                           help: "Switches on Low Power Mode while the Mac runs on battery with the mode on, and puts it back afterwards.") {
+                    StatusToggle(isOn: controller.binding(\.autoLowPowerOnBattery))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Protection
+
+struct ProtectionPage: View {
+    @ObservedObject var controller: ClamDownController
+
+    var body: some View {
+        SettingsPage(title: "Protection") {
+            SettingsSection(title: "Battery", icon: "battery.25") {
+                SettingRow(icon: "battery.25", title: "Switch Off at Low Battery",
+                           help: "Lets the Mac sleep when the battery falls to this level, so it does not run flat in a bag.") {
+                    StatusToggle(isOn: controller.binding(\.batteryCutoffEnabled))
+                }
+                if controller.settings.batteryCutoffEnabled {
+                    SettingDetail {
+                        HStack {
+                            Text("Level")
+                            Slider(
+                                value: Binding(
+                                    get: { Double(controller.settings.batteryCutoffPercent) },
+                                    set: { value in
+                                        var updated = controller.settings
+                                        updated.batteryCutoffPercent = Int(value.rounded())
+                                        Task { await controller.updateSettings(updated) }
+                                    }
+                                ),
+                                in: Double(AppSettings.batteryCutoffRange.lowerBound)...Double(AppSettings.batteryCutoffRange.upperBound),
+                                step: 1
+                            )
+                            Text("\(controller.settings.batteryCutoffPercent)%")
+                                .monospacedDigit()
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+            SettingsSection(title: "Heat Protection", icon: "thermometer.medium") {
+                SettingRow(icon: "thermometer.high", title: "Switch Off When Hot",
+                           help: "Lets the Mac sleep when macOS reports this thermal level. A Mac in a closed bag cannot shed heat.") {
+                    Picker("", selection: controller.binding(\.thermalCutoff)) {
+                        ForEach(ThermalCutoff.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 150)
+                }
+                SettingDetail {
+                    Text("Now: \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized)")
+                }
+            }
+        }
+    }
+
+    private static func label(for cutoff: ThermalCutoff) -> String {
+        switch cutoff {
+        case .fair: "Fair (earliest)"
+        case .serious: "Serious"
+        case .critical: "Critical (latest)"
+        case .never: "Never"
+        }
+    }
+}
+
+// MARK: - Appearance
+
+struct AppearancePage: View {
+    @ObservedObject var controller: ClamDownController
+
+    var body: some View {
+        SettingsPage(title: "Appearance") {
+            SettingsSection(title: "Menu Bar", icon: "menubar.rectangle") {
+                SettingRow(icon: "star", title: "Icon Style",
+                           help: "The icon is filled while the mode is on.") {
+                    HStack(spacing: 8) {
+                        ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                            IconTile(style: style, isSelected: controller.settings.menuBarIcon == style) {
+                                var updated = controller.settings
+                                updated.menuBarIcon = style
+                                Task { await controller.updateSettings(updated) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct IconTile: View {
+    let style: MenuBarIconStyle
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: style.offSymbol)
+                    Image(systemName: style.onSymbol)
+                }
+                .font(.title3)
+                Text(style.title).font(.caption)
+            }
+            .frame(width: 70, height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(style.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+// MARK: - Helper
+
+struct HelperPage: View {
+    @ObservedObject var controller: ClamDownController
+    @State private var availability: HelperAvailability?
+
+    var body: some View {
+        SettingsPage(title: "Helper") {
+            SettingsSection(title: "Helper Application", icon: "gearshape.2") {
+                SettingRow(icon: "circle.fill", title: "Status",
+                           help: "ClamDown needs a small background helper with administrator rights to change the sleep setting. It does nothing else.") {
+                    Text(statusText).foregroundStyle(statusColor)
+                }
+                if let notice = controller.notice {
+                    SettingDetail { Text(notice) }
+                }
+                RowDivider()
+                SettingRow(icon: "arrow.triangle.2.circlepath", title: "Reinstall Helper",
+                           help: "Installs the helper from this build again. Use it when the helper is stuck.") {
+                    Button("Reinstall") { run { await controller.reinstallHelper() } }
+                }
+                RowDivider()
+                SettingRow(icon: "person.badge.key", title: "Approve in System Settings",
+                           help: "Opens Login Items & Extensions, where macOS asks you to allow the helper.") {
+                    Button("Open") { controller.openHelperApproval() }
+                }
+                RowDivider()
+                SettingRow(icon: "trash", title: "Remove Helper",
+                           help: "Removes the helper. Turn On sets it up again.") {
+                    Button("Remove", role: .destructive) { run { await controller.removeHelper() } }
+                }
+            }
+        }
+        .onAppear { availability = controller.helperAvailability }
+    }
+
+    private func run(_ work: @escaping () async -> Void) {
+        Task {
+            await work()
+            availability = controller.helperAvailability
+        }
+    }
+
+    private var statusText: String {
+        switch availability {
+        case .ready: "Running"
+        case .requiresApproval: "Needs approval"
+        case .notRegistered: "Not installed"
+        case .unavailable(let message): message
+        case nil: "Checking…"
+        }
+    }
+
+    private var statusColor: Color {
+        switch availability {
+        case .ready: .green
+        case .requiresApproval: .orange
+        case .notRegistered, .unavailable: .red
+        case nil: .secondary
+        }
+    }
+}

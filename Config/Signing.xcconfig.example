@@ -2,15 +2,15 @@
 // The build scripts read plain "KEY = value" lines.
 
 // Reverse-DNS identifier of the app. The helper becomes "<id>.helper".
-// Use your own; releases refuse the com.example.* placeholder.
-WAKEUP_BUNDLE_ID = com.example.wakeup
+// Releases refuse the com.example.* placeholder.
+CLAMDOWN_BUNDLE_ID = app.clamdown
 
 // Used by `scripts/build-app.sh release`.
 // If two identities share a name, use the SHA-1 hash from `security find-identity -v -p codesigning`.
-WAKEUP_SIGN_IDENTITY = Developer ID Application: Your Name (TEAMID)
+CLAMDOWN_SIGN_IDENTITY = Developer ID Application: Your Name (TEAMID)
 
 // Used by `scripts/build-app.sh debug`.
-WAKEUP_DEV_SIGN_IDENTITY = Apple Development: Your Name (TEAMID)
+CLAMDOWN_DEV_SIGN_IDENTITY = Apple Development: Your Name (TEAMID)
 
 // Keychain profile created with `xcrun notarytool store-credentials`.
-WAKEUP_NOTARY_PROFILE = wakeup-notary
+CLAMDOWN_NOTARY_PROFILE = clamdown-notary

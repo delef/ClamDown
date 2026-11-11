@@ -1,10 +1,10 @@
 #!/bin/bash
-# Checks that build/Wakeup.app is well-formed and signed so the helper can verify the app.
+# Checks that build/ClamDown.app is well-formed and signed so the helper can verify the app.
 # Exits 0 only when every check passes; prints one line per failed check.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-app="$ROOT/build/Wakeup.app"
+app="$ROOT/build/ClamDown.app"
 failed=0
 
 fail() {
@@ -18,7 +18,7 @@ if [ ! -d "$app" ]; then
 fi
 
 info="$app/Contents/Info.plist"
-helper="$app/Contents/MacOS/WakeupHelper"
+helper="$app/Contents/MacOS/ClamDownHelper"
 
 plutil -lint "$info" >/dev/null || fail "Info.plist is not a valid plist"
 id=$(plutil -extract CFBundleIdentifier raw -o - "$info" 2>/dev/null) || { fail "Info.plist has no CFBundleIdentifier"; id=""; }
@@ -33,8 +33,8 @@ else
   fail "missing $daemon"
 fi
 
-[ -x "$helper" ] || fail "WakeupHelper is missing or not executable"
-[ -x "$app/Contents/MacOS/Wakeup" ] || fail "Wakeup is missing or not executable"
+[ -x "$helper" ] || fail "ClamDownHelper is missing or not executable"
+[ -x "$app/Contents/MacOS/ClamDown" ] || fail "ClamDown is missing or not executable"
 
 codesign --verify --strict --deep "$app" 2>/dev/null || fail "codesign --verify failed for the app"
 
