@@ -28,9 +28,13 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 - **Knows when to stop.** Switches itself off and lets the Mac sleep before a low battery or high heat becomes a problem, or when your timer ends.
 - **Can't get stuck on.** A root helper with a watchdog puts sleep, Low Power Mode and the fans back if the app quits, crashes or stops responding.
 
-### Why not Caffeine or `caffeinate`?
+### Why not Caffeine, `caffeinate` or a similar tool?
 
-Keep-awake tools hold a power assertion. macOS ignores it the moment the lid closes, unless an external display and power are connected. ClamDown turns on the setting that does survive a closed lid, `pmset disablesleep`, and wraps it in the safety rules above.
+- **Keep-awake apps and `caffeinate`** hold a power assertion. macOS ignores it the moment the lid closes, unless an external display and power are connected.
+- **A dummy display plug or an external monitor** keeps the Mac in clamshell mode, but only while it is plugged in, and with no battery, heat or fan safeguards.
+- **`sudo pmset disablesleep 1` by hand** does survive a closed lid, but nothing watches the battery or the temperature, the fans stay near idle, the screen stays unlocked, and it stays on until you remember to undo it.
+
+ClamDown uses that same `pmset disablesleep` switch and adds the safety rules above, so you can close the lid and stop thinking about it.
 
 ## What it does
 
