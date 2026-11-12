@@ -354,8 +354,45 @@
         <div class="menu__text">
           <h2>One switch in the menu bar</h2>
           <p>A filled icon means on, an outline means off. Turn On For starts a session that ends by itself after 30 minutes to 8 hours.</p>
-          <p>Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. Cooling shows the CPU temperature, each fan’s speed and who controls the fans right now.</p>
+          <p>Everything else waits in Settings, one short page per topic.</p>
         </div>
+      </div>
+    </section>
+
+    <section class="screens" id="settings">
+      <div class="wrap screens__grid">
+        <div class="screens__text">
+          <h2>Every rule is a setting you can see</h2>
+          <div class="screens__tabs" role="tablist" aria-label="Settings pages" aria-orientation="vertical">
+            <button type="button" role="tab" id="tab-cooling" aria-selected="true" aria-controls="screens-panel" data-shot="cooling"
+                    data-alt="ClamDown Cooling settings: the fan curve from 60 to 85 °C, the CPU temperature, both fan speeds, and ClamDown in control of the fans.">
+              <strong>Cooling</strong>
+              <span>The fan curve, the CPU temperature, each fan’s speed and who drives the fans right now.</span>
+            </button>
+            <button type="button" role="tab" id="tab-protection" aria-selected="false" aria-controls="screens-panel" data-shot="protection" tabindex="-1"
+                    data-alt="ClamDown Protection settings: switch off at 10% battery, and switch off when the thermal state reaches Serious.">
+              <strong>Protection</strong>
+              <span>Battery and heat cut-offs that let the Mac sleep before either becomes a problem.</span>
+            </button>
+            <button type="button" role="tab" id="tab-sleep" aria-selected="false" aria-controls="screens-panel" data-shot="sleep" tabindex="-1"
+                    data-alt="ClamDown Sleep settings: the switch-off timer, switch off when unplugged, lock screen when closed, and Low Power Mode on battery.">
+              <strong>Sleep</strong>
+              <span>A timer, an unplug rule, a screen lock when the lid closes and Low Power Mode on battery.</span>
+            </button>
+            <button type="button" role="tab" id="tab-general" aria-selected="false" aria-controls="screens-panel" data-shot="general" tabindex="-1"
+                    data-alt="ClamDown General settings: launch at login, Dock icon, notifications and reset.">
+              <strong>General</strong>
+              <span>Launch at login, the Dock icon and notifications when ClamDown switches itself off.</span>
+            </button>
+          </div>
+        </div>
+        <figure class="screens__shot" id="screens-panel" role="tabpanel" aria-labelledby="tab-cooling">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="assets/screens/cooling-dark.webp" data-shot-dark>
+            <img src="assets/screens/cooling-light.webp" width="1200" height="940" loading="lazy" data-shot-img
+                 alt="ClamDown Cooling settings: the fan curve from 60 to 85 °C, the CPU temperature, both fan speeds, and ClamDown in control of the fans.">
+          </picture>
+        </figure>
       </div>
     </section>
 

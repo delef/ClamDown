@@ -28,6 +28,27 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 - **Knows when to stop.** Switches itself off and lets the Mac sleep before a low battery or high heat becomes a problem, or when your timer ends.
 - **Can't get stuck on.** A root helper with a watchdog puts sleep, Low Power Mode and the fans back if the app quits, crashes or stops responding.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/cooling-dark.png">
+    <img src="docs/screenshots/cooling-light.png" width="49%" alt="Cooling settings: fan curve, CPU temperature and fan speeds">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/protection-dark.png">
+    <img src="docs/screenshots/protection-light.png" width="49%" alt="Protection settings: battery and heat cut-offs">
+  </picture>
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/sleep-dark.png">
+    <img src="docs/screenshots/sleep-light.png" width="49%" alt="Sleep settings: timer, lock screen when closed, Low Power Mode">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/general-dark.png">
+    <img src="docs/screenshots/general-light.png" width="49%" alt="General settings">
+  </picture>
+</p>
+
 ### Why not Caffeine, `caffeinate` or a similar tool?
 
 - **Keep-awake apps and `caffeinate`** hold a power assertion. macOS ignores it the moment the lid closes, unless an external display and power are connected.

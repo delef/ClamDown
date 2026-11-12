@@ -459,6 +459,35 @@ a { color: inherit; }
 @media (max-width: 860px) { .menu__grid { grid-template-columns: minmax(0, 1fr); } .menu__mock { order: 2; } }
 
 /* Install steps: a real sequence, so it is numbered */
+/* ---------- Settings screenshots ---------- */
+.screens { padding: clamp(64px, 8vw, 112px) 0; background: var(--pearl); border-top: 1px solid var(--line); }
+.screens__grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
+.screens__text h2 { margin-bottom: 28px; }
+.screens__tabs { display: grid; gap: 4px; }
+.screens__tabs [role="tab"] {
+  display: grid; gap: 4px; align-content: start;
+  padding: 14px 18px 14px 20px;
+  border: 0; border-radius: var(--radius-m);
+  background: transparent; color: var(--ink-2);
+  font: inherit; text-align: left; cursor: pointer;
+  box-shadow: 3px 0 0 var(--line) inset;
+  transition: background-color .2s ease, box-shadow .2s ease;
+}
+.screens__tabs [role="tab"] strong { color: var(--ink); font-size: 1.08rem; font-weight: 650; }
+.screens__tabs [role="tab"] span { font-size: 0.95rem; line-height: 1.45; }
+.screens__tabs [role="tab"]:hover { background: var(--paper-2); }
+.screens__tabs [role="tab"][aria-selected="true"] { background: var(--paper-2); box-shadow: 3px 0 0 var(--mint) inset; }
+.screens__shot { margin: 0; }
+.screens__shot img { display: block; width: 100%; height: auto; }
+@media (max-width: 960px) {
+  .screens__grid { grid-template-columns: minmax(0, 1fr); }
+  .screens__tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .screens__tabs [role="tab"] span { display: none; }
+  .screens__tabs [role="tab"] { padding: 12px 14px; }
+}
+
 .install { padding: clamp(64px, 8vw, 112px) 0; border-top: 1px solid var(--line); }
 .steps { list-style: none; counter-reset: step; margin: clamp(32px, 4vw, 52px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(24px, 4vw, 56px); }
 .steps li { counter-increment: step; color: var(--ink-2); }

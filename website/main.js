@@ -348,8 +348,41 @@
     io.observe(box);
   }
 
+  /* ---------- Settings screenshots: one tab per page ---------- */
+  function initScreens() {
+    const tabs = $$(".screens__tabs [role=tab]");
+    const img = $("[data-shot-img]");
+    const dark = $("[data-shot-dark]");
+    const panel = $("#screens-panel");
+    if (!tabs.length || !img || !dark || !panel) return;
+    const select = (tab, focus) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+      });
+      const name = tab.dataset.shot;
+      dark.srcset = `assets/screens/${name}-dark.webp`;
+      img.src = `assets/screens/${name}-light.webp`;
+      img.alt = tab.dataset.alt;
+      panel.setAttribute("aria-labelledby", tab.id);
+      if (focus) tab.focus();
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener("click", () => select(tab, false));
+      tab.addEventListener("keydown", (e) => {
+        const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+        const jump = { Home: 0, End: tabs.length - 1 }[e.key];
+        if (step === undefined && jump === undefined) return;
+        e.preventDefault();
+        select(tabs[jump ?? (i + step + tabs.length) % tabs.length], true);
+      });
+    });
+  }
+
   loadRelease();
   initEmbeds();
   initDemo();
   initChart();
+  initScreens();
 })();
