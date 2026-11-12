@@ -10,17 +10,17 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
 
     public func enable(lowPowerOnBattery: Bool, reply: @escaping @Sendable (String?) -> Void) {
         let core = core
-        Task { reply(await Self.errorText { try await core.enable(lowPowerOnBattery: lowPowerOnBattery) }) }
+        Self.run(reply) { try await core.enable(lowPowerOnBattery: lowPowerOnBattery) }
     }
 
     public func disable(reply: @escaping @Sendable (String?) -> Void) {
         let core = core
-        Task { reply(await Self.errorText { try await core.disable() }) }
+        Self.run(reply) { try await core.disable() }
     }
 
     public func setLowPowerOnBattery(_ on: Bool, reply: @escaping @Sendable (String?) -> Void) {
         let core = core
-        Task { reply(await Self.errorText { try await core.setLowPowerOnBattery(on) }) }
+        Self.run(reply) { try await core.setLowPowerOnBattery(on) }
     }
 
     public func heartbeat(reply: @escaping @Sendable (Bool) -> Void) {
@@ -35,11 +35,7 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
 
     public func setFanPolicy(_ policy: Data, reply: @escaping @Sendable (String?) -> Void) {
         let core = core
-        Task {
-            reply(await Self.errorText {
-                try await core.setFanPolicy(JSONDecoder().decode(FanPolicy.self, from: policy))
-            })
-        }
+        Self.run(reply) { try await core.setFanPolicy(JSONDecoder().decode(FanPolicy.self, from: policy)) }
     }
 
     public func coolingStatus(reply: @escaping @Sendable (Data?) -> Void) {
@@ -47,12 +43,18 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
         Task { reply(try? JSONEncoder().encode(await core.coolingStatus())) }
     }
 
-    private static func errorText(_ body: @Sendable () async throws -> Void) async -> String? {
-        do {
-            try await body()
-            return nil
-        } catch {
-            return String(describing: error)
+    /// Runs `body` in a task and replies with nil on success or the error's description.
+    /// One flat task with no nested closure call: older compilers' region-based isolation checker
+    /// rejects `Task { reply(await helper { ... }) }`.
+    private static func run(_ reply: @escaping @Sendable (String?) -> Void,
+                            _ body: @escaping @Sendable () async throws -> Void) {
+        Task {
+            do {
+                try await body()
+                reply(nil)
+            } catch {
+                reply(String(describing: error))
+            }
         }
     }
 }
