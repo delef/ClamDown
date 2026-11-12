@@ -286,14 +286,15 @@ a { color: inherit; }
 .pain { padding: clamp(64px, 8vw, 112px) 0; border-top: 1px solid var(--line); }
 .pain__intro { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
 .pain__text { color: var(--ink-2); }
-.pain__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 3vw, 32px); margin-top: clamp(36px, 5vw, 64px); }
-.pain__pair[hidden] { display: none; }
-.pain__pair figure { margin: 0; }
-.pain__pair img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-l); box-shadow: 0 30px 60px -36px rgb(14 39 102 / .55); }
-.pain__pair figcaption { margin-top: 14px; color: var(--ink-2); font-size: 1rem; max-width: 40ch; }
-.pain__pair figcaption strong { color: var(--ink); font-weight: 650; }
+.pain__figure {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(20px, 4vw, 56px); align-items: center;
+  margin: clamp(36px, 5vw, 64px) 0 0;
+}
+.pain__figure img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-l); box-shadow: 0 30px 60px -36px rgb(14 39 102 / .55); }
+.pain__figure figcaption { color: var(--ink-2); font-size: clamp(1.05rem, 1.6vw, 1.3rem); max-width: 30ch; }
+.pain__figure figcaption strong { color: var(--ink); font-weight: 650; }
 @media (max-width: 860px) { .pain__intro { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 560px) { .pain__pair { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .pain__figure { grid-template-columns: minmax(0, 1fr); gap: 14px; } .pain__figure figcaption { font-size: 1rem; max-width: 40ch; } }
 
 /* Social posts about the half-open-laptop habit */
 .posts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2.4vw, 28px); align-items: start; margin-top: clamp(36px, 5vw, 64px); }
