@@ -21,7 +21,8 @@ private struct UnsignedHelper: HelperControlling {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller: ClamDownController
     private let notifier = UserNotificationNotifier()
-    private(set) lazy var settingsWindow = SettingsWindowController(controller: controller)
+    let updater = Updater()
+    private(set) lazy var settingsWindow = SettingsWindowController(controller: controller, updater: updater)
     private var settingsObserver: AnyCancellable?
 
     override init() {

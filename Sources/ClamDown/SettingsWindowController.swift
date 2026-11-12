@@ -6,10 +6,12 @@ import ClamDownAppKit
 @MainActor
 final class SettingsWindowController {
     private let controller: ClamDownController
+    private let updater: Updater
     private var window: NSWindow?
 
-    init(controller: ClamDownController) {
+    init(controller: ClamDownController, updater: Updater) {
         self.controller = controller
+        self.updater = updater
     }
 
     func show() {
@@ -20,7 +22,7 @@ final class SettingsWindowController {
     }
 
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsRootView(controller: controller)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsRootView(controller: controller).environmentObject(updater)))
         window.title = "ClamDown"
         window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true

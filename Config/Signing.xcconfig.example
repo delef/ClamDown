@@ -14,3 +14,7 @@ CLAMDOWN_DEV_SIGN_IDENTITY = Apple Development: Your Name (TEAMID)
 
 // Keychain profile created with `xcrun notarytool store-credentials`.
 CLAMDOWN_NOTARY_PROFILE = clamdown-notary
+
+// Sparkle EdDSA private key used by `scripts/make-appcast.sh` (base64 Ed25519 seed). Keep it out of the
+// repository and back it up: without it, installed copies accept no further updates.
+CLAMDOWN_SPARKLE_KEY_FILE = ~/.config/clamdown/sparkle-ed25519.key

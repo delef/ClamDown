@@ -7,7 +7,8 @@ struct ClamDownApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(controller: delegate.controller, openSettings: { delegate.settingsWindow.show() })
+            MenuContent(controller: delegate.controller, updater: delegate.updater,
+                        openSettings: { delegate.settingsWindow.show() })
         } label: {
             MenuBarIcon(controller: delegate.controller)
         }
@@ -26,6 +27,7 @@ private struct MenuBarIcon: View {
 
 private struct MenuContent: View {
     @ObservedObject var controller: ClamDownController
+    @ObservedObject var updater: Updater
     let openSettings: () -> Void
 
     /// Sessions offered under "Turn On For".
@@ -65,6 +67,12 @@ private struct MenuContent: View {
         Button("About ClamDown") {
             NSApp.activate(ignoringOtherApps: true)
             NSApp.orderFrontStandardAboutPanel(nil)
+        }
+        if let version = updater.availableVersion {
+            Button("Update to \(version)…") { updater.checkForUpdates() }
+        } else {
+            Button("Check for Updates…") { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
         }
         Button("Settings…") {
             openSettings()

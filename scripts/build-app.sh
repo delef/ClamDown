@@ -17,12 +17,14 @@ load_signing_config "$config" || exit 1
 
 cd "$ROOT"
 # Release builds are universal (Apple Silicon and Intel); debug builds stay native for speed.
-arch_flags=()
-[ "$config" = release ] && arch_flags=(--arch arm64 --arch x86_64)
+# --disable-keychain: SwiftPM otherwise looks for github.com credentials in the keychain before it downloads
+# the Sparkle binary, and a locked keychain then stalls the build on a dialog. Every dependency is public.
+swift_flags=(-c "$config" --disable-keychain)
+[ "$config" = release ] && swift_flags+=(--arch arm64 --arch x86_64)
 # One product per call: given several --product flags, swift build builds only the last one.
-swift build -c "$config" ${arch_flags[@]+"${arch_flags[@]}"} --product ClamDown
-swift build -c "$config" ${arch_flags[@]+"${arch_flags[@]}"} --product ClamDownHelper
-bin="$(swift build -c "$config" ${arch_flags[@]+"${arch_flags[@]}"} --show-bin-path)"
+swift build "${swift_flags[@]}" --product ClamDown
+swift build "${swift_flags[@]}" --product ClamDownHelper
+bin="$(swift build "${swift_flags[@]}" --show-bin-path)"
 if [ "$config" = release ]; then
   # lipo -verify_arch takes one architecture per call here.
   for product in ClamDown ClamDownHelper; do
@@ -35,8 +37,19 @@ fi
 
 app="$ROOT/build/ClamDown.app"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Library/LaunchDaemons"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Library/LaunchDaemons" "$app/Contents/Frameworks"
 cp "$bin/ClamDown" "$bin/ClamDownHelper" "$app/Contents/MacOS/"
+# The linker also records rpaths into this checkout; the bundle needs only @executable_path/../Frameworks.
+otool -l "$app/Contents/MacOS/ClamDown" | awk '/LC_RPATH/ { getline; getline; print $2 }' | while read -r rpath; do
+  case "$rpath" in "$ROOT"/*) install_name_tool -delete_rpath "$rpath" "$app/Contents/MacOS/ClamDown" ;; esac
+done
+
+# Sparkle, for updates. ClamDown is not sandboxed, so Sparkle's XPC services are not needed; dropping them
+# leaves less to sign and less code in the bundle.
+sparkle="$app/Contents/Frameworks/Sparkle.framework"
+ditto "$bin/Sparkle.framework" "$sparkle"
+rm -rf "$sparkle/Versions/B/XPCServices" "$sparkle/XPCServices"
+cp .build/artifacts/sparkle/Sparkle/LICENSE "$app/Contents/Resources/Sparkle-LICENSE.txt"
 # Compiles the Icon Composer source into Assets.car (Liquid Glass) plus AppIcon.icns for older systems.
 # Info.plist.template already names the icon, so actool's partial plist is discarded.
 icon_tmp="$(mktemp -d)"
@@ -50,7 +63,11 @@ sed "s/@BUNDLE_ID@/$CLAMDOWN_BUNDLE_ID/g" Resources/helper-launchd.plist.templat
 timestamp="--timestamp"
 [ "$config" = debug ] && timestamp="--timestamp=none"
 
-# Inside-out: the helper first, with an explicit identifier the app pins in its XPC requirement.
+# Inside-out: Sparkle's helpers, then Sparkle, then our helper, with an explicit identifier the app pins
+# in its XPC requirement, then the app.
+codesign --force --options runtime "$timestamp" -s "$SIGN_IDENTITY" "$sparkle/Versions/B/Autoupdate"
+codesign --force --options runtime "$timestamp" -s "$SIGN_IDENTITY" "$sparkle/Versions/B/Updater.app"
+codesign --force --options runtime "$timestamp" -s "$SIGN_IDENTITY" "$sparkle"
 codesign --force --options runtime "$timestamp" -i "$CLAMDOWN_BUNDLE_ID.helper" -s "$SIGN_IDENTITY" "$app/Contents/MacOS/ClamDownHelper"
 codesign --force --options runtime "$timestamp" -s "$SIGN_IDENTITY" "$app"
 

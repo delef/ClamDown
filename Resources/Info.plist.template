@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.1.1</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -28,6 +28,20 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <!-- Sparkle: updates come from GitHub Releases, and each one must carry an EdDSA signature
+         made with the private half of SUPublicEDKey. -->
+    <key>SUFeedURL</key>
+    <string>https://github.com/delef/ClamDown/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>/3O0U8jaIPkt6p6uo54o8bmqYqsMRN2qQW6kJJzUYrs=</string>
+    <key>SUVerifyUpdateBeforeExtraction</key>
+    <true/>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUAutomaticallyUpdate</key>
+    <false/>
+    <key>SUEnableSystemProfiling</key>
+    <false/>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © ClamDown contributors. Licensed under the Apache License, Version 2.0.</string>
 </dict>

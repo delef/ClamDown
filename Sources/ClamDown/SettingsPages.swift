@@ -23,6 +23,7 @@ extension ClamDownController {
 
 struct GeneralPage: View {
     @ObservedObject var controller: ClamDownController
+    @EnvironmentObject private var updater: Updater
     @State private var launchAtLoginError: String?
 
     var body: some View {
@@ -45,6 +46,18 @@ struct GeneralPage: View {
                 SettingRow(icon: "bell.badge", title: "Notify When Switched Off",
                            help: "Shows a notification when ClamDown switches itself off, for example at low battery. The menu always shows the reason.") {
                     StatusToggle(isOn: controller.binding(\.notificationsEnabled))
+                }
+            }
+            SettingsSection(title: "Updates", icon: "arrow.down.circle") {
+                SettingRow(icon: "clock.arrow.circlepath", title: "Check Automatically",
+                           help: "Looks for a new version on GitHub once a day. The check downloads the list of releases and sends nothing about you or your Mac.") {
+                    StatusToggle(isOn: $updater.checksAutomatically)
+                }
+                RowDivider()
+                SettingRow(icon: "arrow.down.app", title: "Check for Updates",
+                           help: "Looks for a new version now. You choose whether to install it.") {
+                    Button("Check Now") { updater.checkForUpdates() }
+                        .disabled(!updater.canCheckForUpdates)
                 }
             }
             SettingsSection(title: "Settings", icon: "arrow.counterclockwise") {
