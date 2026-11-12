@@ -64,24 +64,15 @@ struct SettingsRootView: View {
         .background(.regularMaterial)
     }
 
+    /// Version and current state. Turning the mode on or off and quitting live in the menu bar menu.
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("ClamDown \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
-                    .font(.callout.weight(.medium))
-                Text(statusLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            HStack {
-                Button { Task { await controller.toggle() } } label: {
-                    Image(systemName: "power")
-                        .foregroundStyle(controller.state.isOn ? Color.accentColor : .secondary)
-                }
-                .help(controller.state.isOn ? "Turn Off" : "Turn On")
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-            }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("ClamDown \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+                .font(.callout.weight(.medium))
+            Text(statusLine)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
         }
     }
 
