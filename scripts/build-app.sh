@@ -16,10 +16,22 @@ esac
 load_signing_config "$config" || exit 1
 
 cd "$ROOT"
+# Release builds are universal (Apple Silicon and Intel); debug builds stay native for speed.
+arch_flags=()
+[ "$config" = release ] && arch_flags=(--arch arm64 --arch x86_64)
 # One product per call: given several --product flags, swift build builds only the last one.
-swift build -c "$config" --product ClamDown
-swift build -c "$config" --product ClamDownHelper
-bin="$(swift build -c "$config" --show-bin-path)"
+swift build -c "$config" "${arch_flags[@]}" --product ClamDown
+swift build -c "$config" "${arch_flags[@]}" --product ClamDownHelper
+bin="$(swift build -c "$config" "${arch_flags[@]}" --show-bin-path)"
+if [ "$config" = release ]; then
+  # lipo -verify_arch takes one architecture per call here.
+  for product in ClamDown ClamDownHelper; do
+    for arch in arm64 x86_64; do
+      lipo "$bin/$product" -verify_arch "$arch" \
+        || { echo "error: $product has no $arch slice ($(lipo -archs "$bin/$product"))" >&2; exit 1; }
+    done
+  done
+fi
 
 app="$ROOT/build/ClamDown.app"
 rm -rf "$app"
