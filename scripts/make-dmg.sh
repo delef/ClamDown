@@ -38,13 +38,6 @@ cp "$ROOT/Resources/dmg/background.tiff" "$stage/.background/background.tiff"
 hdiutil create -quiet -volname "$volume" -srcfolder "$stage" -fs HFS+ -format UDRW -ov "$work/rw.dmg"
 mount="$(hdiutil attach "$work/rw.dmg" -readwrite -noverify -noautoopen | sed -n 's|.*\(/Volumes/.*\)$|\1|p')"
 
-# Custom volume icon, copied after mounting because hdiutil -srcfolder drops it. SetFile ships with the
-# Xcode command line tools; skip the icon when it is missing.
-cp "$app/Contents/Resources/AppIcon.icns" "$mount/.VolumeIcon.icns"
-if xcrun --find SetFile >/dev/null 2>&1; then
-  xcrun SetFile -a C "$mount"
-fi
-
 # Window layout. The background (scripts/dmg-background.swift) is 720x460 points; the icon centers
 # match the pads and the arrow drawn on it. The bounds add 28 points for the title bar.
 # Finder may ask once for permission to be controlled by this terminal.
@@ -69,6 +62,13 @@ tell application "Finder"
   end tell
 end tell
 EOF
+
+# Custom volume icon. Added after the Finder step, because Finder deletes .VolumeIcon.icns when it opens
+# the window. SetFile ships with the Xcode command line tools; skip the icon when it is missing.
+cp "$app/Contents/Resources/AppIcon.icns" "$mount/.VolumeIcon.icns"
+if xcrun --find SetFile >/dev/null 2>&1; then
+  xcrun SetFile -a C "$mount"
+fi
 
 rm -rf "$mount/.fseventsd"
 sync
