@@ -16,7 +16,9 @@ esac
 load_signing_config "$config" || exit 1
 
 cd "$ROOT"
-swift build -c "$config" --product ClamDown --product ClamDownHelper
+# One product per call: given several --product flags, swift build builds only the last one.
+swift build -c "$config" --product ClamDown
+swift build -c "$config" --product ClamDownHelper
 bin="$(swift build -c "$config" --show-bin-path)"
 
 app="$ROOT/build/ClamDown.app"
