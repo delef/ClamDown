@@ -1,0 +1,6 @@
+# Cloudflare Pages project for the website in website/. Holds no secrets: deploys authenticate with
+# `wrangler login` locally, or with CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in CI.
+# Deploy with scripts/deploy-site.sh.
+name = "clamdown-app"
+pages_build_output_dir = "website"
+compatibility_date = "2026-11-01"

@@ -5,3 +5,4 @@ Config/Signing.local.xcconfig
 .swiftpm/
 docs/superpowers/
 .superpowers/
+.wrangler/

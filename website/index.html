@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClamDown: keep your MacBook working with the lid closed</title>
+  <meta name="description" content="ClamDown is a free, open-source menu bar app that keeps a MacBook running with the lid closed, and switches itself off on low battery, high heat or a timer.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f2f5f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a1426" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="ClamDown: close the lid, keep working">
+  <meta property="og:description" content="Keep a MacBook running with the lid closed, with battery, heat and timer cut-offs.">
+  <meta property="og:image" content="assets/icon-1024.png">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/icon-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Mona+Sans:wdth,wght@75..125,200..900&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav">
+    <div class="wrap nav__row">
+      <a class="brand" href="#top" aria-label="ClamDown home">
+        <img src="assets/icon-512.png" width="36" height="36" alt="">
+        <span>ClamDown</span>
+      </a>
+      <nav class="nav__links" aria-label="Sections">
+        <a href="#safety">Safety</a>
+        <a href="#install">Install</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://github.com/delef/ClamDown">GitHub</a>
+      </nav>
+      <a class="btn btn--small" data-download href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.dmg">Download</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <h1>Close the lid.<br>Your agents keep working.</h1>
+          <p class="lead">ClamDown keeps your MacBook running with the lid shut, so coding agents keep working through their task list on their own. It switches itself off before a low battery or heat turns into a problem.</p>
+          <div class="cta">
+            <a class="btn" data-download href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.dmg">
+              <svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Download for Mac
+            </a>
+            <a class="link" href="https://github.com/delef/ClamDown">Read the source on GitHub</a>
+          </div>
+          <ul class="meta" aria-label="Release details">
+            <li data-release-version>Latest release</li>
+            <li data-release-size hidden></li>
+            <li>Apple Silicon and Intel</li>
+            <li>macOS 13 or later</li>
+            <li>Free and open source</li>
+          </ul>
+        </div>
+
+        <figure class="stage" aria-labelledby="stage-caption">
+          <div class="stage__scene">
+            <svg class="laptop" viewBox="0 -112 520 382" role="img" aria-label="A MacBook seen from the side">
+              <defs>
+                <linearGradient id="g-lid" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#ffffff"/>
+                  <stop offset="1" stop-color="#d9dfeb"/>
+                </linearGradient>
+                <linearGradient id="g-base" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#f4f6fb"/>
+                  <stop offset="1" stop-color="#bfc8d8"/>
+                </linearGradient>
+                <linearGradient id="g-spill" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#cfe6ff" stop-opacity=".5"/>
+                  <stop offset="1" stop-color="#cfe6ff" stop-opacity="0"/>
+                </linearGradient>
+                <filter id="f-glow" x="-20%" y="-400%" width="140%" height="900%">
+                  <feGaussianBlur stdDeviation="5"/>
+                </filter>
+              </defs>
+              <ellipse class="laptop__shadow" cx="262" cy="258" rx="200" ry="10"/>
+              <g class="laptop__lid">
+                <polygon class="laptop__spill" points="106,234 420,234 480,420 150,440"/>
+                <rect x="96" y="222" width="334" height="10" rx="5" fill="url(#g-lid)"/>
+                <rect class="laptop__screen" x="104" y="230" width="318" height="2.5" rx="1.25"/>
+              </g>
+              <rect x="88" y="232" width="350" height="18" rx="7" fill="url(#g-base)"/>
+              <rect x="380" y="244" width="40" height="3" rx="1.5" fill="#aab4c6"/>
+              <g class="laptop__seam">
+                <rect x="100" y="230" width="334" height="5" rx="2.5" fill="#6ff0b8" filter="url(#f-glow)"/>
+                <rect x="104" y="231.2" width="330" height="2.2" rx="1.1" fill="#9dffd2"/>
+              </g>
+              <circle class="laptop__hinge" cx="96" cy="232" r="5"/>
+            </svg>
+
+            <div class="term" aria-live="polite" aria-atomic="false">
+              <div class="term__bar">
+                <span class="term__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="term__title">agent, working on its own for <span data-elapsed>1:42:07</span></span>
+              </div>
+              <ol class="term__body" data-term></ol>
+            </div>
+          </div>
+
+          <div class="stage__controls">
+            <label class="switch">
+              <input type="checkbox" data-switch checked>
+              <span class="switch__track" aria-hidden="true"><span class="switch__thumb"></span></span>
+              <span class="switch__label">ClamDown</span>
+            </label>
+            <button class="btn btn--ghost" type="button" data-lid aria-pressed="false">Close the lid</button>
+          </div>
+
+          <dl class="readouts">
+            <div><dt>Mac</dt><dd data-r-mac>Awake</dd></div>
+            <div><dt>Screen</dt><dd data-r-screen>Unlocked</dd></div>
+            <div><dt>CPU</dt><dd data-r-cpu>58 °C</dd></div>
+            <div><dt>Fans</dt><dd data-r-fans>1,300 rpm</dd></div>
+          </dl>
+          <figcaption id="stage-caption" class="stage__caption" data-caption>Try it: close the lid with ClamDown on, then with it off.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="pain">
+      <div class="wrap">
+        <div class="pain__intro">
+          <h2>Stop carrying your laptop half-open</h2>
+          <div class="pain__text">
+            <p>Close a MacBook and macOS puts it to sleep. Your agent stops in the middle of a task, and its session can drop.</p>
+            <p>So people walk through airports, offices and kitchens with the lid cracked open and a finger in the hinge. ClamDown lets you close it all the way: the agent keeps working, the screen locks, and the fans keep the Mac cool.</p>
+          </div>
+        </div>
+        <div class="pain__pair">
+          <figure>
+            <img src="assets/pain.jpg" width="1024" height="1024" loading="lazy" alt="Someone walking with a laptop held a few centimeters open, fingers wedged in the hinge, screen light leaking out.">
+            <figcaption><strong>Without ClamDown.</strong> Lid cracked open, fingers in the hinge, screen on, battery draining.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/relief.jpg" width="1024" height="1024" loading="lazy" alt="The same laptop fully closed and carried under one arm, a mint light glowing along its front edge.">
+            <figcaption><strong>With ClamDown.</strong> Closed and locked. The agent is still working.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="why">
+      <div class="wrap why__grid">
+        <h2>A closed MacBook goes to sleep. Keep-awake apps can’t stop that.</h2>
+        <div class="why__text">
+          <p>Apps like Caffeinate hold a power assertion. It keeps the display and the system awake while the lid is open, and macOS ignores it the moment the lid closes, unless an external display and power are connected.</p>
+          <p>ClamDown turns on the system setting that does survive a closed lid, <code>pmset disablesleep</code>, and wraps it in the rules a closed laptop needs. Your session keeps its processes, network connections and SSH tunnels.</p>
+          <ul class="uses">
+            <li>Coding agents that work through a task list on their own</li>
+            <li>Terminal sessions that run for hours</li>
+            <li>Builds, test suites and renders</li>
+            <li>Large downloads, uploads and backups</li>
+            <li>Remote access over SSH</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="safety" id="safety">
+      <div class="wrap">
+        <h2 class="safety__title">A closed laptop needs rules.<br>ClamDown keeps them for you.</h2>
+        <div class="rules" role="table" aria-label="Safety rules">
+          <div class="rules__head" role="row">
+            <span role="columnheader">When</span>
+            <span role="columnheader">ClamDown</span>
+            <span role="columnheader">Default</span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">The battery runs low</span>
+            <span role="cell">Switches off and lets the Mac sleep. Only on battery, so a charging Mac stays awake.</span>
+            <span role="cell" class="rule__value">10%<small>5–50% or off</small></span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">The Mac runs hot</span>
+            <span role="cell">Switches off when the system thermal state reaches the cut-off.</span>
+            <span role="cell" class="rule__value">Serious<small>Fair, Serious, Critical or never</small></span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">The lid closes</span>
+            <span role="cell">Locks the screen, so opening the lid asks for your password.</span>
+            <span role="cell" class="rule__value">On</span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">You run on battery</span>
+            <span role="cell">Turns on Low Power Mode, and restores your previous setting when it switches off.</span>
+            <span role="cell" class="rule__value">On</span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">The timer ends</span>
+            <span role="cell">Switches off. Start a timed session from the menu with Turn On For.</span>
+            <span role="cell" class="rule__value">Never<small>30 minutes to 8 hours</small></span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">The adapter is unplugged</span>
+            <span role="cell">Switches off.</span>
+            <span role="cell" class="rule__value">Off</span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">The app quits or stops responding</span>
+            <span role="cell">The helper notices the missing heartbeat within about 90 seconds and puts sleep, Low Power Mode and the fans back by itself.</span>
+            <span role="cell" class="rule__value">Always</span>
+          </div>
+          <div class="rule" role="row">
+            <span role="cell" class="rule__when">It switches itself off</span>
+            <span role="cell">Posts a notification that names the reason.</span>
+            <span role="cell" class="rule__value">On</span>
+          </div>
+        </div>
+
+        <div class="fans">
+          <div class="fans__text">
+            <h3>Fans that answer the heat, even with the lid shut</h3>
+            <p>macOS keeps a closed MacBook’s fans near their lowest speed, even when the chip is hot. While the lid is closed, ClamDown drives them from the CPU temperature instead.</p>
+            <p>Speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load don’t make the fans hunt. Opening the lid hands them back to macOS. Fan control needs Apple Silicon; Intel Macs show the readings.</p>
+          </div>
+          <figure class="chart" aria-labelledby="chart-title chart-desc">
+            <figcaption>
+              <span id="chart-title" class="chart__title">Fan speed by CPU temperature</span>
+              <span id="chart-desc" class="chart__desc">Lowest speed up to 60 °C, rising evenly to full speed at 85 °C. Both points are settings.</span>
+            </figcaption>
+            <div class="chart__plot" data-chart>
+              <svg viewBox="0 0 560 300" aria-hidden="true" focusable="false">
+                <g class="chart__grid">
+                  <line x1="56" x2="540" y1="40" y2="40"/>
+                  <line x1="56" x2="540" y1="140" y2="140"/>
+                  <line x1="56" x2="540" y1="240" y2="240" class="chart__base"/>
+                </g>
+                <g class="chart__ylabels">
+                  <text x="48" y="44">Full</text>
+                  <text x="48" y="144">Half</text>
+                  <text x="48" y="244">Lowest</text>
+                </g>
+                <g class="chart__xlabels"></g>
+                <path class="chart__area" d=""/>
+                <path class="chart__line" d=""/>
+                <g class="chart__knees"></g>
+                <g class="chart__cursor" hidden>
+                  <line class="chart__crosshair" y1="40" y2="240"/>
+                  <circle class="chart__dot" r="6"/>
+                </g>
+              </svg>
+              <div class="chart__tip" role="status" hidden></div>
+            </div>
+            <details class="chart__table">
+              <summary>Show as a table</summary>
+              <table>
+                <thead><tr><th scope="col">CPU temperature</th><th scope="col">Fan speed</th></tr></thead>
+                <tbody>
+                  <tr><td>Up to 60 °C</td><td>Lowest</td></tr>
+                  <tr><td>65 °C</td><td>20% of the fan’s range</td></tr>
+                  <tr><td>70 °C</td><td>40% of the fan’s range</td></tr>
+                  <tr><td>75 °C</td><td>60% of the fan’s range</td></tr>
+                  <tr><td>80 °C</td><td>80% of the fan’s range</td></tr>
+                  <tr><td>85 °C and above</td><td>Full</td></tr>
+                </tbody>
+              </table>
+            </details>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="menu">
+      <div class="wrap menu__grid">
+        <div class="menu__mock" aria-hidden="true">
+          <div class="menubar">
+            <span class="menubar__time">Thu 23:41</span>
+            <span class="menubar__item menubar__item--active">
+              <svg viewBox="0 0 20 20" width="18" height="18"><rect x="3" y="6" width="14" height="9" rx="2.5" fill="currentColor"/><rect x="2" y="15" width="16" height="2" rx="1" fill="currentColor"/></svg>
+            </span>
+          </div>
+          <div class="dropdown">
+            <div class="dropdown__item">Turn Off</div>
+            <div class="dropdown__item dropdown__item--muted">Turns off at 02:30</div>
+            <hr>
+            <div class="dropdown__item">Settings…<kbd>⌘,</kbd></div>
+            <div class="dropdown__item">Quit ClamDown<kbd>⌘Q</kbd></div>
+          </div>
+        </div>
+        <div class="menu__text">
+          <h2>One switch in the menu bar</h2>
+          <p>A filled icon means on, an outline means off. Turn On For starts a session that ends by itself after 30 minutes to 8 hours.</p>
+          <p>Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. Cooling shows the CPU temperature, each fan’s speed and who controls the fans right now.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="install" id="install">
+      <div class="wrap">
+        <h2>Set up in a minute</h2>
+        <ol class="steps">
+          <li>
+            <h3>Install</h3>
+            <p>Download <span data-asset-name>ClamDown.dmg</span>, open it and drag ClamDown into Applications.</p>
+          </li>
+          <li>
+            <h3>Approve the helper</h3>
+            <p>Click the switch. macOS asks you to allow ClamDown in System Settings, General, Login Items &amp; Extensions. Turn it on, then click the switch again.</p>
+          </li>
+          <li>
+            <h3>Close the lid</h3>
+            <p>Your work keeps running. Open the lid and unlock to pick up where it is.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="trust">
+      <div class="wrap trust__grid">
+        <h2>Open source, notarized and deliberately narrow</h2>
+        <div class="trust__text">
+          <p>Changing sleep settings needs root, so ClamDown installs a small helper that macOS asks you to approve. The helper can do only this:</p>
+          <ul class="can">
+            <li>Turn <code>disablesleep</code> on or off</li>
+            <li>Turn Low Power Mode on or off for the battery profile</li>
+            <li>Read those two values, the temperature sensors and the fans</li>
+            <li>Set fan speeds within each fan’s own range, while the mode is on</li>
+          </ul>
+          <p>It accepts connections only from the ClamDown app signed by the same developer, and it resets any leftover state every time it starts. The app is signed with Developer ID, notarized by Apple and licensed under Apache 2.0.</p>
+          <p><a class="link" href="https://github.com/delef/ClamDown">Read the code on GitHub</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq" id="faq">
+      <div class="wrap faq__grid">
+        <h2>Questions</h2>
+        <div class="faq__list">
+          <details>
+            <summary>Can I put my MacBook in a bag with ClamDown on?</summary>
+            <p>A closed bag traps heat, and no app changes that. The thermal cut-off switches ClamDown off and lets the Mac sleep before it gets dangerous, but keep heavy work for a desk or a stand where air can reach the Mac.</p>
+          </details>
+          <details>
+            <summary>Does it work on Intel Macs?</summary>
+            <p>Yes. ClamDown is a universal app. Keeping the Mac awake, the cut-offs and the screen lock work on both. Fan control needs Apple Silicon; on an Intel Mac the Cooling page shows the readings only.</p>
+          </details>
+          <details>
+            <summary>What happens if ClamDown crashes?</summary>
+            <p>The app sends the helper a heartbeat about every 30 seconds. If it stops for about 90 seconds, the helper turns sleep and Low Power Mode back to normal and hands the fans to macOS. A restart does the same.</p>
+          </details>
+          <details>
+            <summary>Is my Mac unlocked while the lid is closed?</summary>
+            <p>No. By default ClamDown locks the screen when the lid closes. If you turn that setting off, lock the Mac yourself with Control-Command-Q before you leave it.</p>
+          </details>
+          <details>
+            <summary>How do I uninstall it?</summary>
+            <p>Switch ClamDown off, quit it and delete the app. If the Mac then refuses to sleep, run <code>sudo pmset disablesleep 0</code> in Terminal. A restart gives the fans back to macOS.</p>
+          </details>
+          <details>
+            <summary>What does it cost?</summary>
+            <p>Nothing. ClamDown is free and open source under the Apache 2.0 license.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing">
+      <div class="wrap closing__inner">
+        <img src="assets/icon-512.png" width="160" height="160" alt="ClamDown app icon">
+        <h2>Close the lid on your next long job.</h2>
+        <a class="btn" data-download href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.dmg">
+          <svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download for Mac
+        </a>
+        <p class="closing__meta" data-release-line>Free, for macOS 13 or later.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__row">
+      <span>ClamDown is made by its contributors and licensed under Apache 2.0.</span>
+      <nav aria-label="Project links">
+        <a href="https://github.com/delef/ClamDown">Source</a>
+        <a href="https://github.com/delef/ClamDown/releases">Releases</a>
+        <a href="https://github.com/delef/ClamDown/issues">Report a problem</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>
