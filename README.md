@@ -4,7 +4,7 @@
 
 <h1 align="center">ClamDown</h1>
 
-<p align="center">Keep a MacBook working safely with the lid closed.</p>
+<p align="center"><b>Close the lid. Your agents keep working.</b></p>
 
 <p align="center">
   <a href="https://github.com/delef/ClamDown/releases/latest"><img src="https://img.shields.io/github/v/release/delef/ClamDown?label=release" alt="Latest release"></a>
@@ -13,12 +13,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.dmg"><b>Download ClamDown.dmg</b></a>
+  <a href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.dmg"><b>Download ClamDown.dmg</b></a> · <a href="https://clamdown.app">clamdown.app</a>
 </p>
 
-A macOS menu bar app that keeps a MacBook awake with the lid closed, so terminal and agent sessions keep running without a cloud machine. It drives the fans itself while the lid is closed, and switches itself off on low battery or when the Mac runs hot.
+ClamDown is a free, open-source menu bar app that keeps coding agents working on your MacBook with the lid closed. Start a long task in Claude Code, Codex or any other agent, close the lid and put the Mac away: the agent keeps going on your own machine.
 
-Caffeine-style tools hold a power assertion, and that does not stop the Mac from sleeping when the lid closes. ClamDown uses `pmset disablesleep`, which does, and wraps it in the safety rules a closed laptop needs.
+No more carrying the laptop half-open with a thumb in the hinge, and no paid cloud sessions just so a task survives a closed lid.
+
+**Everything a closed laptop needs, in one app:**
+
+- **Stays awake with the lid shut.** Agents, terminals, browsers, SSH sessions and downloads keep running.
+- **Keeps it cool.** Watches the CPU temperature and drives the fans along a curve while the lid is closed, where macOS would leave them near idle.
+- **Keeps it locked.** Locks the screen the moment the lid closes.
+- **Knows when to stop.** Switches itself off and lets the Mac sleep before a low battery or high heat becomes a problem, or when your timer ends.
+- **Can't get stuck on.** A root helper with a watchdog puts sleep, Low Power Mode and the fans back if the app quits, crashes or stops responding.
+
+### Why not Caffeine or `caffeinate`?
+
+Keep-awake tools hold a power assertion. macOS ignores it the moment the lid closes, unless an external display and power are connected. ClamDown turns on the setting that does survive a closed lid, `pmset disablesleep`, and wraps it in the safety rules above.
 
 ## What it does
 
