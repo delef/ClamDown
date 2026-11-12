@@ -361,9 +361,8 @@
         t.setAttribute("aria-selected", String(on));
         t.tabIndex = on ? 0 : -1;
       });
-      const name = tab.dataset.shot;
-      dark.srcset = `assets/screens/${name}-dark.webp`;
-      img.src = `assets/screens/${name}-light.webp`;
+      dark.srcset = tab.dataset.dark;
+      img.src = tab.dataset.light;
       img.alt = tab.dataset.alt;
       panel.setAttribute("aria-labelledby", tab.id);
       if (focus) tab.focus();
