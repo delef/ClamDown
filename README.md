@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.zip"><b>Download ClamDown.zip</b></a>
+  <a href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.dmg"><b>Download ClamDown.dmg</b></a>
 </p>
 
 A macOS menu bar app that keeps a MacBook awake with the lid closed, so terminal and agent sessions keep running without a cloud machine. It drives the fans itself while the lid is closed, and switches itself off on low battery or when the Mac runs hot.
@@ -42,7 +42,7 @@ macOS 13 or later. Verified on Apple Silicon.
 
 ## Install
 
-Download the notarized `ClamDown.zip` from the [latest release](https://github.com/delef/ClamDown/releases/latest), unzip it, and move `ClamDown.app` to `/Applications`. Or build it yourself (see below).
+Download the notarized `ClamDown.dmg` from the [latest release](https://github.com/delef/ClamDown/releases/latest), open it, and drag ClamDown to Applications. Or build it yourself (see below).
 
 ## First run
 
@@ -81,7 +81,7 @@ scripts/build-app.sh debug      # Apple Development identity; use "release" for 
 scripts/verify-bundle.sh
 ```
 
-`scripts/build-app.sh release` followed by `scripts/notarize.sh` produces a notarized `build/ClamDown.zip`. Notarization uploads the app to Apple and needs a `notarytool` keychain profile (`xcrun notarytool store-credentials`).
+For a release, run `scripts/build-app.sh release`, then `scripts/notarize.sh` (notarizes and staples the app), then `scripts/make-dmg.sh` (packs it into a signed, notarized `build/ClamDown.dmg`). Notarization uploads the app and the disk image to Apple and needs a `notarytool` keychain profile (`xcrun notarytool store-credentials`).
 
 The helper only talks to an app signed with the same Team ID as itself, so a build signed with your own identity works with its own helper and with no one else's.
 
