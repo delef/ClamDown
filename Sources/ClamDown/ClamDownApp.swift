@@ -62,6 +62,10 @@ private struct MenuContent: View {
             }
         }
         Divider()
+        Button("About ClamDown") {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.orderFrontStandardAboutPanel(nil)
+        }
         Button("Settings…") {
             openSettings()
         }

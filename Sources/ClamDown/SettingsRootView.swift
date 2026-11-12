@@ -64,24 +64,21 @@ struct SettingsRootView: View {
         .background(.regularMaterial)
     }
 
-    /// Version and current state. Turning the mode on or off and quitting live in the menu bar menu.
+    /// The current state. Turning the mode on or off, About and Quit live in the menu bar menu.
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("ClamDown \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
-                .font(.callout.weight(.medium))
-            Text(statusLine)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
+        Text(statusLine)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .padding(.horizontal, 10)
     }
 
     private var statusLine: String {
-        guard controller.state.isOn else { return "Off" }
+        guard controller.state.isOn else { return "ClamDown is off" }
         if let offAt = controller.offAt {
-            return "On until \(offAt.formatted(date: .omitted, time: .shortened))"
+            return "ClamDown is on until \(offAt.formatted(date: .omitted, time: .shortened))"
         }
-        return "On"
+        return "ClamDown is on"
     }
 
     @ViewBuilder private var page: some View {
