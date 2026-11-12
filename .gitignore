@@ -3,3 +3,5 @@ build/
 Config/Signing.local.xcconfig
 .DS_Store
 .swiftpm/
+docs/superpowers/
+.superpowers/
