@@ -60,7 +60,7 @@
 
     const FAN_MIN = 1300;
     const FAN_MAX = 4900;
-    const state = { on: true, closed: false, temp: 58, fan: FAN_MIN, elapsed: 1 * 3600 + 42 * 60 + 7, touched: false };
+    const state = { on: true, closed: false, temp: 66, fan: FAN_MIN, elapsed: 1 * 3600 + 42 * 60 + 7, touched: false };
     const awake = () => !state.closed || state.on;
 
     // An autonomous coding agent working through a task list: read, edit, test, fix, commit, next task.
@@ -78,11 +78,11 @@
     const script = (task, n) => [
       { text: `› Task ${n} of ${TOTAL}: ${task.title}`, cls: "event" },
       { text: `  Read ${task.files[0]}`, cls: "dim" },
-      { text: `  Edit ${task.files[0]}  +38 −12` },
-      { text: `  Edit ${task.files[1]}  +9 −4` },
+      { text: `  Edit ${task.files[0].split("/").pop()}  +38 −12` },
+      { text: `  Edit ${task.files[1].split("/").pop()}  +9 −4` },
       { text: "  Run npm test", cls: "dim" },
       { text: `  ${testCount} passed, 1 failed`, cls: "warn" },
-      { text: `  Edit ${task.files[1]}  +3 −1` },
+      { text: `  Edit ${task.files[1].split("/").pop()}  +3 −1` },
       { text: "  Run npm test", cls: "dim" },
       { text: `  ${testCount + 1} passed`, cls: "ok" },
       { text: `  Commit “${task.title}”`, cls: "ok" },
@@ -143,7 +143,8 @@
         r.fans.classList.remove("is-on");
       } else {
         const rpm = Math.round(state.fan / 10) * 10;
-        r.fans.textContent = `${rpm.toLocaleString("en-US")} rpm`;
+        const owner = state.closed && state.on ? "ClamDown" : "macOS";
+        r.fans.innerHTML = `${rpm.toLocaleString("en-US")} rpm<small>set by ${owner}</small>`;
         r.fans.classList.toggle("is-on", state.closed && state.on);
       }
     };
@@ -179,18 +180,24 @@
       render();
     });
 
-    // Simulation: temperature drifts toward a target, the fans follow the curve while ClamDown holds them.
+    // Simulation. The agent's workload sets the temperature, the same with the lid open or closed.
+    // What the lid changes is who drives the fans: macOS keeps them low, ClamDown follows the curve.
+    const workloadTemp = (now) => 66 + 3 * Math.sin(now / 4200);
+    const fanFor = (temp) => {
+      if (!awake()) return 0;
+      if (state.closed && state.on) return FAN_MIN + fanShare(temp) * (FAN_MAX - FAN_MIN);
+      return FAN_MIN + Math.max(0, temp - 70) * 60;
+    };
     let last = 0;
     let lineClock = 0;
     let secondClock = 0;
     const step = (now) => {
       const dt = Math.min(0.25, (now - (last || now)) / 1000);
       last = now;
-      const target = !awake() ? 41 : state.closed ? 77 : 58;
+      const target = awake() ? workloadTemp(now) : 41;
       state.temp += (target - state.temp) * Math.min(1, dt * 0.35);
 
-      let fanTarget = FAN_MIN;
-      if (awake() && state.closed && state.on) fanTarget = FAN_MIN + fanShare(state.temp) * (FAN_MAX - FAN_MIN);
+      const fanTarget = fanFor(state.temp);
       if (fanTarget >= state.fan) state.fan = fanTarget;               // rises at once
       else state.fan = Math.max(fanTarget, state.fan - 50 * dt);      // falls by at most 150 rpm per 3 s
 
@@ -208,8 +215,8 @@
     if (reducedMotion) {
       // No streaming, no autoplay: the demo still answers clicks, and the readouts jump to their targets.
       const settle = () => {
-        state.temp = !awake() ? 41 : state.closed ? 77 : 58;
-        state.fan = awake() && state.closed && state.on ? FAN_MIN + fanShare(state.temp) * (FAN_MAX - FAN_MIN) : FAN_MIN;
+        state.temp = awake() ? 66 : 41;
+        state.fan = fanFor(state.temp);
         render();
       };
       lidButton.addEventListener("click", settle);
@@ -303,7 +310,30 @@
     });
   }
 
+  /* ---------- Social posts ----------
+     The X embed script loads only when the posts come near the screen,
+     so opening the page does not contact X. */
+  function initEmbeds() {
+    const box = $("[data-embeds]");
+    if (!box) return;
+    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    $$(".twitter-tweet", box).forEach((b) => b.setAttribute("data-theme", dark ? "dark" : "light"));
+    const load = (src) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = true;
+      document.body.append(script);
+    };
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      load("https://platform.twitter.com/widgets.js");
+    }, { rootMargin: "600px 0px" });
+    io.observe(box);
+  }
+
   loadRelease();
+  initEmbeds();
   initDemo();
   initChart();
 })();
