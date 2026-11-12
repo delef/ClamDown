@@ -281,6 +281,7 @@ a { color: inherit; }
 .pain__intro { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
 .pain__text { color: var(--ink-2); }
 .pain__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 3vw, 32px); margin-top: clamp(36px, 5vw, 64px); }
+.pain__pair[hidden] { display: none; }
 .pain__pair figure { margin: 0; }
 .pain__pair img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-l); box-shadow: 0 30px 60px -36px rgb(14 39 102 / .55); }
 .pain__pair figcaption { margin-top: 14px; color: var(--ink-2); font-size: 1rem; max-width: 40ch; }
@@ -293,11 +294,34 @@ a { color: inherit; }
 .post { min-width: 0; }
 .posts blockquote { margin: 0 !important; min-width: 0; }
 .post > blockquote.twitter-tweet:not(.twitter-tweet-rendered) {
+  position: relative;
   padding: 22px 24px; border-radius: var(--radius-m);
   background: var(--pearl); border: 1px solid var(--line); color: var(--ink-2);
   font-size: 1rem;
 }
 .posts .twitter-tweet-rendered { width: 100% !important; max-width: 100% !important; }
+.post[data-state="ready"] > blockquote.twitter-tweet:not(.twitter-tweet-rendered) { display: none; }
+
+/* While the post loads: a placeholder card the size of a post, with a shimmer and a label. */
+.post[data-state="loading"] > blockquote.twitter-tweet:not(.twitter-tweet-rendered) {
+  min-height: 380px; overflow: hidden;
+  background: linear-gradient(100deg, var(--pearl) 30%, var(--paper-2) 50%, var(--pearl) 70%) 0 0 / 300% 100%;
+  animation: post-shimmer 1.6s linear infinite;
+}
+.post[data-state="loading"] > blockquote.twitter-tweet:not(.twitter-tweet-rendered) > * { visibility: hidden; }
+.post[data-state="loading"] > blockquote.twitter-tweet:not(.twitter-tweet-rendered)::after {
+  content: "Loading post from X…";
+  position: absolute; left: 24px; bottom: 20px;
+  color: var(--ink-3); font-size: 0.9rem;
+}
+@keyframes post-shimmer { to { background-position: -300% 0; } }
+
+/* If X never answers: say so and keep the description and link usable. */
+.post[data-state="failed"] > blockquote.twitter-tweet:not(.twitter-tweet-rendered)::before {
+  content: "Couldn’t load this post from X.";
+  display: block; margin-bottom: 8px;
+  color: var(--ink); font-weight: 650;
+}
 @media (max-width: 960px) { .posts { grid-template-columns: minmax(0, 1fr); max-width: 560px; } }
 
 /* Cloud sessions compared with ClamDown */

@@ -318,16 +318,32 @@
     if (!box) return;
     const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     $$(".twitter-tweet", box).forEach((b) => b.setAttribute("data-theme", dark ? "dark" : "light"));
-    const load = (src) => {
+    const posts = $$(".post", box);
+    const setState = (post, state) => { if (post.dataset.state === "loading") post.dataset.state = state; };
+    const failAll = () => posts.forEach((p) => setState(p, "failed"));
+    const start = () => {
+      posts.forEach((p) => { p.dataset.state = "loading"; });
       const script = document.createElement("script");
-      script.src = src;
+      script.src = "https://platform.twitter.com/widgets.js";
       script.async = true;
+      script.onerror = failAll;  // blocked by a content blocker, or offline
+      script.onload = () => {
+        if (!window.twttr?.ready) return failAll();
+        window.twttr.ready((twttr) => {
+          twttr.events.bind("rendered", (event) => {
+            const post = event.target?.closest?.(".post");
+            if (post) setState(post, "ready");
+          });
+        });
+      };
       document.body.append(script);
+      // A post that has not rendered after 12 seconds is treated as failed.
+      setTimeout(failAll, 12000);
     };
     const io = new IntersectionObserver((entries) => {
       if (!entries.some((e) => e.isIntersecting)) return;
       io.disconnect();
-      load("https://platform.twitter.com/widgets.js");
+      start();
     }, { rootMargin: "600px 0px" });
     io.observe(box);
   }
