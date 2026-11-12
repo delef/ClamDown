@@ -335,65 +335,66 @@ a { color: inherit; }
 .cloud { padding: clamp(64px, 8vw, 112px) 0; background: var(--pearl); border-block: 1px solid var(--line); }
 .cloud__intro { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
 .cloud__text { color: var(--ink-2); }
-/* The ClamDown column is one mint band through every row, so the eye lands on it first. */
+/* ClamDown's column is one mint band through every row, drawn once so rows never show a seam. */
 .compare {
   --band: color-mix(in srgb, var(--mint) 9%, transparent);
   --band-edge: color-mix(in srgb, var(--mint) 35%, transparent);
   --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 10.5l3.5 3.5 7.5-8' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  position: relative; isolation: isolate;
   margin-top: clamp(32px, 4vw, 56px);
 }
-.compare__head, .compare__row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) minmax(0, 4fr); column-gap: 24px; }
+.compare::before {
+  content: ""; position: absolute; z-index: -1;
+  top: 0; bottom: 0; left: calc(100% * 3 / 11); width: calc(100% * 4 / 11);
+  border: 1px solid var(--band-edge); border-radius: var(--radius-m);
+  background: var(--band);
+}
+.compare__head, .compare__row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) minmax(0, 4fr); }
 .compare__head > span, .compare__row > span { padding: 18px 0; }
-.compare__row > span:first-child, .compare__row > span:nth-child(2) { border-bottom: 1px solid var(--line); }
+.compare .compare__q { padding-right: 24px; }
+.compare .compare__them { padding-left: 28px; }
+.compare .compare__q, .compare .compare__them { border-bottom: 1px solid var(--line); }
 .compare__head { font-size: 0.9rem; color: var(--ink-3); }
-.compare__head > span { padding-top: 0; align-self: end; border-bottom: 1px solid var(--line); }
-.compare__head > span:last-child {
-  padding: 18px 22px 16px;
-  border: 1px solid var(--band-edge); border-bottom: 0; border-radius: var(--radius-m) var(--radius-m) 0 0;
-  background: var(--band);
-  color: var(--mint); font-size: 1rem; font-weight: 700;
-}
+.compare__head > span { align-self: end; padding-top: 20px; padding-bottom: 14px; }
+.compare__head > .compare__us { padding-inline: 22px; color: var(--mint); font-size: 1rem; font-weight: 700; }
 .compare__row { color: var(--ink-3); }
-.compare__row > span:first-child { color: var(--ink); font-weight: 650; }
-.compare__row > span:nth-child(2) { font-size: 0.97rem; }
-.compare__row > span:nth-child(2)::before { content: "–"; margin-right: 10px; color: var(--ink-3); }
-.compare__row > span:last-child {
-  position: relative;
-  padding: 18px 22px 18px 52px;
-  border-inline: 1px solid var(--band-edge);
-  background: var(--band);
-  color: var(--ink); font-weight: 600;
-}
-.compare__row > span:last-child::before {
+.compare__row > .compare__q { color: var(--ink); font-weight: 650; }
+.compare__row > .compare__them { font-size: 0.97rem; }
+.compare__row > .compare__them::before { content: "–"; margin-right: 10px; }
+.compare__row > .compare__us { position: relative; padding: 18px 22px 18px 52px; color: var(--ink); font-weight: 600; }
+.compare__row > .compare__us::before {
   content: ""; position: absolute; left: 20px; top: 19px;
   width: 22px; height: 22px; border-radius: 50%;
   background: var(--mint);
 }
-.compare__row > span:last-child::after {
+.compare__row > .compare__us::after {
   content: ""; position: absolute; left: 23px; top: 22px;
   width: 16px; height: 16px;
   background: var(--paper);
   -webkit-mask: var(--check) center / contain no-repeat; mask: var(--check) center / contain no-repeat;
 }
-.compare__row:last-child > span:last-child { border-bottom: 1px solid var(--band-edge); border-radius: 0 0 var(--radius-m) var(--radius-m); }
-.compare__row > span.compare__win { font-size: 1.25rem; font-weight: 750; letter-spacing: -0.01em; }
-.compare__row > span.compare__win::before { top: 21px; }
-.compare__row > span.compare__win::after { top: 24px; }
+.compare__row > .compare__win { font-size: 1.25rem; font-weight: 750; letter-spacing: -0.01em; }
+.compare__row > .compare__win::before { top: 21px; }
+.compare__row > .compare__win::after { top: 24px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 860px) { .cloud__intro { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) {
-  .compare__head { display: none; }
+  .compare::before, .compare__head { display: none; }
   .compare__row { grid-template-columns: minmax(0, 1fr); padding: 22px 0; border-bottom: 1px solid var(--line); }
-  .compare__row > span { padding: 0; border: 0 !important; }
-  .compare__row > span:first-child { order: 0; margin-bottom: 10px; }
-  .compare__row > span:last-child,
-  .compare__row:last-child > span:last-child { order: 1; padding: 14px 16px 14px 50px; border: 1px solid var(--band-edge) !important; border-radius: var(--radius-m); }
-  .compare__row > span:last-child::before { left: 16px; top: 15px; }
-  .compare__row > span:last-child::after { left: 19px; top: 18px; }
-  .compare__row > span.compare__win::before { top: 17px; }
-  .compare__row > span.compare__win::after { top: 20px; }
-  .compare__row > span:nth-child(2) { order: 2; margin-top: 10px; font-size: 0.92rem; }
-  .compare__row > span:nth-child(2)::before { content: "Cloud session: "; margin-right: 0; }
+  .compare__row > span { padding: 0; }
+  .compare .compare__q, .compare .compare__them { padding: 0; border: 0; }
+  .compare__row > .compare__q { margin-bottom: 10px; }
+  .compare__row > .compare__us {
+    padding: 14px 16px 14px 50px;
+    border: 1px solid var(--band-edge); border-radius: var(--radius-m);
+    background: var(--band);
+  }
+  .compare__row > .compare__us::before { left: 16px; top: 15px; }
+  .compare__row > .compare__us::after { left: 19px; top: 18px; }
+  .compare__row > .compare__win::before { top: 17px; }
+  .compare__row > .compare__win::after { top: 20px; }
+  .compare__row > .compare__them { margin-top: 10px; font-size: 0.92rem; }
+  .compare__row > .compare__them::before { content: "Cloud session: "; margin-right: 0; }
 }
 
 /* Why */
