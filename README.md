@@ -1,4 +1,20 @@
-# ClamDown
+<p align="center">
+  <img src="docs/icon.png" width="128" height="128" alt="ClamDown app icon">
+</p>
+
+<h1 align="center">ClamDown</h1>
+
+<p align="center">Keep a MacBook working safely with the lid closed.</p>
+
+<p align="center">
+  <a href="https://github.com/delef/ClamDown/releases/latest"><img src="https://img.shields.io/github/v/release/delef/ClamDown?label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-blue" alt="macOS 13 or later">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/delef/ClamDown" alt="License: Apache 2.0"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/delef/ClamDown/releases/latest/download/ClamDown.zip"><b>Download ClamDown.zip</b></a>
+</p>
 
 A macOS menu bar app that keeps a MacBook awake with the lid closed, so terminal and agent sessions keep running without a cloud machine. It drives the fans itself while the lid is closed, and switches itself off on low battery or when the Mac runs hot.
 
@@ -26,7 +42,7 @@ macOS 13 or later. Verified on Apple Silicon.
 
 ## Install
 
-Download the notarized `ClamDown.zip` from the GitHub Releases page, unzip it, and move `ClamDown.app` to `/Applications`. Or build it yourself (see below).
+Download the notarized `ClamDown.zip` from the [latest release](https://github.com/delef/ClamDown/releases/latest), unzip it, and move `ClamDown.app` to `/Applications`. Or build it yourself (see below).
 
 ## First run
 
@@ -42,7 +58,7 @@ ClamDown needs a small root helper to run `pmset`. The first click on the switch
 
 ## Security note
 
-ClamDown does not lock your screen. With the mode on, opening the lid brings you straight back to an unlocked session. If you leave the Mac unattended, lock it first (Control-Command-Q).
+With the mode on, closing the lid locks the screen by default. If you turn off "Lock Screen When Closed", opening the lid brings you straight back to an unlocked session; lock the Mac yourself (Control-Command-Q) before you leave it unattended.
 
 ## Uninstall
 
