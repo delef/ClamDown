@@ -35,6 +35,8 @@ fi
 
 [ -x "$helper" ] || fail "ClamDownHelper is missing or not executable"
 [ -x "$app/Contents/MacOS/ClamDown" ] || fail "ClamDown is missing or not executable"
+[ -f "$app/Contents/Resources/Assets.car" ] && [ -f "$app/Contents/Resources/AppIcon.icns" ] \
+  || fail "app icon (Assets.car and AppIcon.icns) is missing from Contents/Resources"
 
 codesign --verify --strict --deep "$app" 2>/dev/null || fail "codesign --verify failed for the app"
 

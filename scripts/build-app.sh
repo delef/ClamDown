@@ -23,8 +23,14 @@ bin="$(swift build -c "$config" --show-bin-path)"
 
 app="$ROOT/build/ClamDown.app"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Library/LaunchDaemons"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Library/LaunchDaemons"
 cp "$bin/ClamDown" "$bin/ClamDownHelper" "$app/Contents/MacOS/"
+# Compiles the Icon Composer source into Assets.car (Liquid Glass) plus AppIcon.icns for older systems.
+# Info.plist.template already names the icon, so actool's partial plist is discarded.
+icon_tmp="$(mktemp -d)"
+xcrun actool Resources/AppIcon.icon --compile "$app/Contents/Resources" --platform macosx \
+  --minimum-deployment-target 13.0 --app-icon AppIcon --output-partial-info-plist "$icon_tmp/partial.plist" >/dev/null
+rm -rf "$icon_tmp"
 sed "s/@BUNDLE_ID@/$CLAMDOWN_BUNDLE_ID/g" Resources/Info.plist.template > "$app/Contents/Info.plist"
 sed "s/@BUNDLE_ID@/$CLAMDOWN_BUNDLE_ID/g" Resources/helper-launchd.plist.template \
   > "$app/Contents/Library/LaunchDaemons/$CLAMDOWN_BUNDLE_ID.helper.plist"

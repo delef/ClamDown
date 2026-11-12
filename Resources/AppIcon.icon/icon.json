@@ -1,0 +1,18 @@
+{
+  "fill-specializations": [
+    {"value": {"linear-gradient": ["srgb:0.06275,0.15686,0.40000,1.00000", "srgb:0.12549,0.56471,0.62745,1.00000"],
+      "orientation": {"start": {"x": 0.15, "y": 0.0}, "stop": {"x": 0.85, "y": 1.0}}}},
+    {"appearance": "dark", "value": {"linear-gradient": ["srgb:0.03137,0.07059,0.18824,1.00000", "srgb:0.04706,0.27451,0.31373,1.00000"],
+      "orientation": {"start": {"x": 0.15, "y": 0.0}, "stop": {"x": 0.85, "y": 1.0}}}}
+  ],
+  "groups": [
+    {
+      "name": "lid",
+      "layers": [{"image-name": "lid.png", "name": "lid"}],
+      "shadow": {"kind": "neutral", "opacity": 0.5},
+      "specular": false,
+      "translucency": {"enabled": false, "value": 0}
+    }
+  ],
+  "supported-platforms": {"squares": ["macOS"]}
+}
