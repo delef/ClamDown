@@ -153,6 +153,7 @@ a { color: inherit; }
 .nav__links { display: flex; gap: 24px; margin-left: auto; font-size: 0.98rem; }
 .nav__links a { text-decoration: none; color: var(--ink-2); }
 .nav__links a:hover { color: var(--ink); }
+.nav__github { display: inline-flex; align-items: center; gap: 7px; }
 @media (max-width: 720px) {
   .nav__links { display: none; }
   .nav__row .btn { margin-left: auto; }
