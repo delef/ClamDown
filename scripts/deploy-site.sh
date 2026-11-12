@@ -15,4 +15,17 @@ case "$target" in
 esac
 
 cd "$ROOT"
-npx --yes wrangler@4 pages deploy --branch "$branch" --commit-dirty=true
+
+# Browsers may keep styles.css and main.js for hours, so a new page could run with old assets.
+# Publish a copy whose index.html asks for each asset by a hash of its content.
+out="$(mktemp -d)"
+trap 'rm -rf "$out"' EXIT
+ditto website "$out"
+for asset in styles.css main.js; do
+  hash="$(shasum -a 256 "website/$asset" | cut -c1-10)"
+  sed -i '' "s|\"$asset\"|\"$asset?v=$hash\"|" "$out/index.html"
+done
+grep -q 'styles.css?v=' "$out/index.html" && grep -q 'main.js?v=' "$out/index.html" \
+  || { echo "error: could not stamp asset versions into index.html" >&2; exit 1; }
+
+npx --yes wrangler@4 pages deploy "$out" --branch "$branch" --commit-dirty=true
