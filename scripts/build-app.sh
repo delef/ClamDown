@@ -20,9 +20,9 @@ cd "$ROOT"
 arch_flags=()
 [ "$config" = release ] && arch_flags=(--arch arm64 --arch x86_64)
 # One product per call: given several --product flags, swift build builds only the last one.
-swift build -c "$config" "${arch_flags[@]}" --product ClamDown
-swift build -c "$config" "${arch_flags[@]}" --product ClamDownHelper
-bin="$(swift build -c "$config" "${arch_flags[@]}" --show-bin-path)"
+swift build -c "$config" ${arch_flags[@]+"${arch_flags[@]}"} --product ClamDown
+swift build -c "$config" ${arch_flags[@]+"${arch_flags[@]}"} --product ClamDownHelper
+bin="$(swift build -c "$config" ${arch_flags[@]+"${arch_flags[@]}"} --show-bin-path)"
 if [ "$config" = release ]; then
   # lipo -verify_arch takes one architecture per call here.
   for product in ClamDown ClamDownHelper; do
