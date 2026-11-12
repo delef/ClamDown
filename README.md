@@ -38,7 +38,7 @@ Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Help
 
 ## Requirements
 
-macOS 13 or later. Verified on Apple Silicon.
+macOS 13 or later. A universal app for Apple Silicon and Intel Macs; fan control needs Apple Silicon. Verified on Apple Silicon.
 
 ## Install
 
