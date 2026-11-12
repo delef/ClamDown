@@ -216,7 +216,8 @@
         <h2>A closed MacBook goes to sleep. Keep-awake apps can’t stop that.</h2>
         <div class="why__text">
           <p>Apps like Caffeinate hold a power assertion. It keeps the display and the system awake while the lid is open, and macOS ignores it the moment the lid closes, unless an external display and power are connected.</p>
-          <p>ClamDown turns on the system setting that does survive a closed lid, <code>pmset disablesleep</code>, and wraps it in the rules a closed laptop needs. Your session keeps its processes, network connections and SSH tunnels.</p>
+          <p>And keeping a closed Mac awake is only half the job. macOS keeps a closed MacBook’s fans near idle even when the chip is hot, and on battery nothing stops a long agent run from draining it to empty.</p>
+          <p>ClamDown turns on the system setting that does survive a closed lid, <code>pmset disablesleep</code>, and handles the rest: it drives the fans, watches the battery and the heat, and switches itself off in time. Your session keeps its processes, network connections and SSH tunnels.</p>
           <ul class="uses">
             <li>Coding agents that work through a task list on their own</li>
             <li>Browser sessions and automations your agents drive</li>
