@@ -211,7 +211,7 @@
         <div class="why__text">
           <p>Apps like Caffeinate hold a power assertion. It keeps the display and the system awake while the lid is open, and macOS ignores it the moment the lid closes, unless an external display and power are connected.</p>
           <p>And keeping a closed Mac awake is only half the job. macOS keeps a closed MacBook’s fans near idle even when the chip is hot, and on battery nothing stops a long agent run from draining it to empty.</p>
-          <p>ClamDown turns on the system setting that does survive a closed lid, <code>pmset disablesleep</code>, and handles the rest: it drives the fans, watches the battery and the heat, and switches itself off in time. Your session keeps its processes, network connections and SSH tunnels.</p>
+          <p>ClamDown keeps a closed Mac awake and handles the rest: it drives the fans, watches the battery and the heat, and switches itself off in time. Your session keeps its processes, network connections and SSH tunnels.</p>
           <ul class="uses">
             <li>Coding agents that work through a task list on their own</li>
             <li>Browser sessions and automations your agents drive</li>
@@ -417,7 +417,7 @@
         <div class="trust__text">
           <p>Changing sleep settings needs root, so ClamDown installs a small helper that macOS asks you to approve. The helper can do only this:</p>
           <ul class="can">
-            <li>Turn <code>disablesleep</code> on or off</li>
+            <li>Keep the Mac from sleeping, or let it sleep again</li>
             <li>Turn Low Power Mode on or off for the battery profile</li>
             <li>Read those two values, the temperature sensors and the fans</li>
             <li>Set fan speeds within each fan’s own range, while the mode is on</li>
@@ -450,7 +450,7 @@
           </details>
           <details>
             <summary>How do I uninstall it?</summary>
-            <p>Switch ClamDown off, quit it and delete the app. If the Mac then refuses to sleep, run <code>sudo pmset disablesleep 0</code> in Terminal. A restart gives the fans back to macOS.</p>
+            <p>Switch ClamDown off, quit it and delete the app. If the Mac then refuses to sleep, the <a href="https://github.com/delef/ClamDown#uninstall">README</a> shows how to put sleep back by hand. A restart gives the fans back to macOS.</p>
           </details>
           <details>
             <summary>What does it cost?</summary>

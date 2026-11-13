@@ -54,9 +54,7 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 - **Keep-awake apps and `caffeinate`** hold a power assertion. macOS ignores it the moment the lid closes, unless an external display and power are connected.
 - **A dummy display plug or an external monitor** keeps the Mac in clamshell mode, but only while it is plugged in, and with no battery, heat or fan safeguards.
 - **An app that only keeps the Mac awake with the lid closed** solves half the problem. macOS keeps a closed MacBook's fans near idle even when the chip is hot, so the Mac heats up, and on battery nothing stops the agent from draining it to empty.
-- **`sudo pmset disablesleep 1` by hand** does survive a closed lid, but nothing watches the battery or the temperature, the fans stay near idle, the screen stays unlocked, and it stays on until you remember to undo it.
-
-ClamDown uses that same `pmset disablesleep` switch and adds the safety rules above, so you can close the lid and stop thinking about it.
+ClamDown keeps a closed Mac awake, drives the fans and watches the battery and the heat, so you can close the lid and stop thinking about it.
 
 ## What it does
 
@@ -96,7 +94,7 @@ Version 0.1.0 has no updater: install a newer release by hand once.
 
 The first launch opens a setup assistant. It takes about a minute:
 
-1. **Allow the helper.** ClamDown needs a small root helper to run `pmset` and drive the fans. "Allow…" registers it and opens System Settings > General > Login Items & Extensions; switch ClamDown on there. The assistant notices by itself and comes back to the front.
+1. **Allow the helper.** ClamDown needs a small root helper to change sleep settings and drive the fans. "Allow…" registers it and opens System Settings > General > Login Items & Extensions; switch ClamDown on there. The assistant notices by itself and comes back to the front.
 2. **Notifications** (optional). With the lid closed you cannot see the menu, so a notification tells you when ClamDown switched itself off.
 3. **Launch at Login** (optional), with a list of the protection that is already on.
 4. **Turn On Now**, or Done.
@@ -111,7 +109,7 @@ When ClamDown cannot work until you do something, for example after macOS took t
 - **Watchdog.** While on, the app sends the helper a heartbeat about every 30 seconds. If the heartbeat stops for about 90 seconds, or the app quits or crashes, the helper puts sleep, Low Power Mode and the fans back as they were, by itself. If the lid is then closed for sleep and the keyboard and pointer have been still for a minute, the helper also puts the Mac to sleep; it stops trying when someone opens the lid, and after five minutes.
 - **Fans.** The helper hands the fans back to macOS whenever the mode switches off for any reason, the lid opens (with "Only With Lid Closed"), or the CPU temperature cannot be read. It records that it holds the fans before it touches them, so a helper restart after a crash hands them back too. It never sets a fan outside that fan's own minimum and maximum speed. Fan speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load do not make the fans hunt.
 - **Reboots.** The helper runs at load and resets any leftover state every time it starts.
-- **Narrow helper.** The helper can only turn `disablesleep` on or off, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode is on. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
+- **Narrow helper.** The helper can only keep the Mac from sleeping or let it sleep again, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode is on. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
 
 ## Security note
 
