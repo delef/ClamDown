@@ -64,7 +64,9 @@ struct SetupView: View {
             buttons
         }
         .padding(.horizontal, 20)
-        .frame(height: 56)
+        .frame(height: 60)
+        // The assistant is read at arm's length, once: its buttons are the large ones of a macOS setup window.
+        .controlSize(.large)
     }
 
     /// The last screen, and the helper-only assistant, end the flow; every other screen moves through it.
@@ -415,6 +417,7 @@ private struct StatusRow<Action: View>: View {
             }
             Spacer(minLength: 12)
             action
+                .controlSize(.large)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
