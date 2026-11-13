@@ -127,10 +127,12 @@ import ClamDownShared
 
     @Test func speedFallsGraduallyAfterLoadDrops() async throws {
         let (core, fans, _) = try await enabled(fans: FakeFans(temperature: 80))
-        try await core.setFanPolicy(curve)
+        // Three-second ticks: the fall is limited by time, so the ticks carry their instants.
+        let t0 = SuspendingClock.now
+        try await core.setFanPolicy(curve, now: t0)
         fans.set(temperature: 50)
-        await core.updateFans()
-        await core.updateFans()
+        await core.updateFans(now: t0.advanced(by: .seconds(3)))
+        await core.updateFans(now: t0.advanced(by: .seconds(6)))
         #expect(fans.targets == [[5000], [4850], [4700]])
     }
 
@@ -242,6 +244,69 @@ import ClamDownShared
         let core = HelperCore(runner: FakeRunner(), store: FakeStore(), fans: fans, thermal: thermal, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         return (core, fans)
+    }
+
+    private func at(milliseconds: Int) -> SuspendingClock.Instant { t0.advanced(by: .milliseconds(milliseconds)) }
+
+    // MARK: - The fall is limited by time, not by call
+
+    /// 150 rpm per 3 s is 5 rpm per 0.1 s, however often `updateFans` runs.
+    @Test func callsATenthOfASecondApartFallAtMostFiveRpm() async throws {
+        let fans = FakeFans(temperature: 80)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(fans.targets.last == [5000])
+        fans.set(temperature: 50)
+        await core.updateFans(now: at(milliseconds: 100))
+        #expect(fans.targets.last.map { 5000 - $0[0] } ?? 0 <= 5.000_001)
+        await core.updateFans(now: at(milliseconds: 200))
+        #expect(fans.targets.last.map { 5000 - $0[0] } ?? 0 <= 10.000_001)
+    }
+
+    @Test func callsThreeSecondsApartFallAtMost150Rpm() async throws {
+        let fans = FakeFans(temperature: 80)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        fans.set(temperature: 50)
+        await core.updateFans(now: at(3))
+        #expect(fans.targets.last == [4850])
+        await core.updateFans(now: at(6))
+        #expect(fans.targets.last == [4700])
+    }
+
+    @Test func manyCallsInThreeSecondsFallNoMoreThanOne() async throws {
+        let fans = FakeFans(temperature: 80)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        fans.set(temperature: 50)
+        for step in 1...30 { await core.updateFans(now: at(milliseconds: step * 100)) }
+        let last = try #require(fans.targets.last?.first)
+        #expect(last >= 4850 - 0.001)
+    }
+
+    /// A new policy runs `updateFans` at once; a stream of them must not get around the limit.
+    @Test func aNewLowerPolicyRightAfterAWriteDoesNotFallFaster() async throws {
+        let fans = FakeFans(temperature: 70)
+        let (core, _) = try await enabled(fans: fans)
+        let high = FanPolicy(points: [.init(temperature: 40, speed: 100)], onlyWhenLidClosed: true)
+        try await core.setFanPolicy(high, now: at(0))
+        #expect(fans.targets.last == [5000])
+        for step in 1...10 {
+            let low = FanPolicy(points: [.init(temperature: 40, speed: 100 - step * 10)], onlyWhenLidClosed: true)
+            try await core.setFanPolicy(low, now: at(milliseconds: step * 10))
+        }
+        let last = try #require(fans.targets.last?.first)
+        #expect(last >= 5000 - 5.000_001)
+    }
+
+    @Test func risingStaysImmediate() async throws {
+        let fans = FakeFans(temperature: 50)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(fans.targets.last == [1000])
+        fans.set(temperature: 80)
+        await core.updateFans(now: at(milliseconds: 10))
+        #expect(fans.targets.last == [5000])
     }
 
     @Test func speedFromPercentSpansTheFansRange() {

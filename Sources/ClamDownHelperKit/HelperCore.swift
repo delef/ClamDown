@@ -18,8 +18,10 @@ public actor HelperCore {
     private let hardware: FanHardware?
     /// macOS's own thermal level, read by the helper itself. Nil leaves the system override off.
     private let thermal: ThermalStateReading?
-    /// How far a fan's target may fall per `updateFans` call, in rpm.
+    /// How far a fan's target may fall per `fanStepInterval`, in rpm. The fall is limited by time, not by call:
+    /// a new policy runs `updateFans` at once, and a burst of them must not drop the fans faster.
     private let fanStepDown: Double
+    private let fanStepInterval: Duration
 
     private var enabled = false
     /// Battery-profile Low Power Mode before we touched it. Nil means unreadable, so we never change it.
@@ -37,6 +39,8 @@ public actor HelperCore {
     private var fansHeld = false
     /// The speeds last set, in fan order. Nil while macOS has the fans.
     private var fanTargets: [Double]?
+    /// When `fanTargets` were last written by `updateFans`; the allowed fall grows with the time since.
+    private var fanTargetsWritten: SuspendingClock.Instant?
     /// Each fan's maximum from the last complete reading, for running held fans at full speed when a
     /// hand-back fails and the current reading misses a fan.
     private var knownFanMaxima: [Double]?
@@ -61,7 +65,8 @@ public actor HelperCore {
         idle: IdleReading? = nil,
         thermal: ThermalStateReading? = nil,
         watchdogTimeout: Duration = .seconds(90),
-        fanStepDown: Double = 150
+        fanStepDown: Double = 150,
+        fanStepInterval: Duration = .seconds(3)
     ) {
         self.runner = runner
         self.store = store
@@ -71,6 +76,7 @@ public actor HelperCore {
         self.thermal = thermal
         self.watchdogTimeout = watchdogTimeout
         self.fanStepDown = fanStepDown
+        self.fanStepInterval = fanStepInterval
     }
 
     public var isEnabled: Bool { enabled }
@@ -304,10 +310,11 @@ public actor HelperCore {
             nil
         }
         let percent = override == nil ? policy.speed(at: temperature) : 100
+        let maxDrop = allowedDrop(now: now)
         let targets = reading.fans.enumerated().map { index, fan in
             let wanted = FanCurve.speed(percent: percent, fan: fan)
             let previous = fanTargets.flatMap { index < $0.count ? $0[index] : nil }
-            let smoothed = FanCurve.smoothed(previous: previous, wanted: wanted, maxDrop: fanStepDown)
+            let smoothed = FanCurve.smoothed(previous: previous, wanted: wanted, maxDrop: maxDrop)
             return min(max(smoothed, fan.minimum), fan.maximum)
         }
         do {
@@ -318,11 +325,21 @@ public actor HelperCore {
             }
             try hardware.setTargets(targets)
             fanTargets = targets
+            fanTargetsWritten = now
             fanOverride = override
             health.tickHeld(now: now)
         } catch {
             fault("Could not set the fan speed: \(error)", now: now)
         }
+    }
+
+    /// How far the targets may fall now: `fanStepDown` for each `fanStepInterval` since the last write, never
+    /// more than one step. Calls close together, such as several new policies in a row, share the step.
+    private func allowedDrop(now: SuspendingClock.Instant) -> Double {
+        guard let written = fanTargetsWritten else { return fanStepDown }
+        let elapsed = written.duration(to: now)
+        guard elapsed > .zero else { return 0 }
+        return fanStepDown * min(elapsed / fanStepInterval, 1)
     }
 
     /// What the helper sees and does right now. Reads the sensors but changes nothing.
