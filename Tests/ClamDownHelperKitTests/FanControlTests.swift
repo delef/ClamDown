@@ -485,21 +485,34 @@ import ClamDownShared
         #expect(fans.targets == [[3000]])
     }
 
-    @Test func laggingFanForFiveTicksIsAFault() async throws {
+    /// The first reading after the write sees the fan below its target at 3 s; 15 seconds later it is a fault.
+    @Test func laggingFanForFifteenSecondsIsAFault() async throws {
         let fans = FakeFans(temperature: 80, fans: [FanReading(rpm: 1000, minimum: 1000, maximum: 5000)])
         let (core, _, store) = try await enabled(fans, follows: false)
         try await core.setFanPolicy(curve, now: at(0))
         #expect(fans.targets == [[5000]])
-        await ticks(core, from: 3, to: 12)  // four ticks
+        await ticks(core, from: 3, to: 15)
         #expect(fans.isHeld)
         #expect(await core.coolingStatus().control == .controlling)
-        await core.updateFans(now: at(15))  // the fifth
+        await core.updateFans(now: at(18))
         #expect(!fans.isHeld)
         #expect(store.saved?.fansManual == nil)
-        #expect(fans.targets.count == 5)
+        #expect(fans.targets.count == 6)
         let status = await core.coolingStatus()
         #expect(status.control == .retrying)
         #expect(status.problem?.contains("Fan 1") == true)
+    }
+
+    /// Ticks that queued behind a slow take-over run back to back: many lagging readings in 2 seconds are no fault.
+    @Test func bunchedTicksDoNotFault() async throws {
+        let fans = FakeFans(temperature: 80, fans: [FanReading(rpm: 1000, minimum: 1000, maximum: 5000)])
+        let (core, _, _) = try await enabled(fans, follows: false)
+        try await core.setFanPolicy(curve, now: at(0))
+        for millisecond in stride(from: 3000, through: 5000, by: 250) {
+            await core.updateFans(now: t0.advanced(by: .milliseconds(millisecond)))
+        }
+        #expect(fans.isHeld)
+        #expect(await core.coolingStatus().control == .controlling)
     }
 
     @Test func spinningUpFanIsLeftAlone() async throws {
@@ -539,7 +552,7 @@ import ClamDownShared
         let (core, _, _) = try await enabled(fans, follows: false)
         try await core.setFanPolicy(curve, now: at(0))
         await ticks(core, from: 3, to: 120)
-        // Writes at 0, 45 and 90; each lags for five ticks, then waits 30 seconds; the third fault stops.
+        // Writes at 0, 48 and 96; each lags from the next reading for 15 seconds, then waits 30; the third fault stops.
         #expect(fans.releaseCount == 3)
         #expect(await core.coolingStatus().control == .stopped)
     }
@@ -656,6 +669,24 @@ import ClamDownShared
         #expect(await core.coolingStatus().control == .retrying)
     }
 
+    /// A fan whose keys never read is missing from the first reading too. Taking the others would leave it
+    /// with the system's control switched off and no target, so nothing is written at all.
+    @Test func fanThatNeverReadsIsAFaultFromTheFirstReading() async throws {
+        let first = FanReading(rpm: 1000, minimum: 1000, maximum: 5000, index: 0)
+        let fans = FakeFans(fans: [first], fanCount: 2)
+        let (core, _, store) = try await enabled(fans)
+        try await core.setFanPolicy(curve, now: at(0))
+        #expect(fans.targets.isEmpty)
+        #expect(!fans.isHeld)
+        #expect(store.saved?.fansManual == nil)
+        let status = await core.coolingStatus()
+        #expect(status.control == .retrying)
+        #expect(status.problem == "Could not read every fan.")
+        await ticks(core, from: 3, to: 120)
+        #expect(fans.targets.isEmpty)
+        #expect(await core.coolingStatus().control == .stopped)
+    }
+
     @Test func noFansReadIsAFault() async throws {
         let fans = FakeFans(fans: [])
         let (core, _, _) = try await enabled(fans)
@@ -664,21 +695,84 @@ import ClamDownShared
         #expect(await core.coolingStatus().control == .retrying)
     }
 
-    /// While a retry waits, a hand-back that failed is tried again on every tick.
-    @Test func failedReleaseIsRetriedWhileWaiting() async throws {
+    /// Fans that macOS did not take back must not stay frozen at the last target while nobody drives them:
+    /// until the hand-back works, every tick runs them at full speed and tries the hand-back again.
+    @Test func failedReleaseRunsTheFansAtFullSpeedUntilItWorks() async throws {
+        let first = FanReading(rpm: 1000, minimum: 1000, maximum: 5000, index: 0)
+        let second = FanReading(rpm: 1200, minimum: 1200, maximum: 6000, index: 1)
+        let fans = FakeFans(fans: [first, second])
+        let (core, _, store) = try await enabled(fans)
+        try await core.setFanPolicy(curve, now: at(0))
+        #expect(fans.targets == [[3000, 3600]])
+        fans.failRelease()
+        fans.set(temperature: nil)
+        await core.updateFans(now: at(3))  // a fault whose hand-back fails
+        #expect(fans.releaseCount == 1)
+        #expect(fans.targets.last == [5000, 6000])
+        #expect(store.saved?.fansManual == true)
+        let status = await core.coolingStatus()
+        #expect(status.problem?.hasPrefix("Could not hand the fans back to macOS") == true)
+        #expect(status.control == .retrying)
+        fans.set(temperature: 70)
+        await core.updateFans(now: at(6))
+        await core.updateFans(now: at(9))
+        #expect(fans.releaseCount == 3)
+        #expect(fans.targets.count == 4)
+        #expect(fans.targets.last == [5000, 6000])
+        #expect(store.saved?.fansManual == true)
+        fans.failRelease(false)
+        await core.updateFans(now: at(12))
+        #expect(!fans.isHeld)
+        #expect(store.saved?.fansManual == nil)
+        await ticks(core, from: 15, to: 27)
+        #expect(fans.targets.count == 4)
+        #expect(await core.coolingStatus().problem == "Cannot read the CPU temperature.")
+    }
+
+    /// A fan that drops out of the reading keeps the maximum it was last read with.
+    @Test func failedReleaseUsesTheLastKnownMaximum() async throws {
+        let first = FanReading(rpm: 1000, minimum: 1000, maximum: 5000, index: 0)
+        let second = FanReading(rpm: 1200, minimum: 1200, maximum: 6000, index: 1)
+        let fans = FakeFans(fans: [first, second])
+        let (core, _, _) = try await enabled(fans)
+        try await core.setFanPolicy(curve, now: at(0))
+        fans.failRelease()
+        fans.set(fans: [first])
+        await core.updateFans(now: at(3))
+        #expect(fans.targets.last == [5000, 6000])
+    }
+
+    @Test func failedReleaseAfterSwitchOffRunsTheFansAtFullSpeed() async throws {
         let (core, fans, store) = try await enabled()
         try await core.setFanPolicy(curve, now: at(0))
         fans.failRelease()
-        fans.set(temperature: nil)
+        try await core.disable()
+        #expect(fans.targets.last == [5000])
+        #expect(store.saved == SavedState(fansManual: true))
         await core.updateFans(now: at(3))
-        #expect(fans.isHeld)
-        #expect(store.saved?.fansManual == true)
+        #expect(fans.targets.count == 3)
         fans.failRelease(false)
-        fans.set(temperature: 70)
         await core.updateFans(now: at(6))
         #expect(!fans.isHeld)
-        #expect(store.saved?.fansManual == nil)
-        #expect(fans.targets.count == 1)
+        #expect(store.saved == nil)
+        await core.updateFans(now: at(9))
+        #expect(fans.targets.count == 3)
+    }
+
+    /// The take-over is on disk before the first write of a retry, as on the first take-over.
+    @Test func retryRecordsTheTakeOverBeforeWriting() async throws {
+        let log = EventLog()
+        let fans = FakeFans(log: log)
+        fans.followsTargets = true
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(log: log), fans: fans, fanStepDown: 150)
+        try await core.enable(lowPowerOnBattery: false, now: t0)
+        fans.failSet()
+        try await core.setFanPolicy(curve, now: at(0))
+        fans.failSet(false)
+        let before = log.events.count
+        await core.updateFans(now: at(30))
+        #expect(Array(log.events.dropFirst(before)) == ["save fans held", "set targets"])
+        #expect(fans.targets == [[3000]])
     }
 
     @Test func statusDoesNotRetry() async throws {

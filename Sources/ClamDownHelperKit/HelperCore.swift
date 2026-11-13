@@ -37,9 +37,9 @@ public actor HelperCore {
     private var fansHeld = false
     /// The speeds last set, in fan order. Nil while macOS has the fans.
     private var fanTargets: [Double]?
-    /// How many fans the first reading of this control session had. A reading with another count is a fault,
-    /// because targets are written by position. Nil while macOS has the fans.
-    private var sessionFanCount: Int?
+    /// Each fan's maximum from the last complete reading, for running held fans at full speed when a
+    /// hand-back fails and the current reading misses a fan.
+    private var knownFanMaxima: [Double]?
     /// Faults, retries and whether control has stopped. A new policy or Turn On starts it afresh.
     private var health = FanHealth()
     private var lagWatch = LagWatch()
@@ -279,19 +279,20 @@ public actor HelperCore {
             releaseFansIfHeld()
             return
         }
-        // `setTargets` writes by position, so every fan must be there, in SMC order, and the same set as
-        // when this session took the fans; otherwise a target could land on the wrong fan.
-        let inOrder = reading.fans.enumerated().allSatisfy { position, fan in fan.index.map { $0 == position } ?? true }
-        guard !reading.fans.isEmpty, inOrder, sessionFanCount.map({ $0 == reading.fans.count }) ?? true else {
+        // `setTargets` writes by position and every fan needs a target, so every fan the hardware has must be
+        // in the reading, in SMC order; otherwise a target could land on the wrong fan or a fan get none.
+        guard isComplete(reading, hardware) else {
             fault(reading.fans.isEmpty ? "Could not read the fans." : "Could not read every fan.", now: now)
             return
         }
+        knownFanMaxima = reading.fans.map(\.maximum)
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
         guard let temperature = reading.cpuTemperature else {
             fault("Cannot read the CPU temperature.", now: now)
             return
         }
-        if fansHeld, let previous = fanTargets, let lagging = lagWatch.update(targets: previous, fans: reading.fans) {
+        if fansHeld, let previous = fanTargets,
+           let lagging = lagWatch.update(targets: previous, fans: reading.fans, now: now) {
             fault("Fan \(lagging + 1) does not reach the speed it was set to.", now: now)
             return
         }
@@ -317,7 +318,6 @@ public actor HelperCore {
             }
             try hardware.setTargets(targets)
             fanTargets = targets
-            sessionFanCount = sessionFanCount ?? targets.count
             fanOverride = override
             health.tickHeld(now: now)
         } catch {
@@ -364,24 +364,31 @@ public actor HelperCore {
     private func fault(_ reason: String, now: SuspendingClock.Instant) {
         fanOverride = nil
         lagWatch = LagWatch()
-        sessionFanCount = nil
         releaseFansIfHeld()
         health.fault(reason, now: now)
     }
 
-    /// Hands the fans back to macOS. A failure keeps `fansHeld`, so the next call tries again.
+    /// True when the reading holds every fan the hardware has, each at its own SMC index.
+    private func isComplete(_ reading: HardwareReading, _ hardware: FanHardware) -> Bool {
+        !reading.fans.isEmpty && reading.fans.count == hardware.fanCount
+            && reading.fans.enumerated().allSatisfy { position, fan in fan.index.map { $0 == position } ?? true }
+    }
+
+    /// Hands the fans back to macOS. A failure keeps `fansHeld`, so the next call tries again, and runs the
+    /// fans at full speed meanwhile: nothing drives them while ClamDown is not in control, and a fan left at
+    /// its last target could stay slow on a Mac that is heating up.
     private func releaseFansIfHeld() {
         guard fansHeld, let hardware else { return }
         do {
             try hardware.releaseFans()
         } catch {
             releaseProblem = "Could not hand the fans back to macOS: \(error)"
+            runHeldFansAtMaximum(hardware)
             return
         }
         releaseProblem = nil
         fansHeld = false
         fanTargets = nil
-        sessionFanCount = nil
         lagWatch = LagWatch()
         if enabled {
             try? recordFansHeld(false)
@@ -389,6 +396,23 @@ public actor HelperCore {
             // Left behind by a switch-off whose fan release failed; nothing else is left to restore.
             try? store.clear()
             saved = nil
+        }
+    }
+
+    /// Best effort: sets every fan to its maximum. The take-over stays on disk, because the fans are still held.
+    private func runHeldFansAtMaximum(_ hardware: FanHardware) {
+        let maxima: [Double]?
+        if let reading = try? hardware.read(), isComplete(reading, hardware) {
+            maxima = reading.fans.map(\.maximum)
+        } else {
+            maxima = knownFanMaxima
+        }
+        guard let maxima, maxima.count == hardware.fanCount else { return }
+        do {
+            try hardware.setTargets(maxima)
+            fanTargets = maxima
+        } catch {
+            // The hand-back is retried on the next tick, and this with it.
         }
     }
 

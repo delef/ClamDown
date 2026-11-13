@@ -95,41 +95,43 @@ public struct FanHealth: Sendable {
     }
 }
 
-/// Finds a fan that does not follow its target: more than `fraction` of its range below the target on
-/// `ticks` readings in a row. Running faster than the target is fine. A fan without a range (maximum not above
-/// minimum, as some sensors report) is never judged.
+/// Finds a fan that does not follow its target: more than `fraction` of its range below the target on every
+/// reading for at least `duration` of clock time, so at least two readings that far apart. Readings, not ticks,
+/// are timed, because ticks that queued behind a slow take-over can run back to back. Running faster than the
+/// target is fine. A fan without a range (maximum not above minimum, as some sensors report) is never judged.
 public struct LagWatch: Sendable {
     // First guesses from the spec; device measurements may change them, keeping the rule's shape.
     public static let defaultFraction = 0.2
-    /// Five ticks of 3 seconds: 15 seconds.
-    public static let defaultTicks = 5
+    public static let defaultDuration: Duration = .seconds(15)
 
     private let fraction: Double
-    private let ticks: Int
-    private var counts: [Int] = []
+    private let duration: Duration
+    /// When each fan's current run of lagging readings began; nil while it keeps up.
+    private var lagSince: [SuspendingClock.Instant?] = []
 
-    public init(fraction: Double = defaultFraction, ticks: Int = defaultTicks) {
+    public init(fraction: Double = defaultFraction, duration: Duration = defaultDuration) {
         self.fraction = fraction
-        self.ticks = ticks
+        self.duration = duration
     }
 
     /// Compares each fan's speed now with the target it was last given. Returns the index of a fan that has
-    /// lagged for `ticks` readings in a row, or nil. Lists of different lengths are not judged.
-    public mutating func update(targets: [Double], fans: [FanReading]) -> Int? {
+    /// lagged for `duration`, or nil. Lists of different lengths are not judged.
+    public mutating func update(targets: [Double], fans: [FanReading], now: SuspendingClock.Instant) -> Int? {
         guard targets.count == fans.count else {
-            counts = []
+            lagSince = []
             return nil
         }
-        if counts.count != fans.count { counts = Array(repeating: 0, count: fans.count) }
+        if lagSince.count != fans.count { lagSince = Array(repeating: nil, count: fans.count) }
         var lagging: Int?
         for (index, fan) in fans.enumerated() {
             let range = fan.maximum - fan.minimum
             guard range > 0, fan.rpm < targets[index] - range * fraction else {
-                counts[index] = 0
+                lagSince[index] = nil
                 continue
             }
-            counts[index] += 1
-            if counts[index] >= ticks, lagging == nil { lagging = index }
+            let since = lagSince[index] ?? now
+            lagSince[index] = since
+            if since.duration(to: now) >= duration, lagging == nil { lagging = index }
         }
         return lagging
     }

@@ -135,62 +135,92 @@ import Testing
 }
 
 @Suite struct LagWatchTests {
+    private let t0 = SuspendingClock.now
     private let fan = FanReading(rpm: 1000, minimum: 1000, maximum: 5000)
 
+    private func at(_ seconds: Double) -> SuspendingClock.Instant { t0.advanced(by: .milliseconds(Int(seconds * 1000))) }
     private func fan(rpm: Double) -> FanReading { FanReading(rpm: rpm, minimum: 1000, maximum: 5000) }
 
-    @Test func laggingFanForFiveTicksIsAFault() {
+    @Test func laggingFanForFifteenSecondsIsAFault() {
         var watch = LagWatch()
-        for _ in 1...4 { #expect(watch.update(targets: [5000], fans: [fan]) == nil) }
-        #expect(watch.update(targets: [5000], fans: [fan]) == 0)
+        for second in stride(from: 0.0, through: 12, by: 3) {
+            #expect(watch.update(targets: [5000], fans: [fan], now: at(second)) == nil)
+        }
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(14.9)) == nil)
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(15)) == 0)
+    }
+
+    /// Ticks that queued behind a slow take-over run back to back; many readings in a short time are not 15 seconds.
+    @Test func bunchedReadingsNeverFault() {
+        var watch = LagWatch()
+        for second in [0.0, 0.5, 1, 1.5, 2] {
+            #expect(watch.update(targets: [5000], fans: [fan], now: at(second)) == nil)
+        }
+    }
+
+    @Test func twoReadingsFifteenSecondsApartFault() {
+        var watch = LagWatch()
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(0)) == nil)
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(15)) == 0)
     }
 
     @Test func reportsWhichFanLags() {
         var watch = LagWatch()
-        for _ in 1...4 { _ = watch.update(targets: [5000, 5000], fans: [fan(rpm: 5000), fan(rpm: 1000)]) }
-        #expect(watch.update(targets: [5000, 5000], fans: [fan(rpm: 5000), fan(rpm: 1000)]) == 1)
+        _ = watch.update(targets: [5000, 5000], fans: [fan(rpm: 5000), fan(rpm: 1000)], now: at(0))
+        #expect(watch.update(targets: [5000, 5000], fans: [fan(rpm: 5000), fan(rpm: 1000)], now: at(15)) == 1)
     }
 
     @Test func spinningUpFanIsLeftAlone() {
         var watch = LagWatch()
-        for rpm in [1000.0, 1800, 2900, 4300, 4900, 5000, 5000, 5000] {
-            #expect(watch.update(targets: [5000], fans: [fan(rpm: rpm)]) == nil)
+        for (step, rpm) in [1000.0, 1800, 2900, 4300, 4900, 5000, 5000, 5000].enumerated() {
+            #expect(watch.update(targets: [5000], fans: [fan(rpm: rpm)], now: at(Double(step) * 3)) == nil)
         }
     }
 
     @Test func withinTwentyPercentIsNotLagging() {
         var watch = LagWatch()
-        for _ in 1...20 { #expect(watch.update(targets: [5000], fans: [fan(rpm: 4200)]) == nil) }
+        for second in stride(from: 0.0, through: 60, by: 3) {
+            #expect(watch.update(targets: [5000], fans: [fan(rpm: 4200)], now: at(second)) == nil)
+        }
     }
 
-    @Test func oneGoodTickRestartsTheCount() {
+    @Test func oneGoodReadingRestartsTheTime() {
         var watch = LagWatch()
-        for _ in 1...4 { _ = watch.update(targets: [5000], fans: [fan]) }
-        _ = watch.update(targets: [5000], fans: [fan(rpm: 5000)])
-        for _ in 1...4 { #expect(watch.update(targets: [5000], fans: [fan]) == nil) }
-        #expect(watch.update(targets: [5000], fans: [fan]) == 0)
+        _ = watch.update(targets: [5000], fans: [fan], now: at(0))
+        _ = watch.update(targets: [5000], fans: [fan(rpm: 5000)], now: at(12))
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(15)) == nil)
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(29)) == nil)
+        #expect(watch.update(targets: [5000], fans: [fan], now: at(30)) == 0)
     }
 
     @Test func fasterThanTargetIsFine() {
         var watch = LagWatch()
-        for _ in 1...20 { #expect(watch.update(targets: [1000], fans: [fan(rpm: 5000)]) == nil) }
+        for second in stride(from: 0.0, through: 60, by: 3) {
+            #expect(watch.update(targets: [1000], fans: [fan(rpm: 5000)], now: at(second)) == nil)
+        }
     }
 
     @Test func fanWithNoRangeIsSkipped() {
         var watch = LagWatch()
         let fixed = FanReading(rpm: 0, minimum: 2000, maximum: 2000)
         let inverted = FanReading(rpm: 0, minimum: 3000, maximum: 2000)
-        for _ in 1...20 { #expect(watch.update(targets: [2000, 3000], fans: [fixed, inverted]) == nil) }
+        for second in stride(from: 0.0, through: 60, by: 3) {
+            #expect(watch.update(targets: [2000, 3000], fans: [fixed, inverted], now: at(second)) == nil)
+        }
     }
 
     @Test func fanAtZeroWithZeroTargetIsFine() {
         var watch = LagWatch()
         let still = FanReading(rpm: 0, minimum: 0, maximum: 5000)
-        for _ in 1...20 { #expect(watch.update(targets: [0], fans: [still]) == nil) }
+        for second in stride(from: 0.0, through: 60, by: 3) {
+            #expect(watch.update(targets: [0], fans: [still], now: at(second)) == nil)
+        }
     }
 
     @Test func mismatchedListsAreNotJudged() {
         var watch = LagWatch()
-        for _ in 1...20 { #expect(watch.update(targets: [5000, 5000], fans: [fan]) == nil) }
+        for second in stride(from: 0.0, through: 60, by: 3) {
+            #expect(watch.update(targets: [5000, 5000], fans: [fan], now: at(second)) == nil)
+        }
     }
 }

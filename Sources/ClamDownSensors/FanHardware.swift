@@ -25,11 +25,14 @@ public enum FanHardwareError: Error, Equatable, CustomStringConvertible {
     case unsupported
     /// macOS did not hand the fan over within the wait.
     case notReleasedBySystem(fan: Int)
+    /// A target list that does not cover every fan: taking the others would leave one with no target.
+    case wrongFanCount(expected: Int, got: Int)
 
     public var description: String {
         switch self {
         case .unsupported: "This Mac does not allow manual fan control."
         case .notReleasedBySystem(let fan): "macOS did not hand over fan \(fan + 1)."
+        case .wrongFanCount(let expected, let got): "Expected targets for \(expected) fans, got \(got)."
         }
     }
 }
@@ -43,6 +46,8 @@ public protocol SensorReading: Sendable {
 public protocol FanHardware: SensorReading {
     /// False when the fans can only be read, for example on an Intel Mac.
     var supportsControl: Bool { get }
+    /// How many fans the hardware says it has (`FNum`). A reading can hold fewer when a fan's keys fail.
+    var fanCount: Int { get }
     /// Takes the fans from macOS when needed and sets each fan's target speed in rpm, in fan order:
     /// `rpms[n]` goes to SMC fan n, whatever `read()` returned.
     func setTargets(_ rpms: [Double]) throws
@@ -56,7 +61,7 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
     private let lock = NSLock()
     private let smc: SMC
     private let temperatureKeys: [String]
-    private let fanCount: Int
+    public let fanCount: Int
     public let supportsControl: Bool
     /// How long to wait for macOS to hand over a fan after `Ftst` = 1.
     private let takeoverTimeout: Duration
@@ -89,8 +94,11 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
 
     public func setTargets(_ rpms: [Double]) throws {
         guard supportsControl else { throw FanHardwareError.unsupported }
+        // Every fan gets a target or none is touched: `Ftst` = 1 with a fan left out would leave that fan
+        // with neither macOS nor ClamDown driving it.
+        guard rpms.count == fanCount else { throw FanHardwareError.wrongFanCount(expected: fanCount, got: rpms.count) }
         try lock.withLock {
-            for (index, rpm) in rpms.prefix(fanCount).enumerated() {
+            for (index, rpm) in rpms.enumerated() {
                 // macOS can take a fan back, for example after sleep, so check the mode every time.
                 if smc.read("F\(index)Md")?.number != 1 { try takeOver(fan: index) }
                 try smc.write("F\(index)Tg", bytes: Self.floatBytes(rpm))

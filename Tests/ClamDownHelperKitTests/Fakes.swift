@@ -80,14 +80,26 @@ final class FakeIdle: IdleReading, @unchecked Sendable {
     func idleTime() -> Duration? { time }
 }
 
+/// One ordered record of what fakes were asked to do, shared between them, so a test can check the order
+/// of a save and a fan write.
+final class EventLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [String] = []
+
+    var events: [String] { lock.withLock { recorded } }
+    func append(_ event: String) { lock.withLock { recorded.append(event) } }
+}
+
 final class FakeStore: SavedStateStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var state: SavedState?
     private var loadFails = false
+    private let log: EventLog?
 
-    init(initial: SavedState? = nil, loadFails: Bool = false) {
+    init(initial: SavedState? = nil, loadFails: Bool = false, log: EventLog? = nil) {
         self.state = initial
         self.loadFails = loadFails
+        self.log = log
     }
 
     var saved: SavedState? { lock.withLock { state } }
@@ -99,8 +111,15 @@ final class FakeStore: SavedStateStoring, @unchecked Sendable {
         }
     }
 
-    func save(_ newState: SavedState) throws { lock.withLock { state = newState } }
-    func clear() throws { lock.withLock { state = nil } }
+    func save(_ newState: SavedState) throws {
+        log?.append(newState.fansManual == true ? "save fans held" : "save fans free")
+        lock.withLock { state = newState }
+    }
+
+    func clear() throws {
+        log?.append("clear")
+        lock.withLock { state = nil }
+    }
 }
 
 /// The thermal level the test sets by hand.
@@ -128,12 +147,19 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     private var releaseFails = false
     private var held = false
     private var follows = false
+    private let log: EventLog?
     let supportsControl: Bool
+    /// How many fans the hardware says it has. A reading can hold fewer, as when a fan's keys fail.
+    let fanCount: Int
 
+    /// `fanCount` defaults to the number of `fans`.
     init(temperature: Double? = 70, lidClosed: Bool? = true, supportsControl: Bool = true,
-         fans: [FanReading] = [FanReading(rpm: 1300, minimum: 1000, maximum: 5000)]) {
+         fans: [FanReading] = [FanReading(rpm: 1300, minimum: 1000, maximum: 5000)], fanCount: Int? = nil,
+         log: EventLog? = nil) {
         reading = HardwareReading(cpuTemperature: temperature, fans: fans, lidClosed: lidClosed)
         self.supportsControl = supportsControl
+        self.fanCount = fanCount ?? fans.count
+        self.log = log
     }
 
     /// When true, `read()` reports each fan's last target as its rpm, as fans that keep up would.
@@ -164,6 +190,7 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     }
 
     func setTargets(_ rpms: [Double]) throws {
+        log?.append("set targets")
         try lock.withLock {
             if setFails { throw FakeFailure() }
             held = true
@@ -172,6 +199,7 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     }
 
     func releaseFans() throws {
+        log?.append("release")
         try lock.withLock {
             releases += 1
             if releaseFails { throw FakeFailure() }
