@@ -120,11 +120,15 @@ public struct FanReading: Codable, Equatable, Sendable {
     public var rpm: Double
     public var minimum: Double
     public var maximum: Double
+    /// The fan's number in the SMC (`F<index>…` keys). Nil when the source does not say.
+    /// Targets are written by this number, so a reading that skips a fan must not be taken as in fan order.
+    public var index: Int?
 
-    public init(rpm: Double, minimum: Double, maximum: Double) {
+    public init(rpm: Double, minimum: Double, maximum: Double, index: Int? = nil) {
         self.rpm = rpm
         self.minimum = minimum
         self.maximum = maximum
+        self.index = index
     }
 }
 

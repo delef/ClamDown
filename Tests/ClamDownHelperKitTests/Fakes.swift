@@ -150,6 +150,7 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     func set(temperature: Double?) { lock.withLock { reading.cpuTemperature = temperature } }
     func set(hottest: Double?) { lock.withLock { reading.hottestCPUTemperature = hottest } }
     func set(lidClosed: Bool?) { lock.withLock { reading.lidClosed = lidClosed } }
+    func set(fans: [FanReading]) { lock.withLock { reading.fans = fans } }
     func failSet(_ fails: Bool = true) { lock.withLock { setFails = fails } }
     func failRelease(_ fails: Bool = true) { lock.withLock { releaseFails = fails } }
 

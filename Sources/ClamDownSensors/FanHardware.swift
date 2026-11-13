@@ -43,7 +43,8 @@ public protocol SensorReading: Sendable {
 public protocol FanHardware: SensorReading {
     /// False when the fans can only be read, for example on an Intel Mac.
     var supportsControl: Bool { get }
-    /// Takes the fans from macOS when needed and sets each fan's target speed in rpm, in fan order.
+    /// Takes the fans from macOS when needed and sets each fan's target speed in rpm, in fan order:
+    /// `rpms[n]` goes to SMC fan n, whatever `read()` returned.
     func setTargets(_ rpms: [Double]) throws
     /// Hands every fan back to macOS. Safe to call when ClamDown does not hold them.
     func releaseFans() throws
@@ -72,11 +73,13 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
 
     public func read() throws -> HardwareReading {
         lock.withLock {
+            // A fan whose keys fail is left out, so each reading carries its SMC index: the helper must not
+            // take the list as in fan order when one is missing, because `setTargets` writes by position.
             let fans = (0..<fanCount).compactMap { index -> FanReading? in
                 guard let rpm = smc.read("F\(index)Ac")?.number,
                       let minimum = smc.read("F\(index)Mn")?.number,
                       let maximum = smc.read("F\(index)Mx")?.number else { return nil }
-                return FanReading(rpm: rpm, minimum: minimum, maximum: maximum)
+                return FanReading(rpm: rpm, minimum: minimum, maximum: maximum, index: index)
             }
             let temperatures = CPUTemperatures.summary(temperatureKeys.compactMap { smc.read($0)?.number })
             return HardwareReading(cpuTemperature: temperatures.average, hottestCPUTemperature: temperatures.hottest,

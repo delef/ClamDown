@@ -37,9 +37,17 @@ public actor HelperCore {
     private var fansHeld = false
     /// The speeds last set, in fan order. Nil while macOS has the fans.
     private var fanTargets: [Double]?
-    /// Set after a failed take-over, so the helper does not retry every tick. A new policy clears it.
-    private var fanControlFailed = false
-    private var fanProblem: String?
+    /// How many fans the first reading of this control session had. A reading with another count is a fault,
+    /// because targets are written by position. Nil while macOS has the fans.
+    private var sessionFanCount: Int?
+    /// Faults, retries and whether control has stopped. A new policy or Turn On starts it afresh.
+    private var health = FanHealth()
+    private var lagWatch = LagWatch()
+    /// True while the helper is not asked to drive the fans: mode off, fan control off, no usable SMC,
+    /// or the lid open with Only With Lid Closed. Not a fault.
+    private var fanIdle = true
+    /// Why the last hand-back to macOS failed, until one succeeds.
+    private var releaseProblem: String?
     /// Watches for one core at its limit; reset whenever the helper is not asked to drive the fans.
     private var hotCore = HotCoreWatch()
     /// Why the fans last ran at full speed, while they did.
@@ -70,6 +78,8 @@ public actor HelperCore {
     public func enable(lowPowerOnBattery: Bool, now: SuspendingClock.Instant = .now) throws {
         // The app is back, so the sleep an earlier watchdog switch-off owed is off.
         owedSleep = nil
+        // A new Turn On: fan control starts afresh.
+        health.restart()
         if enabled {
             lastHeartbeat = now
             try applyLowPower(lowPowerOnBattery)
@@ -119,8 +129,8 @@ public actor HelperCore {
         priorSleepDisabled = nil
         priorBatteryLowPower = nil
         fanPolicy = nil
-        fanControlFailed = false
-        fanProblem = nil
+        health.restart()
+        fanIdle = true
         hotCore = HotCoreWatch()
         fanOverride = nil
         enabled = false
@@ -219,12 +229,12 @@ public actor HelperCore {
 
     // MARK: - Fans
 
-    /// Stores the app's fan wishes for this session and applies them at once.
+    /// Stores the app's fan wishes for this session and applies them at once. A new policy starts afresh,
+    /// even after fan control has stopped.
     public func setFanPolicy(_ policy: FanPolicy, now: SuspendingClock.Instant = .now) throws {
         guard enabled else { throw HelperError.notEnabled }
         fanPolicy = policy.repaired()
-        fanControlFailed = false
-        fanProblem = nil
+        health.restart()
         updateFans(now: now)
     }
 
@@ -232,47 +242,57 @@ public actor HelperCore {
     /// in every other case it hands the fans back to macOS if ClamDown holds them.
     /// The curve and the safety floor follow the average CPU temperature; a core at its limit or a Mac that
     /// macOS reports as hot runs the fans at full speed instead.
+    /// Any fault (a failed read or write, a lost temperature, a fan that drops out of the reading or does not
+    /// follow its target) hands the fans back to macOS; `FanHealth` says when to take them again.
     public func updateFans(now: SuspendingClock.Instant = .now) {
         guard enabled, let policy = fanPolicy, !policy.isOff else {
             hotCore = HotCoreWatch()
-            fanOverride = nil
-            releaseFansIfHeld()
+            stopDriving()
             return
         }
-        guard let hardware else {
-            fanProblem = "Cannot open the SMC."
+        guard let hardware, hardware.supportsControl else {
+            // `coolingStatus` reports why; there is nothing to retry.
+            stopDriving()
             return
         }
-        guard hardware.supportsControl else {
-            fanProblem = FanHardwareError.unsupported.description
-            return
-        }
-        guard !fanControlFailed else { return }
         let reading: HardwareReading
         do {
             reading = try hardware.read()
         } catch {
-            fanProblem = "Could not read the sensors: \(error)"
-            fanOverride = nil
-            releaseFansIfHeld()
+            fanIdle = false
+            if health.mayTry(now: now) {
+                fault("Could not read the sensors: \(error)", now: now)
+            } else {
+                releaseFansIfHeld()
+            }
             return
         }
         let hotCoreActive = hotCore.update(hottest: reading.hottestCPUTemperature, now: now)
         if policy.onlyWhenLidClosed, reading.lidClosed != true {
-            fanProblem = nil
+            stopDriving()
+            return
+        }
+        fanIdle = false
+        // While a retry waits, a hand-back that failed is tried again on every tick.
+        guard health.mayTry(now: now) else {
             fanOverride = nil
             releaseFansIfHeld()
             return
         }
-        guard !reading.fans.isEmpty else {
-            fanProblem = "This Mac has no fans."
+        // `setTargets` writes by position, so every fan must be there, in SMC order, and the same set as
+        // when this session took the fans; otherwise a target could land on the wrong fan.
+        let inOrder = reading.fans.enumerated().allSatisfy { position, fan in fan.index.map { $0 == position } ?? true }
+        guard !reading.fans.isEmpty, inOrder, sessionFanCount.map({ $0 == reading.fans.count }) ?? true else {
+            fault(reading.fans.isEmpty ? "Could not read the fans." : "Could not read every fan.", now: now)
             return
         }
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
         guard let temperature = reading.cpuTemperature else {
-            fanProblem = "Cannot read the CPU temperature."
-            fanOverride = nil
-            releaseFansIfHeld()
+            fault("Cannot read the CPU temperature.", now: now)
+            return
+        }
+        if fansHeld, let previous = fanTargets, let lagging = lagWatch.update(targets: previous, fans: reading.fans) {
+            fault("Fan \(lagging + 1) does not reach the speed it was set to.", now: now)
             return
         }
         let override: FanOverride? = if hotCoreActive {
@@ -297,23 +317,28 @@ public actor HelperCore {
             }
             try hardware.setTargets(targets)
             fanTargets = targets
-            fanProblem = nil
+            sessionFanCount = sessionFanCount ?? targets.count
             fanOverride = override
+            health.tickHeld(now: now)
         } catch {
-            fanProblem = "Could not set the fan speed: \(error)"
-            fanControlFailed = true
-            fanOverride = nil
-            releaseFansIfHeld()
+            fault("Could not set the fan speed: \(error)", now: now)
         }
     }
 
+    /// What the helper sees and does right now. Reads the sensors but changes nothing.
     public func coolingStatus() -> CoolingStatus {
         let reading = try? hardware?.read()
-        var problem = fanProblem
-        if hardware == nil {
-            problem = "Cannot open the SMC."
+        let control: FanControlState = fanIdle ? .idle : health.state
+        let problem: String? = if hardware == nil {
+            "Cannot open the SMC."
         } else if hardware?.supportsControl == false {
-            problem = FanHardwareError.unsupported.description
+            FanHardwareError.unsupported.description
+        } else if let releaseProblem {
+            releaseProblem
+        } else if control == .retrying || control == .stopped {
+            health.reason
+        } else {
+            nil
         }
         return CoolingStatus(
             cpuTemperature: reading?.cpuTemperature,
@@ -322,9 +347,26 @@ public actor HelperCore {
             isControlling: fansHeld,
             problem: problem,
             override: fansHeld ? fanOverride : nil,
-            control: fansHeld ? .controlling : .idle,
+            control: control,
             systemThermalLevel: thermal?.thermalLevel()
         )
+    }
+
+    /// Not asked to drive the fans (not a fault): hand them back and wait.
+    private func stopDriving() {
+        fanIdle = true
+        fanOverride = nil
+        health.pause()
+        releaseFansIfHeld()
+    }
+
+    /// Hands the fans to macOS after a fault; `health` decides when to take them again.
+    private func fault(_ reason: String, now: SuspendingClock.Instant) {
+        fanOverride = nil
+        lagWatch = LagWatch()
+        sessionFanCount = nil
+        releaseFansIfHeld()
+        health.fault(reason, now: now)
     }
 
     /// Hands the fans back to macOS. A failure keeps `fansHeld`, so the next call tries again.
@@ -333,11 +375,14 @@ public actor HelperCore {
         do {
             try hardware.releaseFans()
         } catch {
-            fanProblem = "Could not hand the fans back to macOS: \(error)"
+            releaseProblem = "Could not hand the fans back to macOS: \(error)"
             return
         }
+        releaseProblem = nil
         fansHeld = false
         fanTargets = nil
+        sessionFanCount = nil
+        lagWatch = LagWatch()
         if enabled {
             try? recordFansHeld(false)
         } else if saved == SavedState(fansManual: true) {
