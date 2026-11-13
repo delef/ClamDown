@@ -7,8 +7,8 @@ public enum CDTone: Sendable {
     var style: AnyShapeStyle {
         switch self {
         case .secondary: AnyShapeStyle(.secondary)
-        case .success: AnyShapeStyle(CDColor.success)
-        case .warning: AnyShapeStyle(CDColor.warning)
+        case .success: AnyShapeStyle(CDColor.successText)
+        case .warning: AnyShapeStyle(CDColor.warningText)
         case .danger: AnyShapeStyle(CDColor.danger)
         }
     }

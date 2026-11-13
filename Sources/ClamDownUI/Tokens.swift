@@ -16,6 +16,18 @@ public enum CDColor {
     public static let warning = Color.orange
     public static let danger = Color.red
 
+    /// Warning as text: a dark orange (#B45309) in light appearance, where system orange is about 2:1 on a pale
+    /// background; the system orange in dark. Symbols and dots keep `warning`.
+    public static let warningText = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor.systemOrange : NSColor(srgbRed: 0xB4 / 255, green: 0x53 / 255, blue: 0x09 / 255, alpha: 1)
+    })
+    /// Success as text: a dark green (#15803D) in light appearance, the system green in dark.
+    public static let successText = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor.systemGreen : NSColor(srgbRed: 0x15 / 255, green: 0x80 / 255, blue: 0x3D / 255, alpha: 1)
+    })
+
     /// The fill of a settings card: white in light appearance; in dark, the system's window colour with a little
     /// white on top, so a card is lighter than the window it sits on (the window colour follows the system).
     public static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
