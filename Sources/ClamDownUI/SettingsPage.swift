@@ -55,25 +55,27 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
     }
 
     public var body: some View {
-        // The header sits above the form, not in it: an empty first section in a Form makes macOS 26 measure the
-        // rows of the next section too short, which clips them. The form's own background is hidden so the header
-        // and the cards share the window's.
-        let page = VStack(spacing: 0) {
-            header
-                .padding(.horizontal, CDMetric.pageInset)
-                .padding(.top, 14)
-                .padding(.bottom, 4)
-            Form { content }
-                .formStyle(.grouped)
-                .scrollContentBackground(.hidden)
-                // The form scrolls inside the space left under the header; it must not ask for its content's height.
-                .frame(minHeight: 0, maxHeight: .infinity)
-        }
-        .frame(minWidth: 0, minHeight: 0)
+        let page = pageContent
         if look == .glass, #available(macOS 26, *) {
             page.background(alignment: .top) { aura }
         } else {
             page.background(Color(nsColor: .windowBackgroundColor))
+        }
+    }
+
+    /// The header and the sections on a plain scroll view, so the header scrolls with the page. The cards are drawn
+    /// here rather than by a Form: on macOS 27.2 a Form measures the rows of the section after an empty section (the
+    /// header's own, in an earlier version of this page) 36 pt high, which clips them, and its header row cannot be
+    /// drawn without a card.
+    private var pageContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: CDMetric.pageSpacing) {
+                header
+                content
+            }
+            .padding(.horizontal, CDMetric.pageInset)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -106,11 +108,32 @@ public struct CDSection<Content: View>: View {
     }
 
     public var body: some View {
-        if let title {
-            // The title is styled here, so every section's title looks the same.
-            Section { content } header: { Text(title).font(.headline).foregroundStyle(.primary) }
-        } else {
-            Section { content }
+        let card = RoundedRectangle(cornerRadius: CDMetric.cardRadius, style: .continuous)
+        VStack(alignment: .leading, spacing: 8) {
+            if let title {
+                Text(title).font(.headline).padding(.leading, 6)
+            }
+            _VariadicView.Tree(CDCardRows()) { content }
+                .background(card.fill(Color(nsColor: .controlBackgroundColor)))
+                .clipShape(card)
+                .overlay(card.strokeBorder(Color.primary.opacity(0.08)))
+        }
+    }
+}
+
+/// Lays the children of a section out as rows of one card: padded, with a hairline between two rows.
+private struct CDCardRows: _VariadicView_UnaryViewRoot {
+    func body(children: _VariadicView.Children) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(children.enumerated()), id: \.offset) { index, child in
+                if index > 0 {
+                    Divider().padding(.horizontal, CDMetric.cardInset)
+                }
+                child
+                    .padding(.horizontal, CDMetric.cardInset)
+                    .padding(.vertical, CDMetric.cardRowPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }
@@ -223,15 +246,10 @@ public struct CDFootnote: View {
     }
 
     public var body: some View {
-        // The footer of an empty section, so the text sits under the sections without a card of its own.
-        Section {
-            EmptyView()
-        } footer: {
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
-        }
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
     }
 }

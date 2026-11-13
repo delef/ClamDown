@@ -12,6 +12,7 @@ import ClamDownUI
 ///
 ///     ClamDown -settingsShot <directory>    draws every pane, then quits
 ///     ClamDown -settingsShot <directory> -settingsShotPanes cooling,about    draws only these panes
+///     ... -settingsShotNoTall YES    skips the tall pictures; -settingsShotWindow YES draws in a titled window
 ///
 /// The system draws no glass into an offscreen picture, so the sidebar and the glass buttons show their fallback.
 @MainActor
@@ -63,6 +64,7 @@ enum SettingsPreview {
         // Tall pictures show a whole page that scrolls in a window of the real size.
         let tall = CGSize(width: 780, height: 1100)
         let appearances: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
+        let noTall = UserDefaults.standard.bool(forKey: "settingsShotNoTall")
         let looks: [(String, CDLook)] = [("glass", .glass), ("classic", .classic)]
         let only = UserDefaults.standard.string(forKey: "settingsShotPanes")?.split(separator: ",").map(String.init)
         let panes = SettingsPane.allCases.filter { only?.contains($0.rawValue) ?? true }
@@ -71,7 +73,7 @@ enum SettingsPreview {
                 for pane in panes {
                     for (state, status) in updateStates where pane == .about || state.isEmpty {
                     updater.previewStatus = status
-                    for (suffix, frame) in [("", size), ("-tall", tall)] {
+                    for (suffix, frame) in (noTall ? [("", size)] : [("", size), ("-tall", tall)]) {
                         var selection = pane
                         let view = SettingsRootView(
                             controller: controller, notifications: PreviewNotifications(state: .allowed),

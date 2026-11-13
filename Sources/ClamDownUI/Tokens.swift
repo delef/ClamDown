@@ -38,6 +38,8 @@ public enum CDMetric {
     public static let choiceTileRadius: CGFloat = 10
     public static let tileSize: CGFloat = 46
     public static let tileRadius: CGFloat = 12
+    public static let cardInset: CGFloat = 16
+    public static let cardRowPadding: CGFloat = 10
     public static let pageInset: CGFloat = 20
     public static let pageSpacing: CGFloat = 22
     public static let rowSpacing: CGFloat = 10
