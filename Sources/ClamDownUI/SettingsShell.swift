@@ -23,6 +23,9 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
     @Binding private var selection: ID
     private let brand: Brand
     private let detail: (ID) -> Detail
+    /// Always `.all`: as in System Settings the sidebar cannot be collapsed, not even by dragging its divider. In
+    /// accessory mode there is no View menu to bring it back, so a collapse is undone at once.
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     public init(items: [CDSidebarItem<ID>], selection: Binding<ID>,
                 @ViewBuilder brand: () -> Brand, @ViewBuilder detail: @escaping (ID) -> Detail) {
@@ -33,13 +36,15 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
     }
 
     public var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             sidebar
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 260)
         } detail: {
             detail(selection)
                 .navigationTitle(items.first { $0.id == selection }?.title ?? "")
         }
+        // The macOS 13 form of `onChange`, so the rule holds on every version the kit supports.
+        .onChange(of: columns) { if $0 != .all { columns = .all } }
     }
 
     /// The items cut into groups at every item that starts one.
