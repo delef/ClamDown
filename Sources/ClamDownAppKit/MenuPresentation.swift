@@ -16,9 +16,12 @@ public struct MenuPresentation: Equatable {
     public let needsAttention: Bool
     /// What to offer under the status line, or nil when nothing is wrong.
     public let recovery: MenuRecovery?
+    /// True while ClamDown keeps the Mac awake.
+    public let isOn: Bool
 
     public init(symbolName: String, toggleTitle: String, statusLine: String?, needsAttention: Bool = false,
-                recovery: MenuRecovery? = nil) {
+                recovery: MenuRecovery? = nil, isOn: Bool = false) {
+        self.isOn = isOn
         self.symbolName = symbolName
         self.toggleTitle = toggleTitle
         self.statusLine = statusLine
@@ -31,7 +34,7 @@ public struct MenuPresentation: Equatable {
         switch state {
         case .on:
             self.init(symbolName: icon.onSymbol, toggleTitle: "Turn Off", statusLine: notice,
-                      needsAttention: !helperReady, recovery: setup)
+                      needsAttention: !helperReady, recovery: setup, isOn: true)
         case .off:
             self.init(symbolName: icon.offSymbol, toggleTitle: "Turn On", statusLine: notice,
                       needsAttention: !helperReady, recovery: setup)
@@ -44,6 +47,12 @@ public struct MenuPresentation: Equatable {
             self.init(symbolName: icon.offSymbol, toggleTitle: "Try Again", statusLine: message, needsAttention: true,
                       recovery: setup ?? .reinstallHelper)
         }
+    }
+
+    /// What VoiceOver reads for the menu bar item: the app, whether it is on, and whether it needs the user.
+    /// The icon alone says this only by its shape, and the menu bar item is the app's only way in.
+    public var accessibilityLabel: String {
+        "ClamDown, " + (isOn ? "on" : "off") + (needsAttention ? ", needs attention" : "")
     }
 }
 

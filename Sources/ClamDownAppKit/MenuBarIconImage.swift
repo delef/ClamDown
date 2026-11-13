@@ -7,16 +7,22 @@ public enum MenuBarIconImage {
     private static let lidOn = "clamdown.lid.fill"
 
     /// The icon for a symbol name: the drawn Lid for its two names, an SF Symbol at the menu bar's 13 pt otherwise.
-    /// A template image, so macOS colors it for a light or a dark menu bar.
+    /// A template image, so macOS colors it for a light or a dark menu bar. VoiceOver reads it as "ClamDown"; the
+    /// menu bar item adds the state on top (`MenuPresentation.accessibilityLabel`).
     public static func base(symbol: String) -> NSImage? {
-        switch symbol {
+        let image: NSImage? = switch symbol {
         case lidOff: lid(on: false)
         case lidOn: lid(on: true)
         default:
             NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 13, weight: .regular))
         }
+        image?.accessibilityDescription = accessibilityName
+        return image
     }
+
+    /// The name VoiceOver reads for a plain icon.
+    private static let accessibilityName = "ClamDown"
 
     /// The Lid on an 18 x 18 pt canvas, from the paths of the approved sketch (an 18 x 18 view box, y down).
     /// Off is a rounded outline with a flat line; on is the filled lid with a heartbeat cut out of it.

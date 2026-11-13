@@ -69,3 +69,27 @@ import Testing
         #expect(MenuPresentation(state: .failed("x"), notice: nil, icon: .sun).symbolName == "sun.max")
     }
 }
+
+/// What VoiceOver reads for the menu bar item, the app's only entry point.
+@Suite struct MenuPresentationAccessibilityTests {
+    @Test func saysTheAppAndWhetherItIsOn() {
+        #expect(MenuPresentation(state: .on, notice: nil).accessibilityLabel == "ClamDown, on")
+        #expect(MenuPresentation(state: .off, notice: nil).accessibilityLabel == "ClamDown, off")
+        #expect(MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").accessibilityLabel == "ClamDown, off")
+    }
+
+    @Test func saysWhenItNeedsAttention() {
+        #expect(MenuPresentation(state: .on, notice: nil, helperReady: false).accessibilityLabel
+            == "ClamDown, on, needs attention")
+        #expect(MenuPresentation(state: .off, notice: nil, helperReady: false).accessibilityLabel
+            == "ClamDown, off, needs attention")
+        #expect(MenuPresentation(state: .needsApproval, notice: nil).accessibilityLabel
+            == "ClamDown, off, needs attention")
+        #expect(MenuPresentation(state: .failed("boom"), notice: nil).accessibilityLabel
+            == "ClamDown, off, needs attention")
+    }
+
+    @Test(arguments: MenuBarIconStyle.allCases) func theSameForEveryIconStyle(style: MenuBarIconStyle) {
+        #expect(MenuPresentation(state: .on, notice: nil, icon: style).accessibilityLabel == "ClamDown, on")
+    }
+}

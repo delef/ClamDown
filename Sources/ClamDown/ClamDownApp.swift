@@ -24,11 +24,14 @@ private struct MenuBarIcon: View {
         let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
                                             icon: controller.settings.menuBarIcon,
                                             helperReady: controller.helperAvailability == .ready)
-        if presentation.needsAttention {
-            Image(nsImage: MenuBarIconImage.attention(symbol: presentation.symbolName))
-        } else {
-            Image(nsImage: MenuBarIconImage.base(symbol: presentation.symbolName) ?? NSImage())
+        Group {
+            if presentation.needsAttention {
+                Image(nsImage: MenuBarIconImage.attention(symbol: presentation.symbolName))
+            } else {
+                Image(nsImage: MenuBarIconImage.base(symbol: presentation.symbolName) ?? NSImage())
+            }
         }
+        .accessibilityLabel(presentation.accessibilityLabel)
     }
 }
 
