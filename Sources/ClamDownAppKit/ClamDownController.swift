@@ -78,6 +78,8 @@ public final class ClamDownController: ObservableObject {
         var slept: Bool
     }
     private let now: @Sendable () -> Date
+    /// Waits for the given time. Tests replace it, so they do not wait for real.
+    private let pause: @Sendable (Duration) async -> Void
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
 
@@ -96,7 +98,8 @@ public final class ClamDownController: ObservableObject {
         sensors: SensorReading? = nil,
         lid: LidReading? = nil,
         sleeper: SystemSleeping? = nil,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        pause: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
         self.helper = helper
         self.registrar = registrar
@@ -113,6 +116,7 @@ public final class ClamDownController: ObservableObject {
         self.lid = lid
         self.sleeper = sleeper
         self.now = now
+        self.pause = pause
         self.settings = settingsStore.load()
     }
 
@@ -551,16 +555,33 @@ public final class ClamDownController: ObservableObject {
         installedHelper.fingerprint = helperFingerprint
     }
 
+    /// How long to stay quiet before each attempt to register a helper that was just removed.
+    ///
+    /// macOS refuses a registration that follows a removal too closely, although the removal has finished:
+    /// it wants a moment in which nobody asks it to register anything. Measured on macOS 27, 0.3 seconds is
+    /// too short and 0.7 is enough, and a refused attempt starts the wait again. So the pauses grow.
+    static let registrationPauses: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
+
     /// Unregisters and registers the helper again. Approval still pending after registering is not an error.
-    /// Registering waits for the removal to finish: macOS refuses to start a helper it is still removing.
     private func reregisterHelper() async throws {
         do {
             try await registrar.unregister()
-            try registrar.register()
         } catch {
             if registrar.availability() == .requiresApproval { return }
             throw error
         }
+        var refusal: Error?
+        for quietTime in Self.registrationPauses {
+            await pause(quietTime)
+            do {
+                try registrar.register()
+                return
+            } catch {
+                if registrar.availability() == .requiresApproval { return }
+                refusal = error
+            }
+        }
+        if let refusal { throw refusal }
     }
 
     private func startHeartbeatLoop() {

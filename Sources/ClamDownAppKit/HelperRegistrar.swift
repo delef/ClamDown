@@ -45,6 +45,7 @@ public struct SMAppServiceRegistrar: HelperRegistering {
     }
 
     /// Uses the completion-handler variant: the plain `unregister()` returns while the helper is still being removed.
+    /// Even so, macOS refuses a registration for a moment afterwards, so the caller waits before it registers.
     public func unregister() async throws {
         try await SMAppService.daemon(plistName: plistName).unregister()
     }

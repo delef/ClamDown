@@ -49,7 +49,8 @@ struct Rig {
             sensors: sensors,
             lid: lidReader,
             sleeper: sleeper,
-            now: { [clock] in clock.now }
+            now: { [clock] in clock.now },
+            pause: { [registrar] in registrar.pause($0) }
         )
     }
 }

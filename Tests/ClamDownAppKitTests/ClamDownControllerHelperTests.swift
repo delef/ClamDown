@@ -11,12 +11,44 @@ import Testing
         #expect(rig.controller.state == .on)
     }
 
-    /// macOS refuses to start a helper while it is still removing the old one, and then leaves none registered.
-    @Test func updateRegistersOnlyAfterTheOldHelperIsRemoved() async {
+    /// macOS refuses a registration that follows a removal at once, and then leaves no helper registered.
+    @Test func updatePausesBetweenRemovingAndRegistering() async {
         let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
         await rig.controller.toggle()
+        #expect(rig.registrar.pauses == [.seconds(1)])
+        #expect(rig.registrar.registerCount == 1)
         #expect(rig.controller.state == .on)
         #expect(rig.helper.enableCalls == [true])
+    }
+
+    /// A refused registration makes macOS wait all over again, so the next attempt comes after a longer pause.
+    @Test func updateTriesAgainAfterALongerPauseWhenRefused() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
+        rig.registrar.pausesARemovalCosts = 2
+        await rig.controller.toggle()
+        #expect(rig.registrar.pauses == [.seconds(1), .seconds(2)])
+        #expect(rig.registrar.registerCount == 2)
+        #expect(rig.controller.state == .on)
+        #expect(rig.installed.fingerprint == "new")
+    }
+
+    @Test func updateGivesUpAfterThreeRefusals() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
+        rig.registrar.pausesARemovalCosts = 10
+        await rig.controller.toggle()
+        #expect(rig.registrar.pauses == [.seconds(1), .seconds(2), .seconds(4)])
+        #expect(rig.registrar.registerCount == 3)
+        #expect(rig.controller.state == .failed("Could not update the helper: Operation not permitted"))
+        #expect(rig.helper.enableCalls.isEmpty)
+        #expect(rig.installed.fingerprint == "old")
+    }
+
+    @Test func approvalAskedDuringAnUpdateEndsTheAttempts() async {
+        let rig = Rig(availability: [.ready, .requiresApproval], helperFingerprint: "new", installedFingerprint: "old")
+        rig.registrar.pausesARemovalCosts = 10
+        await rig.controller.toggle()
+        #expect(rig.registrar.registerCount == 1)
+        #expect(rig.controller.state == .needsApproval)
     }
 
     @Test func turningOnKeepsHelperWhenBuildIsUnchanged() async {
@@ -67,6 +99,7 @@ import Testing
         #expect(rig.controller.state == .off)
         #expect(rig.controller.notice == "Helper reinstalled.")
         #expect(rig.installed.fingerprint == "new")
+        #expect(rig.registrar.pauses == [.seconds(1)])
     }
 
     @Test func reinstallFailureShowsStatus() async {

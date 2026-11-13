@@ -88,19 +88,26 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
     private var registers = 0
     private var unregisters = 0
     private var approvals = 0
-    /// True from the start of an unregistration until the system has removed the old helper.
-    private var removing = false
+    /// How many quiet pauses macOS still needs before it accepts a registration again. Zero means it accepts.
+    private var pausesOwed = 0
+    private var quietPauses: [Duration] = []
     var registerError: Error?
     var unregisterError: Error?
+    /// How many quiet pauses a removal costs. On a real Mac it is one, unless something keeps asking in between.
+    var pausesARemovalCosts = 1
 
-    /// What macOS answers when asked to start a helper it is still removing.
-    static let refusedWhileRemoving = HelperClientError.helper("Operation not permitted")
+    /// What macOS answers when asked to register a helper too soon after removing it.
+    static let refusedAfterRemoval = HelperClientError.helper("Operation not permitted")
+    /// The quiet time macOS needs after a removal, as measured on macOS 27: under half a second, over 0.3.
+    static let settleTime = Duration.milliseconds(500)
 
     init(_ script: [HelperAvailability] = [.ready]) { self.script = script }
 
     var registerCount: Int { lock.withLock { registers } }
     var unregisterCount: Int { lock.withLock { unregisters } }
     var openApprovalCount: Int { lock.withLock { approvals } }
+    /// Every pause the controller took, in order.
+    var pauses: [Duration] { lock.withLock { quietPauses } }
 
     func availability() -> HelperAvailability {
         lock.withLock {
@@ -113,19 +120,27 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
         try lock.withLock {
             registers += 1
             if let registerError { throw registerError }
-            if removing { throw Self.refusedWhileRemoving }
+            if pausesOwed > 0 { throw Self.refusedAfterRemoval }
         }
     }
 
-    /// Like macOS, the old helper is gone only when this returns; until then `register()` is refused.
+    /// Like macOS, this returns as soon as the old helper is gone, and a registration is still refused then:
+    /// the system first needs a moment in which nobody asks it to register anything.
     func unregister() async throws {
         try lock.withLock {
             unregisters += 1
             if let unregisterError { throw unregisterError }
-            removing = true
+            pausesOwed = pausesARemovalCosts
         }
         await Task.yield()
-        lock.withLock { removing = false }
+    }
+
+    /// The controller's pause. A pause that is long enough lets the system settle.
+    func pause(_ duration: Duration) {
+        lock.withLock {
+            quietPauses.append(duration)
+            if duration >= Self.settleTime, pausesOwed > 0 { pausesOwed -= 1 }
+        }
     }
 
     func openApprovalSettings() { lock.withLock { approvals += 1 } }
