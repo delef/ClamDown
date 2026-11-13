@@ -28,14 +28,33 @@ private struct CDButtonStyleModifier: ViewModifier {
             switch role {
             case .primary: content.buttonStyle(.glassProminent)
             case .secondary: content.buttonStyle(.glass)
-            case .destructive: content.buttonStyle(.glass).foregroundStyle(CDColor.danger).tint(CDColor.danger)
+            case .destructive: content.buttonStyle(CDDestructiveButtonStyle())
             }
         } else {
             switch role {
             case .primary: content.buttonStyle(.borderedProminent)
             case .secondary: content.buttonStyle(.bordered)
-            case .destructive: content.buttonStyle(.bordered).foregroundStyle(CDColor.danger).tint(CDColor.danger)
+            case .destructive: content.buttonStyle(CDDestructiveButtonStyle())
             }
+        }
+    }
+}
+
+/// A secondary button whose label is red. The colour is set on the label inside the button, so it survives the
+/// system style, which otherwise draws the label in its own colour.
+private struct CDDestructiveButtonStyle: PrimitiveButtonStyle {
+    @Environment(\.cdLook) private var look
+    @Environment(\.isEnabled) private var isEnabled
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        let button = Button(action: configuration.trigger) {
+            configuration.label.foregroundStyle(CDColor.danger.opacity(isEnabled ? 1 : 0.4))
+        }
+        if look == .glass, #available(macOS 26, *) {
+            button.buttonStyle(.glass)
+        } else {
+            button.buttonStyle(.bordered)
         }
     }
 }

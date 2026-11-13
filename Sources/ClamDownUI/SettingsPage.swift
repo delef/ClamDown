@@ -163,8 +163,7 @@ public struct CDSwitchRow: View {
         CDRow(title, detail: detail) {
             Toggle(title, isOn: isOn)
                 .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(CDMetric.switchControlSize)
+                .toggleStyle(.cdSwitch)
         }
     }
 }

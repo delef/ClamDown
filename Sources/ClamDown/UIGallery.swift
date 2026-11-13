@@ -221,9 +221,9 @@ private struct SettingsPageGallery: View {
             CDSection("Switches") {
                 CDSwitchRow("Show in Dock", detail: "Keeps ClamDown in the Dock as well as the menu bar.", isOn: $on)
                 CDSwitchRow("A switch that is off", isOn: $off)
-                CDRow("The same switch at regular size, for comparison",
-                      detail: "The row above uses the kit's size; this one is a plain .regular toggle.") {
-                    Toggle("Regular", isOn: $on).labelsHidden().toggleStyle(.switch).controlSize(.regular)
+                CDRow("System switch, for comparison",
+                      detail: "The rows above use the kit's switch; this one is the system's plain .switch toggle.") {
+                    Toggle("System", isOn: $on).labelsHidden().toggleStyle(.switch)
                 }
                 CDSwitchRow("A row with a three-line explanation",
                             detail: "This explanation is long on purpose. It has to wrap onto a second and a third line "
