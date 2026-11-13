@@ -1,3 +1,4 @@
+import ClamDownAppKit
 import Combine
 import Sparkle
 import SwiftUI
@@ -9,9 +10,15 @@ import SwiftUI
 @MainActor
 final class Updater: NSObject, ObservableObject {
     /// False while a check or an install is already running.
-    @Published private(set) var canCheckForUpdates = false
+    @Published private(set) var canCheckForUpdates = false {
+        didSet { refreshStatus() }
+    }
     /// The version a scheduled check found, until the user deals with it.
-    @Published private(set) var availableVersion: String?
+    @Published private(set) var availableVersion: String? {
+        didSet { refreshStatus() }
+    }
+    /// What the About page says about updates. Sparkle's state, mapped: a version waiting, a check running, or none.
+    @Published private(set) var status: UpdateStatus = .upToDate(lastCheck: nil)
     @Published var checksAutomatically = false {
         didSet {
             guard checksAutomatically != controller.updater.automaticallyChecksForUpdates else { return }
@@ -39,6 +46,32 @@ final class Updater: NSObject, ObservableObject {
                 self.checksAutomatically = value
             }
             .store(in: &observers)
+    }
+
+    #if DEBUG
+    /// A status to show in place of Sparkle's, for a debug picture of the About page.
+    var previewStatus: UpdateStatus? {
+        didSet { refreshStatus() }
+    }
+    #endif
+
+    /// Maps Sparkle's state to `status`. Sparkle does not publish the date of the last check, so the About page
+    /// calls this when it appears as well.
+    func refreshStatus() {
+        guard controller != nil else { return }
+        #if DEBUG
+        if let previewStatus {
+            status = previewStatus
+            return
+        }
+        #endif
+        if let version = availableVersion {
+            status = .available(version)
+        } else if !canCheckForUpdates {
+            status = .checking
+        } else {
+            status = .upToDate(lastCheck: controller.updater.lastUpdateCheckDate)
+        }
     }
 
     /// Shows Sparkle's window: the update found earlier, or the result of a fresh check.

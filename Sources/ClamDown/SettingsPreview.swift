@@ -69,7 +69,8 @@ enum SettingsPreview {
         for (appearanceName, appearance) in appearances {
             for (lookName, look) in looks {
                 for pane in panes {
-                    for (state, _) in updateStates where pane == .about || state.isEmpty {
+                    for (state, status) in updateStates where pane == .about || state.isEmpty {
+                    updater.previewStatus = status
                     for (suffix, frame) in [("", size), ("-tall", tall)] {
                         var selection = pane
                         let view = SettingsRootView(
