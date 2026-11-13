@@ -23,7 +23,8 @@ private func runHelper() async -> Never {
         store: FileSavedStateStore(url: URL(fileURLWithPath: "/var/db/clamdown/state.json")),
         fans: SMCFanHardware(),
         lid: SystemLid(),
-        idle: SystemIdle()
+        idle: SystemIdle(),
+        thermal: SystemThermalState()
     )
     // A failure here must not stop the helper from serving.
     do { try await core.recoverOnStart() } catch { log("recovery on start failed: \(error)") }

@@ -287,6 +287,7 @@ public final class ClamDownController: ObservableObject {
         guard let reading else { return nil }
         return CoolingStatus(
             cpuTemperature: reading.cpuTemperature,
+            hottestCPUTemperature: reading.hottestCPUTemperature,
             fans: reading.fans,
             isControlling: false,
             problem: Self.noHelperForFans

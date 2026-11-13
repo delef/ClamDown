@@ -227,3 +227,142 @@ import ClamDownShared
         #expect(try JSONDecoder().decode(SavedState.self, from: old) == SavedState(batteryLowPowerMode: true, sleepDisabled: false))
     }
 }
+
+/// Which speed the helper asks for: the curve on the average CPU temperature with the safety floor,
+/// or full speed while a core or the whole Mac is too hot.
+@Suite struct FanSpeedRuleTests {
+    private let t0 = SuspendingClock.now
+    private let standard = FanPolicy(points: StandardCurve.points(start: 50, full: 75), onlyWhenLidClosed: true)
+    private let middle = FanPolicy(points: [.init(temperature: 60, speed: 0), .init(temperature: 80, speed: 100)],
+                                   onlyWhenLidClosed: true)
+
+    private func at(_ seconds: Int) -> SuspendingClock.Instant { t0.advanced(by: .seconds(seconds)) }
+
+    private func enabled(fans: FakeFans = FakeFans(), thermal: FakeThermal? = nil) async throws -> (HelperCore, FakeFans) {
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), fans: fans, thermal: thermal, fanStepDown: 150)
+        try await core.enable(lowPowerOnBattery: false, now: t0)
+        return (core, fans)
+    }
+
+    @Test func speedFromPercentSpansTheFansRange() {
+        let fan = FanReading(rpm: 0, minimum: 1000, maximum: 5000)
+        #expect(FanCurve.speed(percent: 0, fan: fan) == 1000)
+        #expect(FanCurve.speed(percent: 50, fan: fan) == 3000)
+        #expect(FanCurve.speed(percent: 100, fan: fan) == 5000)
+    }
+
+    @Test func curveFollowsTheAverage() async throws {
+        let fans = FakeFans(temperature: 62.5)
+        fans.set(hottest: 90)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        #expect(fans.targets == [[3000]])  // min + 50 % of the range
+        let status = await core.coolingStatus()
+        #expect(status.override == nil)
+        #expect(status.hottestCPUTemperature == 90)
+        #expect(status.control == .controlling)
+    }
+
+    @Test func floorAppliesInTheHelper() async throws {
+        let fans = FakeFans(temperature: 90)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(FanPolicy(points: [.init(temperature: 40, speed: 0)], onlyWhenLidClosed: true), now: at(0))
+        #expect(fans.targets == [[4200]])  // 80 % of the range
+    }
+
+    @Test func hotCoreRunsFullSpeed() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.set(hottest: 100)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        for tick in 1...3 { await core.updateFans(now: at(3 * tick)) }
+        #expect(fans.targets.last == [3000])
+        #expect(await core.coolingStatus().override == nil)
+        await core.updateFans(now: at(12))
+        #expect(fans.targets.last == [5000])
+        #expect(await core.coolingStatus().override == .hotCore)
+    }
+
+    @Test func hotCoreOverrideEndsAndTheSpeedFallsGradually() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.set(hottest: 100)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        await core.updateFans(now: at(12))
+        #expect(fans.targets.last == [5000])
+        fans.set(hottest: 90)
+        await core.updateFans(now: at(15))
+        await core.updateFans(now: at(42))
+        #expect(fans.targets.last == [5000])
+        await core.updateFans(now: at(45))
+        #expect(fans.targets.last == [4850])
+        #expect(await core.coolingStatus().override == nil)
+    }
+
+    @Test func missingHottestKeepsTheCurveAndShowsNoHottest() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.set(hottest: nil)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        for tick in 1...20 { await core.updateFans(now: at(3 * tick)) }
+        #expect(Set(fans.targets) == [[3000]])
+        let status = await core.coolingStatus()
+        #expect(status.override == nil)
+        #expect(status.hottestCPUTemperature == nil)
+        #expect(status.cpuTemperature == 70)
+    }
+
+    @Test func seriousSystemLevelRunsFullSpeed() async throws {
+        let thermal = FakeThermal(.serious)
+        let (core, fans) = try await enabled(thermal: thermal)
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(fans.targets == [[5000]])
+        #expect(await core.coolingStatus().override == .system)
+        thermal.level = .critical
+        await core.updateFans(now: at(3))
+        #expect(fans.targets.last == [5000])
+        thermal.level = .nominal
+        await core.updateFans(now: at(6))
+        #expect(fans.targets.last == [4850])
+        #expect(await core.coolingStatus().override == nil)
+    }
+
+    @Test func fairLevelDoesNot() async throws {
+        let (core, fans) = try await enabled(thermal: FakeThermal(.fair))
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(fans.targets == [[3000]])
+        #expect(await core.coolingStatus().override == nil)
+    }
+
+    @Test func statusReportsTheHelpersOwnThermalLevel() async throws {
+        let (core, _) = try await enabled(thermal: FakeThermal(.fair))
+        #expect(await core.coolingStatus().systemThermalLevel == .fair)
+        let (bare, _) = try await enabled()
+        #expect(await bare.coolingStatus().systemThermalLevel == nil)
+    }
+
+    @Test func overridesStillRespectTheOpenLid() async throws {
+        let fans = FakeFans(temperature: 70, lidClosed: false)
+        let (core, _) = try await enabled(fans: fans, thermal: FakeThermal(.critical))
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(fans.targets.isEmpty)
+        let status = await core.coolingStatus()
+        #expect(status.control == .idle)
+        #expect(status.override == nil)
+    }
+
+    @Test func statusIsIdleWithoutAPolicy() async throws {
+        let (core, _) = try await enabled()
+        #expect(await core.coolingStatus().control == .idle)
+    }
+
+    @Test func statusDoesNotChangeControl() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.set(hottest: 100)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        for _ in 0..<10 { _ = await core.coolingStatus() }
+        #expect(fans.targets == [[3000]])
+        #expect(fans.releaseCount == 0)
+    }
+}

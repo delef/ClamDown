@@ -128,20 +128,67 @@ public struct FanReading: Codable, Equatable, Sendable {
     }
 }
 
+/// Why the fans run at full speed whatever the curve says.
+public enum FanOverride: String, Codable, Sendable {
+    /// The hottest CPU core has been at its limit for a while.
+    case hotCore
+    /// macOS reports the Mac's thermal level as serious or critical.
+    case system
+}
+
+/// What the helper is doing with the fans.
+public enum FanControlState: String, Codable, Sendable {
+    /// Not asked to control them, or the lid is open with Only With Lid Closed: macOS has the fans.
+    case idle
+    /// ClamDown sets the fan speeds.
+    case controlling
+    /// A fault handed the fans back to macOS; the helper takes them again by itself soon.
+    case retrying
+    /// Several faults in a row: macOS has the fans and the helper only tries again now and then.
+    case stopped
+}
+
 /// Temperatures and fans as the helper sees them right now.
 public struct CoolingStatus: Codable, Equatable, Sendable {
     /// Average CPU temperature in °C. Nil when it cannot be read.
     public var cpuTemperature: Double?
+    /// The hottest CPU core in °C. Nil when it cannot be read.
+    public var hottestCPUTemperature: Double?
     public var fans: [FanReading]
     /// True while ClamDown, not macOS, sets the fan speed.
     public var isControlling: Bool
     /// Why fan control does not work, when it does not.
     public var problem: String?
+    /// Why the fans run at full speed, when they do whatever the curve says.
+    public var override: FanOverride?
+    public var control: FanControlState
+    /// The thermal level macOS reports to the helper itself. Nil when the helper does not read it.
+    public var systemThermalLevel: ThermalLevel?
 
-    public init(cpuTemperature: Double?, fans: [FanReading], isControlling: Bool, problem: String?) {
+    public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], isControlling: Bool,
+                problem: String?, override: FanOverride? = nil, control: FanControlState = .idle,
+                systemThermalLevel: ThermalLevel? = nil) {
         self.cpuTemperature = cpuTemperature
+        self.hottestCPUTemperature = hottestCPUTemperature
         self.fans = fans
         self.isControlling = isControlling
         self.problem = problem
+        self.override = override
+        self.control = control
+        self.systemThermalLevel = systemThermalLevel
+    }
+
+    /// An older helper sends none of the newer fields, and a later one may send values this build does not know:
+    /// those read as unknown instead of failing the whole status.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cpuTemperature = try container.decodeIfPresent(Double.self, forKey: .cpuTemperature)
+        hottestCPUTemperature = try container.decodeIfPresent(Double.self, forKey: .hottestCPUTemperature)
+        fans = try container.decode([FanReading].self, forKey: .fans)
+        isControlling = try container.decode(Bool.self, forKey: .isControlling)
+        problem = try container.decodeIfPresent(String.self, forKey: .problem)
+        override = (try? container.decodeIfPresent(FanOverride.self, forKey: .override)) ?? nil
+        control = (try? container.decodeIfPresent(FanControlState.self, forKey: .control)) ?? .idle
+        systemThermalLevel = (try? container.decodeIfPresent(ThermalLevel.self, forKey: .systemThermalLevel)) ?? nil
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ThermalLevel: Int, Comparable, Sendable {
+public enum ThermalLevel: Int, Codable, Comparable, Sendable {
     case nominal, fair, serious, critical
 
     public init(_ state: ProcessInfo.ThermalState) {

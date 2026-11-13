@@ -16,6 +16,8 @@ public actor HelperCore {
     private let idle: IdleReading?
     private let watchdogTimeout: Duration
     private let hardware: FanHardware?
+    /// macOS's own thermal level, read by the helper itself. Nil leaves the system override off.
+    private let thermal: ThermalStateReading?
     /// How far a fan's target may fall per `updateFans` call, in rpm.
     private let fanStepDown: Double
 
@@ -38,6 +40,10 @@ public actor HelperCore {
     /// Set after a failed take-over, so the helper does not retry every tick. A new policy clears it.
     private var fanControlFailed = false
     private var fanProblem: String?
+    /// Watches for one core at its limit; reset whenever the helper is not asked to drive the fans.
+    private var hotCore = HotCoreWatch()
+    /// Why the fans last ran at full speed, while they did.
+    private var fanOverride: FanOverride?
 
     public init(
         runner: PmsetRunning,
@@ -45,6 +51,7 @@ public actor HelperCore {
         fans: FanHardware? = nil,
         lid: LidReading? = nil,
         idle: IdleReading? = nil,
+        thermal: ThermalStateReading? = nil,
         watchdogTimeout: Duration = .seconds(90),
         fanStepDown: Double = 150
     ) {
@@ -53,6 +60,7 @@ public actor HelperCore {
         self.hardware = fans
         self.lid = lid
         self.idle = idle
+        self.thermal = thermal
         self.watchdogTimeout = watchdogTimeout
         self.fanStepDown = fanStepDown
     }
@@ -113,6 +121,8 @@ public actor HelperCore {
         fanPolicy = nil
         fanControlFailed = false
         fanProblem = nil
+        hotCore = HotCoreWatch()
+        fanOverride = nil
         enabled = false
     }
 
@@ -210,18 +220,22 @@ public actor HelperCore {
     // MARK: - Fans
 
     /// Stores the app's fan wishes for this session and applies them at once.
-    public func setFanPolicy(_ policy: FanPolicy) throws {
+    public func setFanPolicy(_ policy: FanPolicy, now: SuspendingClock.Instant = .now) throws {
         guard enabled else { throw HelperError.notEnabled }
         fanPolicy = policy.repaired()
         fanControlFailed = false
         fanProblem = nil
-        updateFans()
+        updateFans(now: now)
     }
 
     /// Call every few seconds. Sets the fan speeds while the mode is on and the policy asks for it;
     /// in every other case it hands the fans back to macOS if ClamDown holds them.
-    public func updateFans() {
+    /// The curve and the safety floor follow the average CPU temperature; a core at its limit or a Mac that
+    /// macOS reports as hot runs the fans at full speed instead.
+    public func updateFans(now: SuspendingClock.Instant = .now) {
         guard enabled, let policy = fanPolicy, !policy.isOff else {
+            hotCore = HotCoreWatch()
+            fanOverride = nil
             releaseFansIfHeld()
             return
         }
@@ -239,11 +253,14 @@ public actor HelperCore {
             reading = try hardware.read()
         } catch {
             fanProblem = "Could not read the sensors: \(error)"
+            fanOverride = nil
             releaseFansIfHeld()
             return
         }
+        let hotCoreActive = hotCore.update(hottest: reading.hottestCPUTemperature, now: now)
         if policy.onlyWhenLidClosed, reading.lidClosed != true {
             fanProblem = nil
+            fanOverride = nil
             releaseFansIfHeld()
             return
         }
@@ -254,11 +271,20 @@ public actor HelperCore {
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
         guard let temperature = reading.cpuTemperature else {
             fanProblem = "Cannot read the CPU temperature."
+            fanOverride = nil
             releaseFansIfHeld()
             return
         }
+        let override: FanOverride? = if hotCoreActive {
+            .hotCore
+        } else if let level = thermal?.thermalLevel(), level >= .serious {
+            .system
+        } else {
+            nil
+        }
+        let percent = override == nil ? policy.speed(at: temperature) : 100
         let targets = reading.fans.enumerated().map { index, fan in
-            let wanted = FanCurve.speed(at: temperature, policy: policy, fan: fan)
+            let wanted = FanCurve.speed(percent: percent, fan: fan)
             let previous = fanTargets.flatMap { index < $0.count ? $0[index] : nil }
             let smoothed = FanCurve.smoothed(previous: previous, wanted: wanted, maxDrop: fanStepDown)
             return min(max(smoothed, fan.minimum), fan.maximum)
@@ -272,9 +298,11 @@ public actor HelperCore {
             try hardware.setTargets(targets)
             fanTargets = targets
             fanProblem = nil
+            fanOverride = override
         } catch {
             fanProblem = "Could not set the fan speed: \(error)"
             fanControlFailed = true
+            fanOverride = nil
             releaseFansIfHeld()
         }
     }
@@ -289,9 +317,13 @@ public actor HelperCore {
         }
         return CoolingStatus(
             cpuTemperature: reading?.cpuTemperature,
+            hottestCPUTemperature: reading?.hottestCPUTemperature,
             fans: reading?.fans ?? [],
             isControlling: fansHeld,
-            problem: problem
+            problem: problem,
+            override: fansHeld ? fanOverride : nil,
+            control: fansHeld ? .controlling : .idle,
+            systemThermalLevel: thermal?.thermalLevel()
         )
     }
 

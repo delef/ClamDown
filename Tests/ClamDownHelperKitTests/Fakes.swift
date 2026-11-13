@@ -103,6 +103,21 @@ final class FakeStore: SavedStateStoring, @unchecked Sendable {
     func clear() throws { lock.withLock { state = nil } }
 }
 
+/// The thermal level the test sets by hand.
+final class FakeThermal: ThermalStateReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: ThermalLevel
+
+    init(_ level: ThermalLevel = .nominal) { current = level }
+
+    var level: ThermalLevel {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+
+    func thermalLevel() -> ThermalLevel { level }
+}
+
 /// Fans and sensors the test sets by hand. Records every target it was given.
 final class FakeFans: FanHardware, @unchecked Sendable {
     private let lock = NSLock()
