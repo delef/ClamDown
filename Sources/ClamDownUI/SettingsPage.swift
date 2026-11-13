@@ -113,10 +113,11 @@ public struct CDSection<Content: View>: View {
             if let title {
                 Text(title).font(.headline).padding(.leading, 6)
             }
+            // _VariadicView (in SwiftUI since macOS 10.15) lets the card put a separator between rows it does not own.
             _VariadicView.Tree(CDCardRows()) { content }
-                .background(card.fill(Color(nsColor: .controlBackgroundColor)))
+                .background(card.fill(CDColor.cardBackground))
                 .clipShape(card)
-                .overlay(card.strokeBorder(Color.primary.opacity(0.08)))
+                .overlay(card.strokeBorder(CDColor.cardBorder))
         }
     }
 }

@@ -16,6 +16,25 @@ public enum CDColor {
     public static let warning = Color.orange
     public static let danger = Color.red
 
+    /// The fill of a settings card: white in light appearance; in dark, the system's window colour with a little
+    /// white on top, so a card is lighter than the window it sits on (the window colour follows the system).
+    public static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        guard isDark else { return .white }
+        var result = NSColor.white
+        appearance.performAsCurrentDrawingAppearance {
+            let window = NSColor.windowBackgroundColor.usingColorSpace(.sRGB) ?? NSColor(srgbRed: 0.12, green: 0.12, blue: 0.14, alpha: 1)
+            result = window.blended(withFraction: 0.05, of: .white) ?? window
+        }
+        return result
+    })
+
+    /// The hairline around a settings card: black at 7 % in light appearance, white at 6 % in dark.
+    public static let cardBorder = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor.white.withAlphaComponent(0.06)
+                                                                      : NSColor.black.withAlphaComponent(0.07)
+    })
+
     /// Navy to teal, from the top leading corner to the bottom trailing one.
     public static var brandGradient: LinearGradient {
         LinearGradient(colors: [brandNavy, brandTeal], startPoint: .topLeading, endPoint: .bottomTrailing)
