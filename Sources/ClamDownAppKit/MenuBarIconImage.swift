@@ -1,15 +1,14 @@
 import AppKit
-import SwiftUI
 
 /// Draws the menu bar icon, with an attention mark when ClamDown cannot work until the user acts.
-enum MenuBarIconImage {
+public enum MenuBarIconImage {
     /// The names of the Lid icon, which the app draws itself instead of taking an SF Symbol.
     private static let lidOff = "clamdown.lid"
     private static let lidOn = "clamdown.lid.fill"
 
     /// The icon for a symbol name: the drawn Lid for its two names, an SF Symbol at the menu bar's 13 pt otherwise.
     /// A template image, so macOS colors it for a light or a dark menu bar.
-    static func base(symbol: String) -> NSImage? {
+    public static func base(symbol: String) -> NSImage? {
         switch symbol {
         case lidOff: lid(on: false)
         case lidOn: lid(on: true)
@@ -79,7 +78,7 @@ enum MenuBarIconImage {
 
     /// The symbol with a small exclamation badge at its lower right corner.
     /// A template image, so macOS colors it for a light or a dark menu bar like any other status icon.
-    static func attention(symbol: String) -> NSImage {
+    public static func attention(symbol: String) -> NSImage {
         // `base` draws at 13 pt, which is what SwiftUI uses for a plain `Image(systemName:)` in the menu bar, so the
         // icon keeps its size when the mark appears.
         let badgeConfiguration = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
@@ -123,18 +122,5 @@ private extension NSBezierPath {
                              y: (start.y + end.y) / 2 + dx / chord * offset)
         func degrees(_ p: NSPoint) -> CGFloat { atan2(p.y - center.y, p.x - center.x) * 180 / .pi }
         appendArc(withCenter: center, radius: radius, startAngle: degrees(start), endAngle: degrees(end), clockwise: false)
-    }
-}
-
-/// An icon style's glyph for settings screens: the drawn image for the Lid, an SF Symbol for the rest.
-struct MenuBarIconGlyph: View {
-    let symbol: String
-
-    var body: some View {
-        if let image = MenuBarIconImage.base(symbol: symbol), symbol.hasPrefix("clamdown.") {
-            Image(nsImage: image)
-        } else {
-            Image(systemName: symbol)
-        }
     }
 }
