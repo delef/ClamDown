@@ -1,3 +1,5 @@
+import ClamDownShared
+
 public enum AutoOffReason: Equatable, Sendable {
     case batteryLow(percent: Int)
     case thermal(ThermalLevel)

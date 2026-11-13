@@ -112,6 +112,7 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     private var setFails = false
     private var releaseFails = false
     private var held = false
+    private var follows = false
     let supportsControl: Bool
 
     init(temperature: Double? = 70, lidClosed: Bool? = true, supportsControl: Bool = true,
@@ -120,17 +121,31 @@ final class FakeFans: FanHardware, @unchecked Sendable {
         self.supportsControl = supportsControl
     }
 
+    /// When true, `read()` reports each fan's last target as its rpm, as fans that keep up would.
+    var followsTargets: Bool {
+        get { lock.withLock { follows } }
+        set { lock.withLock { follows = newValue } }
+    }
+
     var targets: [[Double]] { lock.withLock { setCalls } }
     var releaseCount: Int { lock.withLock { releases } }
     /// True while the fake fans are under manual control.
     var isHeld: Bool { lock.withLock { held } }
 
     func set(temperature: Double?) { lock.withLock { reading.cpuTemperature = temperature } }
+    func set(hottest: Double?) { lock.withLock { reading.hottestCPUTemperature = hottest } }
     func set(lidClosed: Bool?) { lock.withLock { reading.lidClosed = lidClosed } }
     func failSet(_ fails: Bool = true) { lock.withLock { setFails = fails } }
     func failRelease(_ fails: Bool = true) { lock.withLock { releaseFails = fails } }
 
-    func read() throws -> HardwareReading { lock.withLock { reading } }
+    func read() throws -> HardwareReading {
+        lock.withLock {
+            guard follows, let last = setCalls.last else { return reading }
+            var followed = reading
+            for (index, rpm) in last.prefix(followed.fans.count).enumerated() { followed.fans[index].rpm = rpm }
+            return followed
+        }
+    }
 
     func setTargets(_ rpms: [Double]) throws {
         try lock.withLock {

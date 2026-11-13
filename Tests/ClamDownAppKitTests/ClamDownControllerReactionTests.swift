@@ -1,5 +1,6 @@
 import Testing
 @testable import ClamDownAppKit
+import ClamDownShared
 
 @MainActor @Suite struct ClamDownControllerReactionTests {
     private func snapshot(_ percent: Int?, onBattery: Bool, thermal: ThermalLevel = .nominal) -> SystemSnapshot {

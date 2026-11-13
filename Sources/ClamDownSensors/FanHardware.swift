@@ -6,12 +6,15 @@ import ClamDownShared
 public struct HardwareReading: Equatable, Sendable {
     /// Average CPU temperature in °C. Nil when no CPU sensor could be read.
     public var cpuTemperature: Double?
+    /// The hottest CPU core in °C. Nil when no CPU sensor could be read.
+    public var hottestCPUTemperature: Double?
     public var fans: [FanReading]
     /// Nil when the lid state cannot be read.
     public var lidClosed: Bool?
 
-    public init(cpuTemperature: Double?, fans: [FanReading], lidClosed: Bool?) {
+    public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], lidClosed: Bool?) {
         self.cpuTemperature = cpuTemperature
+        self.hottestCPUTemperature = hottestCPUTemperature
         self.fans = fans
         self.lidClosed = lidClosed
     }
@@ -75,9 +78,9 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
                       let maximum = smc.read("F\(index)Mx")?.number else { return nil }
                 return FanReading(rpm: rpm, minimum: minimum, maximum: maximum)
             }
-            let temperatures = temperatureKeys.compactMap { smc.read($0)?.number }.filter(Self.isPlausible)
-            let average = temperatures.isEmpty ? nil : temperatures.reduce(0, +) / Double(temperatures.count)
-            return HardwareReading(cpuTemperature: average, fans: fans, lidClosed: Self.lidClosed())
+            let temperatures = CPUTemperatures.summary(temperatureKeys.compactMap { smc.read($0)?.number })
+            return HardwareReading(cpuTemperature: temperatures.average, hottestCPUTemperature: temperatures.hottest,
+                                   fans: fans, lidClosed: Self.lidClosed())
         }
     }
 
@@ -126,8 +129,7 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         return ["TC0P", "TC0D", "TC0E", "TC0F"].filter { smc.read($0)?.number.map(isPlausible) == true }
     }
 
-    /// Unused sensors read 0 or nonsense; real CPU temperatures fall in this range.
-    private static func isPlausible(_ celsius: Double) -> Bool { celsius > 10 && celsius < 130 }
+    private static func isPlausible(_ celsius: Double) -> Bool { CPUTemperatures.isPlausible(celsius) }
 
     private static func floatBytes(_ value: Double) -> [UInt8] {
         withUnsafeBytes(of: Float(value)) { Array($0) }

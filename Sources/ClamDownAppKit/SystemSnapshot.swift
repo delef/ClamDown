@@ -1,3 +1,5 @@
+import ClamDownShared
+
 public struct SystemSnapshot: Equatable, Sendable {
     /// Charge in percent. Nil means the Mac has no battery.
     public var batteryPercent: Int?

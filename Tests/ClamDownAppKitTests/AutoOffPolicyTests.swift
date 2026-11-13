@@ -1,5 +1,6 @@
 import Testing
 @testable import ClamDownAppKit
+import ClamDownShared
 
 @Suite struct AutoOffPolicyTests {
     /// Builds a snapshot and default settings (battery cut-off 10, thermal cut-off `.serious`) and asks the policy.

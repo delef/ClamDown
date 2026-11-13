@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import IOKit.ps
+import ClamDownShared
 
 /// Watches power source, battery level, thermal state and wake from sleep.
 /// Every event just says "something changed"; the controller re-reads `snapshot()`.
