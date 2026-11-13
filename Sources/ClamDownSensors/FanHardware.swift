@@ -95,6 +95,14 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         }
     }
 
+    /// What the SMC says about manual control: `Ftst` and each fan's `F<n>Md`, in fan order. Nil where a key cannot be read.
+    /// For device checks; the helper does not use it.
+    public func controlModes() -> (ftst: Double?, fanModes: [Double?]) {
+        lock.withLock {
+            (smc.read("Ftst")?.number, (0..<fanCount).map { smc.read("F\($0)Md")?.number })
+        }
+    }
+
     public func releaseFans() throws {
         guard supportsControl else { return }
         try lock.withLock {
