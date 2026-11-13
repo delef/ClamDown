@@ -25,6 +25,7 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         var fanPolicyError: Error?
         var cooling: Result<CoolingStatus, Error> = .success(
             CoolingStatus(cpuTemperature: 70, fans: [], isControlling: false, problem: nil))
+        var coolingCount = 0
     }
 
     private let lock = NSLock()
@@ -77,7 +78,14 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         }
     }
 
-    func coolingStatus() async throws -> CoolingStatus { try with { try $0.cooling.get() } }
+    var coolingCount: Int { with { $0.coolingCount } }
+
+    func coolingStatus() async throws -> CoolingStatus {
+        try with { state in
+            state.coolingCount += 1
+            return try state.cooling.get()
+        }
+    }
 }
 
 /// Answers `availability()` from a script, repeating the last entry once the script runs out.

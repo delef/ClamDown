@@ -18,10 +18,14 @@ public struct MenuPresentation: Equatable {
     public let recovery: MenuRecovery?
     /// True while ClamDown keeps the Mac awake.
     public let isOn: Bool
+    /// A line while ClamDown has stopped controlling the fans. It carries no attention mark: the Mac still stays
+    /// awake and macOS cools it.
+    public let coolingLine: String?
 
     public init(symbolName: String, toggleTitle: String, statusLine: String?, needsAttention: Bool = false,
-                recovery: MenuRecovery? = nil, isOn: Bool = false) {
+                recovery: MenuRecovery? = nil, isOn: Bool = false, coolingLine: String? = nil) {
         self.isOn = isOn
+        self.coolingLine = coolingLine
         self.symbolName = symbolName
         self.toggleTitle = toggleTitle
         self.statusLine = statusLine
@@ -29,12 +33,13 @@ public struct MenuPresentation: Equatable {
         self.recovery = recovery
     }
 
-    public init(state: SwitchState, notice: String?, icon: MenuBarIconStyle = .lid, helperReady: Bool = true) {
+    public init(state: SwitchState, notice: String?, icon: MenuBarIconStyle = .lid, helperReady: Bool = true,
+                coolingLine: String? = nil) {
         let setup: MenuRecovery? = helperReady ? nil : .finishSetup
         switch state {
         case .on:
             self.init(symbolName: icon.onSymbol, toggleTitle: "Turn Off", statusLine: notice,
-                      needsAttention: !helperReady, recovery: setup, isOn: true)
+                      needsAttention: !helperReady, recovery: setup, isOn: true, coolingLine: coolingLine)
         case .off:
             self.init(symbolName: icon.offSymbol, toggleTitle: "Turn On", statusLine: notice,
                       needsAttention: !helperReady, recovery: setup)

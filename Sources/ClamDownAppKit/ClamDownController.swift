@@ -36,6 +36,8 @@ public final class ClamDownController: ObservableObject {
     @Published public private(set) var state: SwitchState = .off
     /// One line for the menu: why the switch is off, or what went wrong.
     @Published public private(set) var notice: String?
+    /// A second menu line while the helper has stopped controlling the fans. The mode itself still works.
+    @Published public private(set) var fanControlLine: String?
     @Published public private(set) var settings: Settings
     /// When the timer will switch the mode off. Nil while off or when no timer is running.
     @Published public private(set) var offAt: Date?
@@ -75,6 +77,8 @@ public final class ClamDownController: ObservableObject {
     /// True while a Turn On or a helper install, update or removal runs. These wait on macOS, so a second button
     /// press can arrive in the middle; it is turned away instead of racing the first.
     private var helperBusy = false
+    /// Decides when the user hears that fan control has stopped.
+    private var fanAlert = FanAlert()
 
     private struct WakeReport {
         /// When ClamDown switched off.
@@ -218,7 +222,11 @@ public final class ClamDownController: ObservableObject {
         } catch {
             stillOn = false
         }
-        guard !stillOn, state.isOn else { return }
+        if stillOn {
+            await watchFanControl()
+            return
+        }
+        guard state.isOn else { return }
         finishOff()
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
@@ -275,6 +283,7 @@ public final class ClamDownController: ObservableObject {
         if state.isOn, settings.fanPolicy != previous.fanPolicy {
             await applyFanPolicy()
         }
+        if !settings.fanControlEnabled { present(fanAlert.reset()) }
         await handleSystemChange()
     }
 
@@ -604,6 +613,37 @@ public final class ClamDownController: ObservableObject {
         pendingWakeReport = WakeReport(at: now(), why: why, away: lid?.lid()?.closed == true)
     }
 
+    /// While the mode is on and fan control is switched on, asks the helper whether it still controls the fans,
+    /// and says so once when it has stopped. Only the helper's answer counts: the app's own sensor reading
+    /// says nothing about control.
+    private func watchFanControl() async {
+        guard state.isOn, settings.fanControlEnabled else {
+            present(fanAlert.reset())
+            return
+        }
+        let status = try? await helper.coolingStatus()
+        // The mode or the switch may have changed while the helper answered.
+        guard state.isOn, settings.fanControlEnabled else {
+            present(fanAlert.reset())
+            return
+        }
+        present(fanAlert.update(status))
+    }
+
+    private func present(_ change: FanAlert.Change) {
+        switch change {
+        case .none:
+            break
+        case .show(let line, let notify):
+            fanControlLine = line
+            if notify, settings.notificationsEnabled {
+                notifier.post(title: "ClamDown", body: line)
+            }
+        case .clear:
+            fanControlLine = nil
+        }
+    }
+
     private func announce(_ text: String) {
         notice = text
         if settings.notificationsEnabled {
@@ -647,6 +687,8 @@ public final class ClamDownController: ObservableObject {
         lidMonitor?.stop()
         activity.end()
         state = .off
+        // The helper hands the fans back at every switch-off, so a stop belongs to the session that ended.
+        present(fanAlert.reset())
     }
 
     /// Registers the helper when needed and replaces one that comes from another build, without turning the mode on.

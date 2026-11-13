@@ -48,7 +48,8 @@ private struct MenuContent: View {
     var body: some View {
         let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
                                             icon: controller.settings.menuBarIcon,
-                                            helperReady: controller.helperAvailability == .ready)
+                                            helperReady: controller.helperAvailability == .ready,
+                                            coolingLine: controller.fanControlLine)
         Button(presentation.toggleTitle) {
             Task { await controller.toggle() }
         }
@@ -69,6 +70,9 @@ private struct MenuContent: View {
             Text("Turns off at \(offAt.formatted(date: .omitted, time: .shortened))")
         }
         if let line = presentation.statusLine {
+            Text(line)
+        }
+        if let line = presentation.coolingLine {
             Text(line)
         }
         switch presentation.recovery {

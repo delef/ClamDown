@@ -48,6 +48,20 @@ import Testing
         #expect(MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").recovery == nil)
     }
 
+    /// The Mac still stays awake and macOS cools it, so the icon gets no attention mark.
+    @Test func coolingLineIsShownWithoutAttentionMark() {
+        let line = "ClamDown is not controlling the fans: cannot open the SMC. macOS has them."
+        let p = MenuPresentation(state: .on, notice: nil, coolingLine: line)
+        #expect(p.coolingLine == line)
+        #expect(!p.needsAttention)
+        #expect(p.statusLine == nil)
+        #expect(p.accessibilityLabel == "ClamDown, on")
+    }
+
+    @Test func coolingLineOnlyWhileOn() {
+        #expect(MenuPresentation(state: .off, notice: nil, coolingLine: "x").coolingLine == nil)
+    }
+
     @Test func failedShowsMessage() {
         #expect(MenuPresentation(state: .failed("boom"), notice: nil).statusLine == "boom")
     }
