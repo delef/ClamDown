@@ -123,7 +123,8 @@ private extension NSBezierPath {
         let dx = end.x - start.x, dy = end.y - start.y
         let chord = (dx * dx + dy * dy).squareRoot()
         // The center sits left of the direction of travel, `offset` away from the middle of the chord.
-        let offset = (radius * radius - chord * chord / 4).squareRoot()
+        // Clamped: for a chord of exactly two radii the difference is zero, and rounding must not turn it into NaN.
+        let offset = max(0, radius * radius - chord * chord / 4).squareRoot()
         let center = NSPoint(x: (start.x + end.x) / 2 - dy / chord * offset,
                              y: (start.y + end.y) / 2 + dx / chord * offset)
         func degrees(_ p: NSPoint) -> CGFloat { atan2(p.y - center.y, p.x - center.x) * 180 / .pi }
