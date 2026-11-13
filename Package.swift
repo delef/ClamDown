@@ -10,6 +10,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "ClamDownShared"),
+        // The ClamDown look: tokens, glass-or-classic components and building blocks for Settings and setup.
+        // SwiftUI and AppKit only; it knows nothing about settings, the helper or the controller.
+        .target(name: "ClamDownUI"),
+        .testTarget(name: "ClamDownUITests", dependencies: ["ClamDownUI"]),
         .testTarget(name: "ClamDownSharedTests", dependencies: ["ClamDownShared"]),
         .target(name: "ClamDownSensors", dependencies: ["ClamDownShared"]),
         .target(name: "ClamDownAppKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
@@ -19,7 +23,7 @@ let package = Package(
         .executableTarget(name: "ClamDownHelper", dependencies: ["ClamDownHelperKit", "ClamDownShared", "ClamDownSensors"]),
         .executableTarget(
             name: "ClamDown",
-            dependencies: ["ClamDownAppKit", "ClamDownShared", "ClamDownSensors", .product(name: "Sparkle", package: "Sparkle")],
+            dependencies: ["ClamDownAppKit", "ClamDownShared", "ClamDownSensors", "ClamDownUI", .product(name: "Sparkle", package: "Sparkle")],
             // The app bundle carries Sparkle.framework in Contents/Frameworks (see scripts/build-app.sh).
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
