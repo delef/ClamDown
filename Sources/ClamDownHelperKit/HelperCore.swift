@@ -212,7 +212,7 @@ public actor HelperCore {
     /// Stores the app's fan wishes for this session and applies them at once.
     public func setFanPolicy(_ policy: FanPolicy) throws {
         guard enabled else { throw HelperError.notEnabled }
-        fanPolicy = policy.clamped()
+        fanPolicy = policy.repaired()
         fanControlFailed = false
         fanProblem = nil
         updateFans()
@@ -221,7 +221,7 @@ public actor HelperCore {
     /// Call every few seconds. Sets the fan speeds while the mode is on and the policy asks for it;
     /// in every other case it hands the fans back to macOS if ClamDown holds them.
     public func updateFans() {
-        guard enabled, let policy = fanPolicy, policy.mode != .system else {
+        guard enabled, let policy = fanPolicy, !policy.isOff else {
             releaseFansIfHeld()
             return
         }

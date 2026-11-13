@@ -71,6 +71,12 @@ public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// How ClamDown drives the fans while the mode is on. Temporary: replaced by the fan control switch
+/// and the Standard and Advanced curves.
+public enum FanMode: String, Codable, CaseIterable, Sendable {
+    case system, curve, fullSpeed
+}
+
 public struct Settings: Codable, Equatable, Sendable {
     public static let batteryCutoffRange = 5...50
 
@@ -106,16 +112,19 @@ public struct Settings: Codable, Equatable, Sendable {
 
     /// What the helper gets for the fans.
     public var fanPolicy: FanPolicy {
-        FanPolicy(mode: fanMode, startTemperature: fanStartTemperature,
-                  fullSpeedTemperature: fanFullSpeedTemperature, onlyWhenLidClosed: fansOnlyWhenLidClosed)
+        let points: [FanPoint] = switch fanMode {
+        case .system: []
+        case .curve: StandardCurve.points(start: fanStartTemperature, full: fanFullSpeedTemperature)
+        case .fullSpeed: [FanPoint(temperature: 40, speed: 100)]
+        }
+        return FanPolicy(points: points, onlyWhenLidClosed: fansOnlyWhenLidClosed)
     }
 
     public func clamped() -> Settings {
         var copy = self
         copy.batteryCutoffPercent = min(max(batteryCutoffPercent, Self.batteryCutoffRange.lowerBound), Self.batteryCutoffRange.upperBound)
-        let fans = fanPolicy.clamped()
-        copy.fanStartTemperature = fans.startTemperature
-        copy.fanFullSpeedTemperature = fans.fullSpeedTemperature
+        (copy.fanStartTemperature, copy.fanFullSpeedTemperature) =
+            StandardCurve.clamped(start: fanStartTemperature, full: fanFullSpeedTemperature)
         return copy
     }
 

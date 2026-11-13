@@ -115,7 +115,8 @@ import ClamDownShared
     @Test func defaultsDriveTheFansOnlyWithTheLidClosed() {
         let s = Settings()
         #expect(s.fanMode == .curve && s.fansOnlyWhenLidClosed)
-        #expect(s.fanPolicy == FanPolicy(mode: .curve, startTemperature: 50, fullSpeedTemperature: 75, onlyWhenLidClosed: true))
+        #expect(s.fanPolicy == FanPolicy(points: [.init(temperature: 50, speed: 0), .init(temperature: 75, speed: 100)],
+                                         onlyWhenLidClosed: true))
     }
 
     /// A Mac in a bag has little airflow, so the fans start before the CPU is hot.
@@ -138,7 +139,7 @@ import ClamDownShared
         s.fanStartTemperature = 88
         s.fanFullSpeedTemperature = 70
         let clamped = s.clamped()
-        #expect(clamped.fanStartTemperature == 88 && clamped.fanFullSpeedTemperature == 93)
+        #expect(clamped.fanStartTemperature == 70 && clamped.fanFullSpeedTemperature == 75)
     }
 
     @Test func settingsFromBeforeFanControlGetTheDefaults() throws {

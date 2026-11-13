@@ -25,7 +25,8 @@ import Testing
         var settings = rig.controller.settings
         settings.fanMode = .fullSpeed
         await rig.controller.updateSettings(settings)
-        #expect(rig.helper.fanPolicyCalls.map(\.mode) == [.curve, .fullSpeed])
+        #expect(rig.helper.fanPolicyCalls == [Settings().fanPolicy, settings.fanPolicy])
+        #expect(rig.helper.fanPolicyCalls.last?.points.allSatisfy { $0.speed == 100 } == true)
     }
 
     @Test func otherSettingsDoNotResendThePolicy() async {
@@ -40,11 +41,11 @@ import Testing
     @Test func fanSettingsWhileOffAreOnlyStored() async {
         let rig = Rig()
         var settings = rig.controller.settings
-        settings.fanStartTemperature = 50
+        settings.fanStartTemperature = 55
         await rig.controller.updateSettings(settings)
         #expect(rig.helper.fanPolicyCalls.isEmpty)
         await rig.controller.toggle()
-        #expect(rig.helper.fanPolicyCalls.map(\.startTemperature) == [50])
+        #expect(rig.helper.fanPolicyCalls.map { $0.points.first?.temperature } == [55])
     }
 
     @Test func coolingStatusIsNilWhenNothingCanReadTheSensors() async {

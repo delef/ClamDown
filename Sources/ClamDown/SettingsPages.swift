@@ -191,9 +191,9 @@ struct CoolingPage: View {
                 }
                 if controller.settings.fanMode == .curve {
                     SettingSlider("Speed up from", value: controller.binding(\.fanStartTemperature),
-                                  range: FanPolicy.startRange, unit: " \u{00B0}C")
+                                  range: StandardCurve.startRange, unit: " \u{00B0}C")
                     SettingSlider("Full speed at", value: controller.binding(\.fanFullSpeedTemperature),
-                                  range: FanPolicy.fullSpeedRange, unit: " \u{00B0}C")
+                                  range: Self.fullSpeedRange, unit: " \u{00B0}C")
                     CDNote("Fans stay at their lowest speed up to the first point and reach full speed at the "
                         + "second, following the average CPU temperature.")
                 }
@@ -227,6 +227,9 @@ struct CoolingPage: View {
         if statusLoaded, status == nil { return "Cannot read the temperature sensors." }
         return nil
     }
+
+    private static let fullSpeedRange =
+        (StandardCurve.startRange.lowerBound + StandardCurve.minimumSpan)...StandardCurve.fullSpeedMaximum
 
     private static func label(for mode: FanMode) -> String {
         switch mode {

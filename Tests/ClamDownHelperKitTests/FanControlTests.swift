@@ -6,7 +6,8 @@ import ClamDownShared
 
 @Suite struct FanCurveTests {
     private let fan = FanReading(rpm: 0, minimum: 1000, maximum: 5000)
-    private let curve = FanPolicy(mode: .curve, startTemperature: 60, fullSpeedTemperature: 80, onlyWhenLidClosed: false)
+    private let curve = FanPolicy(points: [.init(temperature: 60, speed: 0), .init(temperature: 80, speed: 100)],
+                                  onlyWhenLidClosed: false)
 
     @Test func curveRunsFromMinimumToMaximum() {
         #expect(FanCurve.speed(at: 40, policy: curve, fan: fan) == 1000)
@@ -16,10 +17,17 @@ import ClamDownShared
         #expect(FanCurve.speed(at: 110, policy: curve, fan: fan) == 5000)
     }
 
-    @Test func fullSpeedIgnoresTemperature() {
-        var policy = curve
-        policy.mode = .fullSpeed
+    @Test func pointsAtFullSpeedIgnoreTemperature() {
+        let policy = FanPolicy(points: [.init(temperature: 40, speed: 100), .init(temperature: 80, speed: 100)],
+                               onlyWhenLidClosed: false)
         #expect(FanCurve.speed(at: 30, policy: policy, fan: fan) == 5000)
+    }
+
+    @Test func safetyFloorRaisesALowCurve() {
+        let quiet = FanPolicy(points: [.init(temperature: 40, speed: 0)], onlyWhenLidClosed: false)
+        #expect(FanCurve.speed(at: 60, policy: quiet, fan: fan) == 1000)
+        #expect(FanCurve.speed(at: 82.5, policy: quiet, fan: fan) == 3000)
+        #expect(FanCurve.speed(at: 99, policy: quiet, fan: fan) == 5000)
     }
 
     @Test func speedRisesAtOnceAndFallsSlowly() {
@@ -31,7 +39,8 @@ import ClamDownShared
 }
 
 @Suite struct FanControlTests {
-    private let curve = FanPolicy(mode: .curve, startTemperature: 60, fullSpeedTemperature: 80, onlyWhenLidClosed: true)
+    private let curve = FanPolicy(points: [.init(temperature: 60, speed: 0), .init(temperature: 80, speed: 100)],
+                                  onlyWhenLidClosed: true)
 
     private func make(fans: FakeFans = FakeFans(), saved: SavedState? = nil) -> (HelperCore, FakeFans, FakeStore) {
         let store = FakeStore(initial: saved)
@@ -60,25 +69,33 @@ import ClamDownShared
         #expect(await core.coolingStatus().isControlling)
     }
 
-    @Test func systemModeLeavesTheFansAlone() async throws {
+    @Test func policyWithoutPointsLeavesTheFansAlone() async throws {
         let (core, fans, _) = try await enabled()
         var policy = curve
-        policy.mode = .system
+        policy.points = []
         try await core.setFanPolicy(policy)
         await core.updateFans()
         #expect(fans.targets.isEmpty)
         #expect(fans.releaseCount == 0)
     }
 
-    @Test func switchingToSystemModeHandsTheFansBack() async throws {
+    @Test func switchingFanControlOffHandsTheFansBack() async throws {
         let (core, fans, store) = try await enabled()
         try await core.setFanPolicy(curve)
         var policy = curve
-        policy.mode = .system
+        policy.points = []
         try await core.setFanPolicy(policy)
         #expect(!fans.isHeld)
         #expect(store.saved?.fansManual == nil)
         #expect(store.saved?.sleepDisabled == false)
+    }
+
+    @Test func theHelperRepairsThePolicyItIsSent() async throws {
+        let (core, fans, _) = try await enabled()
+        // Out of order: the second point is raised to the first, so the curve is full speed everywhere.
+        try await core.setFanPolicy(FanPolicy(points: [.init(temperature: 80, speed: 100), .init(temperature: 60, speed: 0)],
+                                              onlyWhenLidClosed: true))
+        #expect(fans.targets == [[5000]])
     }
 
     @Test func openLidHandsTheFansBackWhenAskedTo() async throws {
