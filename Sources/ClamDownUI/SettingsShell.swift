@@ -42,21 +42,39 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
         }
     }
 
+    /// The items cut into groups at every item that starts one.
+    private var groups: [[CDSidebarItem<ID>]] {
+        var result: [[CDSidebarItem<ID>]] = []
+        for item in items {
+            if item.startsGroup || result.isEmpty {
+                result.append([item])
+            } else {
+                result[result.count - 1].append(item)
+            }
+        }
+        return result
+    }
+
     @ViewBuilder
     private var sidebar: some View {
         let list = List(selection: Binding<ID?>(get: { selection }, set: { if let new = $0 { selection = new } })) {
             // No tag: this row cannot be selected.
             brand
                 .listRowSeparator(.hidden)
-                .padding(.bottom, 6)
-            ForEach(items) { item in
-                if item.startsGroup {
-                    Divider()
-                        .padding(.vertical, 4)
-                        .listRowSeparator(.hidden)
+            // Each group is a section of its own, so a separator row belongs to no item and is never highlighted
+            // with the item after it.
+            ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                Section {
+                    if index > 0 {
+                        Divider()
+                            .padding(.vertical, 4)
+                            .listRowSeparator(.hidden)
+                    }
+                    ForEach(group) { item in
+                        Label(item.title, systemImage: item.symbol)
+                            .tag(item.id)
+                    }
                 }
-                Label(item.title, systemImage: item.symbol)
-                    .tag(item.id)
             }
         }
         .listStyle(.sidebar)

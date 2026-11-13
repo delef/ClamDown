@@ -9,7 +9,6 @@ struct SettingsRootView: View {
     let notifications: NotificationAuthorizing
     let openSetup: () -> Void
     @Binding var selection: SettingsPane
-    @EnvironmentObject private var updater: Updater
 
     var body: some View {
         CDSettingsShell(
@@ -54,7 +53,7 @@ struct SettingsRootView: View {
         case .cooling: CoolingPage(controller: controller)
         case .appearance: AppearancePage(controller: controller)
         case .helper: HelperPage(controller: controller, openSetup: openSetup)
-        case .about: SettingsPage(title: "About") { EmptyView() }
+        case .about: CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {}
         }
     }
 }

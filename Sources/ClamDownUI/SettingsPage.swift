@@ -55,26 +55,25 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
     }
 
     public var body: some View {
-        let form = Form {
-            // The header sits where a section header does, so it has no card behind it.
-            Section {
-                EmptyView()
-            } header: {
-                header
-                    .textCase(nil)
-                    .foregroundStyle(.primary)
-                    .padding(.bottom, 20)
-            }
-            .headerProminence(.increased)
-            content
-        }
-        .formStyle(.grouped)
-        if look == .glass, #available(macOS 26, *) {
-            form
+        // The header sits above the form, not in it: an empty first section in a Form makes macOS 26 measure the
+        // rows of the next section too short, which clips them. The form's own background is hidden so the header
+        // and the cards share the window's.
+        let page = VStack(spacing: 0) {
+            header
+                .padding(.horizontal, CDMetric.pageInset)
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+            Form { content }
+                .formStyle(.grouped)
                 .scrollContentBackground(.hidden)
-                .background(alignment: .top) { aura }
+                // The form scrolls inside the space left under the header; it must not ask for its content's height.
+                .frame(minHeight: 0, maxHeight: .infinity)
+        }
+        .frame(minWidth: 0, minHeight: 0)
+        if look == .glass, #available(macOS 26, *) {
+            page.background(alignment: .top) { aura }
         } else {
-            form
+            page.background(Color(nsColor: .windowBackgroundColor))
         }
     }
 
@@ -108,8 +107,7 @@ public struct CDSection<Content: View>: View {
 
     public var body: some View {
         if let title {
-            // The title is styled here: after the page header's empty section the system styles the first
-            // title smaller and lighter than the rest.
+            // The title is styled here, so every section's title looks the same.
             Section { content } header: { Text(title).font(.headline).foregroundStyle(.primary) }
         } else {
             Section { content }
@@ -144,6 +142,13 @@ public struct CDRow<Control: View>: View {
             control
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+extension CDRow where Control == EmptyView {
+    /// A row that only says something, with no control: a title and an explanation above content of its own.
+    public init(_ title: String, detail: String? = nil) {
+        self.init(title, detail: detail) { EmptyView() }
     }
 }
 
@@ -206,5 +211,27 @@ public struct CDNote: View {
             .foregroundStyle(tone.style)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A small line of text below the sections of a page, such as a licence line.
+public struct CDFootnote: View {
+    private let text: String
+
+    public init(_ text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
+        // The footer of an empty section, so the text sits under the sections without a card of its own.
+        Section {
+            EmptyView()
+        } footer: {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+        }
     }
 }

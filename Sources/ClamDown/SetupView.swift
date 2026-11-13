@@ -241,6 +241,8 @@ private struct StartupStep: View {
             VStack(alignment: .leading, spacing: 14) {
                 SetupCard {
                     LaunchAtLoginRow(controller: controller, loginItem: loginItem)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     Label(protection.isEmpty ? "No protection is switched on" : "Protection is already on",
@@ -251,7 +253,7 @@ private struct StartupStep: View {
                     if !protection.isEmpty {
                         SetupCard {
                             ForEach(Array(protection.enumerated()), id: \.offset) { index, item in
-                                if index > 0 { RowDivider() }
+                                if index > 0 { Divider() }
                                 ProtectionRow(icon: item.icon, text: item.text)
                             }
                         }

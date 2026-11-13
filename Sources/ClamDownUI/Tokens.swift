@@ -35,8 +35,10 @@ public enum CDColor {
 public enum CDMetric {
     public static let cardRadius: CGFloat = 12
     public static let setupCardRadius: CGFloat = 16
+    public static let choiceTileRadius: CGFloat = 10
     public static let tileSize: CGFloat = 46
     public static let tileRadius: CGFloat = 12
+    public static let pageInset: CGFloat = 20
     public static let pageSpacing: CGFloat = 22
     public static let rowSpacing: CGFloat = 10
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import ClamDownAppKit
 import ClamDownShared
+import ClamDownUI
 
 /// SwiftUI has its own `Settings` scene type, so name ours explicitly.
 typealias AppSettings = ClamDownAppKit.Settings
@@ -24,43 +25,31 @@ extension ClamDownController {
 struct GeneralPage: View {
     @ObservedObject var controller: ClamDownController
     let notifications: NotificationAuthorizing
-    @EnvironmentObject private var updater: Updater
     /// Assumed allowed until read, so the hint below does not flash while the page opens.
     @State private var permission: NotificationPermission = .allowed
 
+    private let pane = SettingsPane.general
+
     var body: some View {
-        SettingsPage(title: "General") {
-            SettingsSection(title: "Startup", icon: "power") {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+            CDSection("Startup") {
                 LaunchAtLoginRow(controller: controller)
-                RowDivider()
-                SettingRow(icon: "dock.rectangle", title: "Show Dock Icon",
-                           help: "Adds ClamDown to the Dock. Clicking it opens these settings.") {
-                    StatusToggle(isOn: controller.binding(\.showDockIcon))
-                }
+                CDSwitchRow("Show Dock Icon",
+                            detail: "Adds ClamDown to the Dock. Clicking it opens these settings.",
+                            isOn: controller.binding(\.showDockIcon))
             }
-            SettingsSection(title: "Notifications", icon: "bell") {
-                SettingRow(icon: "bell.badge", title: "Notify When Switched Off",
-                           help: "Shows a notification when ClamDown switches itself off, for example at low battery. The menu always shows the reason.") {
-                    StatusToggle(isOn: controller.binding(\.notificationsEnabled))
-                }
+            CDSection("Notifications") {
+                CDSwitchRow("Notify When Switched Off",
+                            detail: "Tells you when ClamDown switches itself off, for example at low battery. "
+                                + "The menu always shows the reason.",
+                            isOn: controller.binding(\.notificationsEnabled))
                 notificationHint
             }
-            SettingsSection(title: "Updates", icon: "arrow.down.circle") {
-                SettingRow(icon: "clock.arrow.circlepath", title: "Check Automatically",
-                           help: "Looks for a new version on GitHub once a day. The check downloads the list of releases and sends nothing about you or your Mac.") {
-                    StatusToggle(isOn: $updater.checksAutomatically)
-                }
-                RowDivider()
-                SettingRow(icon: "arrow.down.app", title: "Check for Updates",
-                           help: "Looks for a new version now. You choose whether to install it.") {
-                    Button("Check Now") { updater.checkForUpdates() }
-                        .disabled(!updater.canCheckForUpdates)
-                }
-            }
-            SettingsSection(title: "Settings", icon: "arrow.counterclockwise") {
-                SettingRow(icon: "arrow.uturn.backward", title: "Reset All Settings",
-                           help: "Restores every setting to its default. Launch at Login stays as it is.") {
+            CDSection("Settings") {
+                CDRow("Reset All Settings",
+                      detail: "Restores every setting to its default. Launch at Login stays as it is.") {
                     Button("Reset") { Task { await controller.resetSettings() } }
+                        .cdButtonStyle(.secondary)
                 }
             }
         }
@@ -87,12 +76,10 @@ struct GeneralPage: View {
     }
 
     private func notificationHintLine(button: String, action: @escaping () -> Void) -> some View {
-        SettingDetail {
-            HStack {
-                Text("macOS is not showing ClamDown's notifications yet.").foregroundStyle(.orange)
-                Spacer(minLength: 12)
-                Button(button, action: action)
-            }
+        HStack {
+            CDNote("macOS is not showing ClamDown's notifications yet.", tone: .warning)
+            Button(button, action: action)
+                .cdButtonStyle(.secondary)
         }
     }
 }
@@ -102,34 +89,32 @@ struct GeneralPage: View {
 struct SleepPage: View {
     @ObservedObject var controller: ClamDownController
 
+    private let pane = SettingsPane.sleep
+
     var body: some View {
-        SettingsPage(title: "Sleep") {
-            SettingsSection(title: "Keep Awake", icon: "moon.zzz") {
-                SettingRow(icon: "timer", title: "Switch Off After",
-                           help: "Turns the mode off by itself after this time. \"Turn On For…\" in the menu overrides it for one session.") {
-                    Picker("", selection: controller.binding(\.autoOffTimer)) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+            CDSection("Keep Awake") {
+                CDRow("Switch Off After",
+                      detail: "Turns the mode off by itself after this time. Turn On For\u{2026} in the menu overrides it once.") {
+                    Picker("Switch Off After", selection: controller.binding(\.autoOffTimer)) {
                         ForEach(AutoOffTimer.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden()
-                    .frame(width: 130)
+                    .frame(width: 130, alignment: .trailing)
                 }
-                RowDivider()
-                SettingRow(icon: "powerplug", title: "Switch Off When Unplugged",
-                           help: "Lets the Mac sleep as soon as the power adapter is disconnected, and refuses to turn on without it.") {
-                    StatusToggle(isOn: controller.binding(\.turnOffWhenUnplugged))
-                }
+                CDSwitchRow("Switch Off When Unplugged",
+                            detail: "Lets the Mac sleep as soon as the power adapter is disconnected.",
+                            isOn: controller.binding(\.turnOffWhenUnplugged))
             }
-            SettingsSection(title: "Security", icon: "lock") {
-                SettingRow(icon: "lock.laptopcomputer", title: "Lock Screen When Closed",
-                           help: "Without this, a Mac kept awake with the lid closed opens without a password. ClamDown locks the screen the moment the lid closes while the mode is on.") {
-                    StatusToggle(isOn: controller.binding(\.lockScreenWhenLidClosed))
-                }
+            CDSection("Security") {
+                CDSwitchRow("Lock Screen When Closed",
+                            detail: "Without this, a Mac kept awake with the lid closed opens without a password.",
+                            isOn: controller.binding(\.lockScreenWhenLidClosed))
             }
-            SettingsSection(title: "Power", icon: "bolt") {
-                SettingRow(icon: "battery.50", title: "Low Power Mode on Battery",
-                           help: "Switches on Low Power Mode while the Mac runs on battery with the mode on, and puts it back afterwards.") {
-                    StatusToggle(isOn: controller.binding(\.autoLowPowerOnBattery))
-                }
+            CDSection("Power") {
+                CDSwitchRow("Low Power Mode on Battery",
+                            detail: "Switches on Low Power Mode on battery while ClamDown is on, and puts it back afterwards.",
+                            isOn: controller.binding(\.autoLowPowerOnBattery))
             }
         }
     }
@@ -140,54 +125,35 @@ struct SleepPage: View {
 struct ProtectionPage: View {
     @ObservedObject var controller: ClamDownController
 
+    private let pane = SettingsPane.protection
+
     var body: some View {
-        SettingsPage(title: "Protection") {
-            SettingsSection(title: "Battery", icon: "battery.25") {
-                SettingRow(icon: "battery.25", title: "Switch Off at Low Battery",
-                           help: "Lets the Mac sleep when the battery falls to this level, so it does not run flat in a bag.") {
-                    StatusToggle(isOn: controller.binding(\.batteryCutoffEnabled))
-                }
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+            CDSection("Battery") {
+                CDSwitchRow("Switch Off at Low Battery",
+                            detail: "Lets the Mac sleep at this level, so it does not run flat in a bag.",
+                            isOn: controller.binding(\.batteryCutoffEnabled))
                 if controller.settings.batteryCutoffEnabled {
-                    SettingDetail {
-                        HStack {
-                            Text("Level")
-                            Slider(
-                                value: Binding(
-                                    get: { Double(controller.settings.batteryCutoffPercent) },
-                                    set: { value in
-                                        var updated = controller.settings
-                                        updated.batteryCutoffPercent = Int(value.rounded())
-                                        Task { await controller.updateSettings(updated) }
-                                    }
-                                ),
-                                in: Double(AppSettings.batteryCutoffRange.lowerBound)...Double(AppSettings.batteryCutoffRange.upperBound),
-                                step: 1
-                            )
-                            Text("\(controller.settings.batteryCutoffPercent)%")
-                                .monospacedDigit()
-                                .frame(width: 44, alignment: .trailing)
-                        }
-                    }
+                    SettingSlider("Level", value: controller.binding(\.batteryCutoffPercent),
+                                  range: AppSettings.batteryCutoffRange, unit: "%")
                 }
             }
-            SettingsSection(title: "Heat Protection", icon: "thermometer.medium") {
-                SettingRow(icon: "thermometer.high", title: "Switch Off When Hot",
-                           help: "Lets the Mac sleep when macOS reports this thermal level. A Mac in a closed bag cannot shed heat.") {
-                    Picker("", selection: controller.binding(\.thermalCutoff)) {
+            CDSection("Heat") {
+                CDRow("Switch Off When Hot",
+                      detail: "Lets the Mac sleep when macOS reports this thermal level. "
+                          + "Now: \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized).") {
+                    Picker("Switch Off When Hot", selection: controller.binding(\.thermalCutoff)) {
                         ForEach(ThermalCutoff.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
                     }
                     .labelsHidden()
-                    .frame(width: 150)
-                }
-                SettingDetail {
-                    Text("Now: \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized)")
+                    .frame(width: 150, alignment: .trailing)
                 }
             }
-            SettingsSection(title: "After Switching Off", icon: "moon.zzz") {
-                SettingRow(icon: "powersleep", title: "Put the Mac to Sleep",
-                           help: "When low battery or heat switches ClamDown off with the lid closed, the Mac goes to sleep at once, even if an app is keeping it awake. With the lid open, or in front of an external display, nothing happens.") {
-                    StatusToggle(isOn: controller.binding(\.sleepAfterProtection))
-                }
+            CDSection("After Switching Off") {
+                CDSwitchRow("Put the Mac to Sleep",
+                            detail: "When low battery or heat switches ClamDown off and nobody is at the Mac, "
+                                + "it goes to sleep at once.",
+                            isOn: controller.binding(\.sleepAfterProtection))
             }
         }
     }
@@ -209,49 +175,41 @@ struct CoolingPage: View {
     @State private var status: CoolingStatus?
     @State private var statusLoaded = false
 
+    private let pane = SettingsPane.cooling
+
     var body: some View {
-        SettingsPage(title: "Cooling") {
-            SettingsSection(title: "Fans", icon: "fan") {
-                SettingRow(icon: "fan", title: "Fan Control",
-                           help: "Applies only while ClamDown is on. ClamDown hands the fans back to macOS when it switches off, quits or crashes.") {
-                    Picker("", selection: controller.binding(\.fanMode)) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+            CDSection("Fans") {
+                CDRow("Fan Control",
+                      detail: "Applies only while ClamDown is on. ClamDown hands the fans back to macOS when it "
+                          + "switches off, quits or crashes.") {
+                    Picker("Fan Control", selection: controller.binding(\.fanMode)) {
                         ForEach(FanMode.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
                     }
                     .labelsHidden()
-                    .frame(width: 170)
+                    .frame(width: 170, alignment: .trailing)
                 }
                 if controller.settings.fanMode == .curve {
-                    SettingDetail {
-                        VStack(alignment: .leading, spacing: 6) {
-                            temperatureSlider("Speed up from", \.fanStartTemperature, range: FanPolicy.startRange)
-                            temperatureSlider("Full speed at", \.fanFullSpeedTemperature, range: FanPolicy.fullSpeedRange)
-                            Text("Fans stay at their lowest speed up to the first point and reach full speed at the second, following the average CPU temperature.")
-                                .font(.caption)
-                        }
-                    }
+                    SettingSlider("Speed up from", value: controller.binding(\.fanStartTemperature),
+                                  range: FanPolicy.startRange, unit: " \u{00B0}C")
+                    SettingSlider("Full speed at", value: controller.binding(\.fanFullSpeedTemperature),
+                                  range: FanPolicy.fullSpeedRange, unit: " \u{00B0}C")
+                    CDNote("Fans stay at their lowest speed up to the first point and reach full speed at the "
+                        + "second, following the average CPU temperature.")
                 }
-                RowDivider()
-                SettingRow(icon: "laptopcomputer", title: "Only With Lid Closed",
-                           help: "Leaves the fans to macOS while the lid is open, so they stay quiet while you work at the Mac.") {
-                    StatusToggle(isOn: controller.binding(\.fansOnlyWhenLidClosed))
-                }
+                CDSwitchRow("Only With Lid Closed",
+                            detail: "Leaves the fans to macOS while the lid is open, so they stay quiet while you work.",
+                            isOn: controller.binding(\.fansOnlyWhenLidClosed))
             }
-            SettingsSection(title: "Now", icon: "gauge.with.dots.needle.33percent") {
-                SettingRow(icon: "cpu", title: "CPU Temperature") {
-                    Text(status?.cpuTemperature.map { "\(Int($0.rounded())) °C" } ?? "—").monospacedDigit()
-                }
+            CDSection("Now") {
+                CDValueRow("CPU Temperature",
+                           value: status?.cpuTemperature.map { "\(Int($0.rounded())) \u{00B0}C" } ?? "\u{2014}")
                 ForEach(Array((status?.fans ?? []).enumerated()), id: \.offset) { index, fan in
-                    RowDivider()
-                    SettingRow(icon: "fan", title: "Fan \(index + 1)") {
-                        Text("\(Int(fan.rpm)) rpm").monospacedDigit()
-                    }
+                    CDValueRow("Fan \(index + 1)", value: "\(Int(fan.rpm)) rpm")
                 }
-                RowDivider()
-                SettingRow(icon: "hand.raised", title: "Controlled By") {
-                    Text(status?.isControlling == true ? "ClamDown" : "macOS")
-                }
+                CDValueRow("Controlled By", value: status?.isControlling == true ? "ClamDown" : "macOS")
                 if let problem = statusProblem {
-                    SettingDetail { Text(problem).foregroundStyle(.orange) }
+                    CDNote(problem, tone: .warning)
                 }
             }
         }
@@ -270,27 +228,6 @@ struct CoolingPage: View {
         return nil
     }
 
-    private func temperatureSlider(_ title: String, _ keyPath: WritableKeyPath<AppSettings, Int>, range: ClosedRange<Int>) -> some View {
-        HStack {
-            Text(title).frame(width: 110, alignment: .leading)
-            Slider(
-                value: Binding(
-                    get: { Double(controller.settings[keyPath: keyPath]) },
-                    set: { value in
-                        var updated = controller.settings
-                        updated[keyPath: keyPath] = Int(value.rounded())
-                        Task { await controller.updateSettings(updated) }
-                    }
-                ),
-                in: Double(range.lowerBound)...Double(range.upperBound),
-                step: 1
-            )
-            Text("\(controller.settings[keyPath: keyPath]) °C")
-                .monospacedDigit()
-                .frame(width: 52, alignment: .trailing)
-        }
-    }
-
     private static func label(for mode: FanMode) -> String {
         switch mode {
         case .system: "macOS (no change)"
@@ -305,17 +242,22 @@ struct CoolingPage: View {
 struct AppearancePage: View {
     @ObservedObject var controller: ClamDownController
 
+    private let pane = SettingsPane.appearance
+
     var body: some View {
-        SettingsPage(title: "Appearance") {
-            SettingsSection(title: "Menu Bar", icon: "menubar.rectangle") {
-                SettingRow(icon: "star", title: "Icon Style",
-                           help: "The icon is filled while the mode is on.") {
-                    HStack(spacing: 8) {
-                        ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
-                            IconTile(style: style, isSelected: controller.settings.menuBarIcon == style) {
-                                var updated = controller.settings
-                                updated.menuBarIcon = style
-                                Task { await controller.updateSettings(updated) }
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+            CDSection("Menu Bar") {
+                CDRow("Icon Style", detail: "The icon fills in while ClamDown is on.")
+                HStack(spacing: 8) {
+                    ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                        CDChoiceTile(style.title, isSelected: controller.settings.menuBarIcon == style) {
+                            var updated = controller.settings
+                            updated.menuBarIcon = style
+                            Task { await controller.updateSettings(updated) }
+                        } content: {
+                            HStack(spacing: 6) {
+                                MenuBarIconGlyph(symbol: style.offSymbol)
+                                MenuBarIconGlyph(symbol: style.onSymbol)
                             }
                         }
                     }
@@ -325,73 +267,40 @@ struct AppearancePage: View {
     }
 }
 
-private struct IconTile: View {
-    let style: MenuBarIconStyle
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                HStack(spacing: 6) {
-                    MenuBarIconGlyph(symbol: style.offSymbol)
-                    MenuBarIconGlyph(symbol: style.onSymbol)
-                }
-                .font(.title3)
-                Text(style.title).font(.caption)
-            }
-            .frame(width: 70, height: 52)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 1.5)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(style.title)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
 // MARK: - Helper
 
 struct HelperPage: View {
     @ObservedObject var controller: ClamDownController
     let openSetup: () -> Void
 
+    private let pane = SettingsPane.helper
+
     var body: some View {
-        SettingsPage(title: "Helper") {
-            SettingsSection(title: "Helper Application", icon: "gearshape.2") {
-                SettingRow(icon: "circle.fill", title: "Status",
-                           help: "ClamDown needs a small background helper with administrator rights to change the sleep setting and drive the fans. It does nothing else.") {
-                    Text(statusText).foregroundStyle(statusColor)
-                }
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+            CDSection("Helper") {
+                CDValueRow("Status", value: statusText, tone: statusTone)
                 if let notice = controller.notice {
-                    SettingDetail { Text(notice) }
+                    CDNote(notice)
                 }
-                RowDivider()
-                SettingRow(icon: "arrow.triangle.2.circlepath", title: "Reinstall Helper",
-                           help: "Installs the helper from this build again. Use it when the helper is stuck.") {
+                CDRow("Reinstall Helper",
+                      detail: "Installs the helper from this version again. Use it when the helper is stuck.") {
                     Button("Reinstall") { run { await controller.reinstallHelper() } }
+                        .cdButtonStyle(.secondary)
                 }
-                RowDivider()
-                SettingRow(icon: "person.badge.key", title: "Approve in System Settings",
-                           help: "Opens Login Items & Extensions, where macOS asks you to allow the helper.") {
-                    Button("Open") { controller.openHelperApproval() }
+                CDRow("Approve in System Settings",
+                      detail: "Opens Login Items & Extensions, where macOS asks you to allow the helper.") {
+                    Button("Open\u{2026}") { controller.openHelperApproval() }
+                        .cdButtonStyle(.secondary)
                 }
-                RowDivider()
-                SettingRow(icon: "trash", title: "Remove Helper",
-                           help: "Removes the helper. Turn On sets it up again.") {
-                    Button("Remove", role: .destructive) { run { await controller.removeHelper() } }
+                CDRow("Remove Helper", detail: "Removes the helper. Turn On sets it up again.") {
+                    Button("Remove") { run { await controller.removeHelper() } }
+                        .cdButtonStyle(.destructive)
                 }
             }
-            SettingsSection(title: "Setup", icon: "sparkles") {
-                SettingRow(icon: "list.bullet.clipboard", title: "Setup Assistant",
-                           help: "Walks through the helper, notifications and startup again.") {
-                    Button("Open") { openSetup() }
+            CDSection("Setup") {
+                CDRow("Setup Assistant", detail: "Walks through the helper, notifications and startup again.") {
+                    Button("Open\u{2026}") { openSetup() }
+                        .cdButtonStyle(.secondary)
                 }
             }
         }
@@ -412,11 +321,41 @@ struct HelperPage: View {
         }
     }
 
-    private var statusColor: Color {
+    private var statusTone: CDTone {
         switch controller.helperAvailability {
-        case .ready: .green
-        case .requiresApproval: .orange
-        case .notRegistered, .unavailable: .red
+        case .ready: .success
+        case .requiresApproval: .warning
+        case .notRegistered, .unavailable: .danger
+        }
+    }
+}
+
+// MARK: - Shared
+
+/// A titled slider with its value at the end, as one row of a section.
+private struct SettingSlider: View {
+    private let title: String
+    @Binding private var value: Int
+    private let range: ClosedRange<Int>
+    private let unit: String
+
+    init(_ title: String, value: Binding<Int>, range: ClosedRange<Int>, unit: String) {
+        self.title = title
+        self._value = value
+        self.range = range
+        self.unit = unit
+    }
+
+    var body: some View {
+        HStack(spacing: CDMetric.rowSpacing) {
+            Text(title).frame(width: 110, alignment: .leading)
+            Slider(value: Binding(get: { Double(value) }, set: { value = Int($0.rounded()) }),
+                   in: Double(range.lowerBound)...Double(range.upperBound), step: 1)
+                .accessibilityLabel(title)
+            Text("\(value)\(unit)")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .trailing)
         }
     }
 }

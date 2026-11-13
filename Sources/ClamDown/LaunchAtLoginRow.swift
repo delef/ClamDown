@@ -1,5 +1,6 @@
 import SwiftUI
 import ClamDownAppKit
+import ClamDownUI
 
 /// The Launch at Login switch, shared by Settings > General and the setup assistant.
 /// macOS owns this state: the user can remove ClamDown under Login Items. So the row shows what the system says.
@@ -9,17 +10,14 @@ struct LaunchAtLoginRow: View {
     @State private var error: String?
 
     var body: some View {
-        SettingRow(icon: "arrow.right.circle", title: "Launch at Login",
-                   help: "Opens ClamDown in the menu bar when you log in.") {
-            StatusToggle(isOn: binding)
-        }
-        .task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
-        // The row can stay on screen for days; coming back from System Settings is when the answer may have changed.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
-        }
+        CDSwitchRow("Launch at Login", detail: "Opens ClamDown in the menu bar when you log in.", isOn: binding)
+            .task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
+            // The row can stay on screen for days; coming back from System Settings is when the answer may have changed.
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                Task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
+            }
         if let error {
-            SettingDetail { Text(error).foregroundStyle(.red) }
+            CDNote(error, tone: .danger)
         }
     }
 

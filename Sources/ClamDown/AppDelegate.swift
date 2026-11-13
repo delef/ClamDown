@@ -194,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if setupWindow.isOpen {
             setupWindow.bringForward()
         } else {
-            settingsWindow.show()
+            settingsWindow.show(pane: nil)
         }
         return true
     }

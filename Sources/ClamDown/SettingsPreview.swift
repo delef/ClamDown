@@ -22,6 +22,8 @@ enum SettingsPreview {
     /// Returns true when the launch was a settings picture run.
     static func run() -> Bool {
         guard let directory = UserDefaults.standard.string(forKey: "settingsShot") else { return false }
+        // No Dock icon and no activation: the pictures are drawn in windows far off screen, and nothing shows.
+        NSApp.setActivationPolicy(.accessory)
         Task {
             await shoot(into: URL(fileURLWithPath: directory))
             exit(0)
@@ -50,6 +52,13 @@ enum SettingsPreview {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let controller = makeController()
         let updater = Updater(starts: false)
+        // The About page in each state of the update check; the other pages ignore it.
+        let updateStates: [(String, UpdateStatus)] = [
+            ("", .upToDate(lastCheck: Date().addingTimeInterval(-3 * 3600))),
+            ("-never", .upToDate(lastCheck: nil)),
+            ("-available", .available("0.1.4")),
+            ("-checking", .checking),
+        ]
         let size = CGSize(width: 780, height: 560)
         // Tall pictures show a whole page that scrolls in a window of the real size.
         let tall = CGSize(width: 780, height: 1100)
@@ -60,6 +69,7 @@ enum SettingsPreview {
         for (appearanceName, appearance) in appearances {
             for (lookName, look) in looks {
                 for pane in panes {
+                    for (state, _) in updateStates where pane == .about || state.isEmpty {
                     for (suffix, frame) in [("", size), ("-tall", tall)] {
                         var selection = pane
                         let view = SettingsRootView(
@@ -70,7 +80,8 @@ enum SettingsPreview {
                             // The window's own background is not part of the picture.
                             .background(Color(nsColor: .windowBackgroundColor))
                         await draw(view, size: frame, appearance: appearance,
-                                   to: directory.appendingPathComponent("\(lookName)-\(appearanceName)-\(pane.rawValue)\(suffix).png"))
+                                   to: directory.appendingPathComponent("\(lookName)-\(appearanceName)-\(pane.rawValue)\(state)\(suffix).png"))
+                    }
                     }
                 }
             }
@@ -80,15 +91,32 @@ enum SettingsPreview {
 
     private static func draw<V: View>(_ view: V, size: CGSize, appearance: NSAppearance.Name, to url: URL) async {
         // Far off screen: the view must sit in a window for its tasks to run, but nobody should see it.
-        let window = ActiveLookingWindow(contentRect: NSRect(origin: NSPoint(x: -20000, y: -20000), size: size),
-                                         styleMask: [.borderless], backing: .buffered, defer: false)
+        // With -settingsShotWindow YES the window is a titled one with the hosting controller the real window has,
+        // so the page gets the title bar and toolbar areas the real window gives it.
+        let titled = UserDefaults.standard.bool(forKey: "settingsShotWindow")
+        let window = ActiveLookingWindow(
+            contentRect: NSRect(origin: NSPoint(x: -20000, y: -20000), size: size),
+            styleMask: titled ? [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView] : [.borderless],
+            backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: appearance)
         window.isReleasedWhenClosed = false
-        let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(origin: .zero, size: size)
-        window.contentView = hosting
+        let hosting: NSView
+        if titled {
+            let controller = NSHostingController(rootView: view)
+            controller.sizingOptions = []
+            window.contentViewController = controller
+            window.setContentSize(size)
+            window.setFrameOrigin(NSPoint(x: -20000, y: -20000))
+            hosting = controller.view
+        } else {
+            let plain = NSHostingView(rootView: view)
+            plain.frame = NSRect(origin: .zero, size: size)
+            window.contentView = plain
+            hosting = plain
+        }
         window.orderFrontRegardless()
-        try? await Task.sleep(for: .milliseconds(700))
+        let delay = UserDefaults.standard.integer(forKey: "settingsShotDelay")
+        try? await Task.sleep(for: .milliseconds(delay > 0 ? delay : 700))
         hosting.layoutSubtreeIfNeeded()
         if let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) {
             hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
