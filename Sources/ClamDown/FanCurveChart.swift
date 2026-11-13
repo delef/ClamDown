@@ -26,6 +26,14 @@ struct FanCurveChart: View {
     /// Where the pointer took hold of the handle, from its centre, so the point does not jump to the pointer.
     @State private var grabOffset: CGSize = .zero
     @FocusState private var focused: Int?
+    /// Arrow-key moves show at once but are reported only after a pause in key presses, or when the point loses
+    /// focus: each report saves the settings and sends the helper a new policy.
+    @State private var keyMoves = EditCommitter<KeyMove>()
+
+    private struct KeyMove {
+        let index: Int
+        let point: FanPoint
+    }
 
     init(points: [FanPoint], mode: FanCurveMode, nowTemperature: Double?, firstFan: FanReading?,
          labelledPoint: Int? = nil, onMove: @escaping (Int, FanPoint) -> Void) {
@@ -64,11 +72,16 @@ struct FanCurveChart: View {
         .frame(height: Self.topMargin + CDMetric.chartHeight + Self.bottomMargin)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Fan curve")
-        .onChange(of: points) { _ in if dragging == nil { draft = nil } }
+        // A waiting key move keeps its draft: the settings have not caught up with it yet.
+        .onChange(of: points) { _ in if dragging == nil, keyMoves.pending == nil { draft = nil } }
         .onChange(of: mode) { _ in
+            // The waiting move belongs to the other mode's curve.
+            keyMoves.discard()
             draft = nil
             dragging = nil
         }
+        .onChange(of: focused) { _ in keyMoves.flush() }
+        .onDisappear { keyMoves.flush() }
     }
 
     // MARK: - Drawing
@@ -234,8 +247,9 @@ struct FanCurveChart: View {
                 let base: [FanPoint]
                 let offset: CGSize
                 if dragging != index {
-                    // A new drag starts from the saved curve.
-                    base = points
+                    // A new drag starts from the saved curve, or from a key move that is still on its way.
+                    base = keyMoves.pending == nil ? points : shown
+                    keyMoves.flush()
                     let center = plot.point(Double(points[index].temperature), Double(points[index].speed))
                     offset = CGSize(width: value.startLocation.x - center.x, height: value.startLocation.y - center.y)
                     grabOffset = offset
@@ -276,7 +290,10 @@ struct FanCurveChart: View {
         let moved = FanCurveEditor.moved(current, mode: mode, dragging: index, to: target)
         guard moved != current else { return }
         draft = moved
-        onMove(index, moved[index])
+        // A move of another point (VoiceOver can adjust one without moving focus) is reported first.
+        if let waiting = keyMoves.pending, waiting.index != index { keyMoves.flush() }
+        let report = onMove
+        keyMoves.submit(KeyMove(index: index, point: moved[index])) { report($0.index, $0.point) }
     }
 
     private func dragLabel(for point: FanPoint, plot: Plot) -> some View {
