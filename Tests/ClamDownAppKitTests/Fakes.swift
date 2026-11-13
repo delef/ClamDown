@@ -91,6 +91,7 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
     /// How many quiet pauses macOS still needs before it accepts a registration again. Zero means it accepts.
     private var pausesOwed = 0
     private var quietPauses: [Duration] = []
+    private var answer: HelperAvailability?
     var registerError: Error?
     var unregisterError: Error?
     /// How many quiet pauses a removal costs. On a real Mac it is one, unless something keeps asking in between.
@@ -111,9 +112,15 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
 
     func availability() -> HelperAvailability {
         lock.withLock {
+            if let answer { return answer }
             defer { index += 1 }
             return script[min(index, script.count - 1)]
         }
+    }
+
+    /// From now on the system gives this answer, whatever the script said: the user changed something in System Settings.
+    func nowAnswers(_ availability: HelperAvailability) {
+        lock.withLock { answer = availability }
     }
 
     func register() throws {

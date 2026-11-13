@@ -403,10 +403,13 @@ public final class ClamDownController: ObservableObject {
             announce(text)
             return
         }
-        do {
-            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
-        } catch {
-            state = .failed(Self.describe(error))
+        switch await startMode() {
+        case .started:
+            break
+        case .stopped(let preparation):
+            // The Turn On that found the helper not allowed is remembered, as when it is found before the start.
+            pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
+            _ = show(preparation)
             return
         }
         activity.begin()
@@ -427,6 +430,52 @@ public final class ClamDownController: ObservableObject {
         } catch {
             notice = "Could not control the fans: \(Self.describe(error))"
         }
+    }
+
+    private enum ModeStart {
+        case started
+        /// Not started; what the user is shown instead.
+        case stopped(HelperPreparation)
+    }
+
+    /// How long a registered helper that does not answer is waited for: eight looks, two seconds apart.
+    static let helperStartLooks = 8
+    static let helperStartPause: Duration = .seconds(2)
+
+    /// Asks the helper to switch the mode on, and waits for a helper that macOS has registered but not started.
+    ///
+    /// macOS can refuse to launch a helper it has just registered and only then, about ten seconds later, ask the
+    /// user to allow it again. Until it does, the registration still reads "allowed" and every request fails.
+    /// So a helper that does not answer is looked at again for a while: it may start late, or macOS may ask
+    /// for approval, and then the user is led to that instead of being left with "the helper did not answer".
+    private func startMode() async -> ModeStart {
+        var failure: Error
+        do {
+            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+            return .started
+        } catch {
+            failure = error
+        }
+        // The helper answered with a failure of its own: waiting changes nothing.
+        guard case .connection? = failure as? HelperClientError else { return .stopped(.failed(Self.describe(failure))) }
+
+        notice = "Waiting for the helper to start…"
+        defer { notice = nil }
+        for _ in 0..<Self.helperStartLooks {
+            await pause(Self.helperStartPause)
+            let availability = registrar.availability()
+            guard availability == .ready else {
+                helperAvailability = availability
+                return .stopped(Self.preparation(for: availability))
+            }
+            do {
+                try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+                return .started
+            } catch {
+                failure = error
+            }
+        }
+        return .stopped(.failed(Self.describe(failure)))
     }
 
     private func turnOff() async {
