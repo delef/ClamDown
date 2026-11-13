@@ -43,7 +43,8 @@ private struct MenuContent: View {
 
     var body: some View {
         let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
-                                            icon: controller.settings.menuBarIcon)
+                                            icon: controller.settings.menuBarIcon,
+                                            helperReady: controller.helperAvailability == .ready)
         Button(presentation.toggleTitle) {
             Task { await controller.toggle() }
         }
@@ -66,10 +67,17 @@ private struct MenuContent: View {
         if let line = presentation.statusLine {
             Text(line)
         }
-        if controller.helperAvailability != .ready {
+        switch presentation.recovery {
+        case .finishSetup:
             Button("Finish Setup…") {
                 openSetup()
             }
+        case .reinstallHelper:
+            Button("Reinstall Helper") {
+                Task { await controller.reinstallHelper() }
+            }
+        case nil:
+            EmptyView()
         }
         Divider()
         Button("About ClamDown") {

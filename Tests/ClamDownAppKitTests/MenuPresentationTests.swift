@@ -26,6 +26,28 @@ import Testing
         #expect(!MenuPresentation(state: .on, notice: nil).needsAttention)
     }
 
+    /// A failure with nothing to press under it leaves the user guessing.
+    @Test func failedOffersToTryAgain() {
+        #expect(MenuPresentation(state: .failed("boom"), notice: nil).toggleTitle == "Try Again")
+    }
+
+    @Test func failureWithAWorkingRegistrationOffersToReinstallTheHelper() {
+        #expect(MenuPresentation(state: .failed("boom"), notice: nil).recovery == .reinstallHelper)
+    }
+
+    @Test func helperThatIsNotAllowedOffersSetup() {
+        #expect(MenuPresentation(state: .failed("boom"), notice: nil, helperReady: false).recovery == .finishSetup)
+        #expect(MenuPresentation(state: .off, notice: nil, helperReady: false).recovery == .finishSetup)
+        #expect(MenuPresentation(state: .on, notice: nil, helperReady: false).recovery == .finishSetup)
+        #expect(MenuPresentation(state: .needsApproval, notice: nil).recovery == .finishSetup)
+    }
+
+    @Test func nothingToRecoverWhenAllIsWell() {
+        #expect(MenuPresentation(state: .off, notice: nil).recovery == nil)
+        #expect(MenuPresentation(state: .on, notice: nil).recovery == nil)
+        #expect(MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").recovery == nil)
+    }
+
     @Test func failedShowsMessage() {
         #expect(MenuPresentation(state: .failed("boom"), notice: nil).statusLine == "boom")
     }
