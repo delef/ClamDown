@@ -22,9 +22,10 @@ final class Updater: NSObject, ObservableObject {
     private var controller: SPUStandardUpdaterController!
     private var observers: Set<AnyCancellable> = []
 
-    override init() {
+    /// - Parameter starts: false leaves Sparkle idle, for a debug preview that must not check for anything.
+    init(starts: Bool = true) {
         super.init()
-        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        controller = SPUStandardUpdaterController(startingUpdater: starts, updaterDelegate: nil, userDriverDelegate: self)
         let updater = controller.updater
         checksAutomatically = updater.automaticallyChecksForUpdates
         updater.publisher(for: \.canCheckForUpdates)

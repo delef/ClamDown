@@ -5,17 +5,8 @@ import ClamDownAppKit
 struct ClamDownApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
-    /// A debug preview shows made-up states, so it must not offer the real switch next to them.
-    private var showsMenuBarItem: Bool {
-        #if DEBUG
-        !SetupPreview.isRequested
-        #else
-        true
-        #endif
-    }
-
     var body: some Scene {
-        MenuBarExtra(isInserted: .constant(showsMenuBarItem)) {
+        MenuBarExtra(isInserted: .constant(!AppDelegate.isDebugPreview)) {
             MenuContent(controller: delegate.controller, updater: delegate.updater,
                         openSettings: { delegate.settingsWindow.show() },
                         openSetup: { delegate.showSetup(.menu) })

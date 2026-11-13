@@ -21,7 +21,17 @@ private struct UnsignedHelper: HelperControlling {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller: ClamDownController
     private let notifier = UserNotificationNotifier()
-    let updater = Updater()
+    /// True in a debug build started for one of its debug tools, such as drawing the setup assistant in made-up
+    /// states: nothing real runs next to them, neither the menu bar switch nor the updater.
+    static var isDebugPreview: Bool {
+        #if DEBUG
+        SetupPreview.isRequested || HelperProbe.isRequested
+        #else
+        false
+        #endif
+    }
+
+    let updater = Updater(starts: !AppDelegate.isDebugPreview)
     private let setupStore = UserDefaultsSetupStore()
     private(set) lazy var setupWindow = SetupWindowController(controller: controller, store: setupStore, notifications: notifier)
     private(set) lazy var settingsWindow = SettingsWindowController(
@@ -78,6 +88,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &observers)
         setupWindow.onVisibilityChange = { [weak self] _ in self?.applyActivationPolicy() }
         #if DEBUG
+        if HelperProbe.isRequested {
+            Task {
+                let label = Identifiers.helperLabel(appBundleID: Bundle.main.bundleIdentifier ?? "unknown")
+                await HelperProbe.run(plistName: label + ".plist")
+                exit(0)
+            }
+            return
+        }
         if SetupPreview.run(setupWindow: setupWindow) { return }
         #endif
 
