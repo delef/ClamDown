@@ -26,7 +26,7 @@ public struct MenuPresentation: Equatable {
         self.recovery = recovery
     }
 
-    public init(state: SwitchState, notice: String?, icon: MenuBarIconStyle = .cup, helperReady: Bool = true) {
+    public init(state: SwitchState, notice: String?, icon: MenuBarIconStyle = .lid, helperReady: Bool = true) {
         let setup: MenuRecovery? = helperReady ? nil : .finishSetup
         switch state {
         case .on:

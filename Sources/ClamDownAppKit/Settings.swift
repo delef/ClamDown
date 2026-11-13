@@ -42,10 +42,12 @@ public enum AutoOffTimer: Int, Codable, CaseIterable, Sendable {
 
 /// The symbol shown in the menu bar. Each style has a plain and a filled form for off and on.
 public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
-    case cup, eye, bolt, sun
+    case lid, cup, eye, bolt, sun
 
+    /// The names `clamdown.lid` and `clamdown.lid.fill` are not SF Symbols: the app draws them itself.
     public var offSymbol: String {
         switch self {
+        case .lid: "clamdown.lid"
         case .cup: "cup.and.saucer"
         case .eye: "eye"
         case .bolt: "bolt"
@@ -55,8 +57,12 @@ public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
 
     public var onSymbol: String { offSymbol + ".fill" }
 
+    /// Whether the app draws this style itself instead of taking an SF Symbol.
+    public var isDrawn: Bool { self == .lid }
+
     public var title: String {
         switch self {
+        case .lid: "Lid"
         case .cup: "Cup"
         case .eye: "Eye"
         case .bolt: "Bolt"
@@ -94,7 +100,7 @@ public struct Settings: Codable, Equatable, Sendable {
     public var notificationsEnabled = true
 
     // Appearance
-    public var menuBarIcon: MenuBarIconStyle = .cup
+    public var menuBarIcon: MenuBarIconStyle = .lid
 
     public init() {}
 

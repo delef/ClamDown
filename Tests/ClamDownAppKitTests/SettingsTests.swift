@@ -76,13 +76,20 @@ import ClamDownShared
         let old = #"{"autoLowPowerOnBattery":false,"batteryCutoffPercent":20,"thermalCutoff":"critical","launchAtLogin":true}"#
         let s = try JSONDecoder().decode(Settings.self, from: Data(old.utf8))
         #expect(!s.autoLowPowerOnBattery && s.batteryCutoffPercent == 20 && s.thermalCutoff == .critical && s.launchAtLogin)
-        #expect(s.lockScreenWhenLidClosed && s.batteryCutoffEnabled && s.autoOffTimer == .never && s.menuBarIcon == .cup)
+        #expect(s.lockScreenWhenLidClosed && s.batteryCutoffEnabled && s.autoOffTimer == .never && s.menuBarIcon == .lid)
     }
 
     @Test func anUnknownValueFallsBackToItsDefault() throws {
         let json = #"{"menuBarIcon":"rocket","batteryCutoffPercent":25}"#
         let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
-        #expect(s.menuBarIcon == .cup && s.batteryCutoffPercent == 25)
+        #expect(s.menuBarIcon == .lid && s.batteryCutoffPercent == 25)
+    }
+
+    @Test func lidIsTheDefaultIcon() { #expect(Settings().menuBarIcon == .lid) }
+
+    @Test func storedStyleIsKept() throws {
+        let s = try JSONDecoder().decode(Settings.self, from: Data(#"{"menuBarIcon":"bolt"}"#.utf8))
+        #expect(s.menuBarIcon == .bolt)
     }
 
     @Test func timerDurations() {
@@ -94,6 +101,13 @@ import ClamDownShared
     @Test func iconSymbols() {
         #expect(MenuBarIconStyle.cup.offSymbol == "cup.and.saucer" && MenuBarIconStyle.cup.onSymbol == "cup.and.saucer.fill")
         #expect(MenuBarIconStyle.bolt.onSymbol == "bolt.fill")
+    }
+
+    @Test func lidSymbolNames() {
+        #expect(MenuBarIconStyle.lid.offSymbol == "clamdown.lid" && MenuBarIconStyle.lid.onSymbol == "clamdown.lid.fill")
+        #expect(MenuBarIconStyle.lid.title == "Lid")
+        #expect(MenuBarIconStyle.lid.isDrawn && !MenuBarIconStyle.cup.isDrawn)
+        #expect(MenuBarIconStyle.allCases.first == .lid)
     }
 }
 
