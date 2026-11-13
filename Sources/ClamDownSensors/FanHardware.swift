@@ -51,6 +51,9 @@ public protocol FanHardware: SensorReading {
     /// Takes the fans from macOS when needed and sets each fan's target speed in rpm, in fan order:
     /// `rpms[n]` goes to SMC fan n, whatever `read()` returned.
     func setTargets(_ rpms: [Double]) throws
+    /// Sets the target of each fan that is still in manual mode, in fan order, and leaves a fan that macOS
+    /// already has to macOS. Never takes a fan over, so it never waits for macOS.
+    func setTargetsIfHeld(_ rpms: [Double]) throws
     /// Hands every fan back to macOS. Safe to call when ClamDown does not hold them.
     func releaseFans() throws
 }
@@ -103,6 +106,18 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
                 if smc.read("F\(index)Md")?.number != 1 { try takeOver(fan: index) }
                 try smc.write("F\(index)Tg", bytes: Self.floatBytes(rpm))
             }
+        }
+    }
+
+    public func setTargetsIfHeld(_ rpms: [Double]) throws {
+        guard supportsControl else { throw FanHardwareError.unsupported }
+        guard rpms.count == fanCount else { throw FanHardwareError.wrongFanCount(expected: fanCount, got: rpms.count) }
+        try lock.withLock {
+            var firstError: Error?
+            for (index, rpm) in rpms.enumerated() where smc.read("F\(index)Md")?.number == 1 {
+                do { try smc.write("F\(index)Tg", bytes: Self.floatBytes(rpm)) } catch { firstError = firstError ?? error }
+            }
+            if let firstError { throw firstError }
         }
     }
 

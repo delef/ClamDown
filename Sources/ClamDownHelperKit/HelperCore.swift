@@ -399,7 +399,9 @@ public actor HelperCore {
         }
     }
 
-    /// Best effort: sets every fan to its maximum. The take-over stays on disk, because the fans are still held.
+    /// Best effort: sets every fan still in manual mode to its maximum. A fan macOS already has is left to macOS:
+    /// taking it back could block the tick for seconds and fight macOS on every tick.
+    /// The take-over stays on disk, because the fans are still held.
     private func runHeldFansAtMaximum(_ hardware: FanHardware) {
         let maxima: [Double]?
         if let reading = try? hardware.read(), isComplete(reading, hardware) {
@@ -409,7 +411,7 @@ public actor HelperCore {
         }
         guard let maxima, maxima.count == hardware.fanCount else { return }
         do {
-            try hardware.setTargets(maxima)
+            try hardware.setTargetsIfHeld(maxima)
             fanTargets = maxima
         } catch {
             // The hand-back is retried on the next tick, and this with it.

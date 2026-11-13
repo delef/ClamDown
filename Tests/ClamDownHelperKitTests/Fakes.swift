@@ -147,6 +147,10 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     private var releaseFails = false
     private var held = false
     private var follows = false
+    /// Each fan's manual mode, as `F<n>Md` would say.
+    private var manual: [Bool]
+    private var takeOvers = 0
+    private var heldCalls: [[Double?]] = []
     private let log: EventLog?
     let supportsControl: Bool
     /// How many fans the hardware says it has. A reading can hold fewer, as when a fan's keys fail.
@@ -159,6 +163,7 @@ final class FakeFans: FanHardware, @unchecked Sendable {
         reading = HardwareReading(cpuTemperature: temperature, fans: fans, lidClosed: lidClosed)
         self.supportsControl = supportsControl
         self.fanCount = fanCount ?? fans.count
+        manual = Array(repeating: false, count: fanCount ?? fans.count)
         self.log = log
     }
 
@@ -169,6 +174,12 @@ final class FakeFans: FanHardware, @unchecked Sendable {
     }
 
     var targets: [[Double]] { lock.withLock { setCalls } }
+    /// What each `setTargetsIfHeld` call wrote, per fan; nil for a fan it left alone.
+    var heldWrites: [[Double?]] { lock.withLock { heldCalls } }
+    /// How many fans `setTargets` had to take from macOS.
+    var takeOverCount: Int { lock.withLock { takeOvers } }
+    /// Puts one fan in or out of manual mode, as macOS taking a fan back (or a partial release) would.
+    func set(manual on: Bool, fan: Int) { lock.withLock { manual[fan] = on } }
     var releaseCount: Int { lock.withLock { releases } }
     /// True while the fake fans are under manual control.
     var isHeld: Bool { lock.withLock { held } }
@@ -193,8 +204,17 @@ final class FakeFans: FanHardware, @unchecked Sendable {
         log?.append("set targets")
         try lock.withLock {
             if setFails { throw FakeFailure() }
+            takeOvers += manual.filter { !$0 }.count
+            manual = Array(repeating: true, count: manual.count)
             held = true
             setCalls.append(rpms)
+        }
+    }
+
+    func setTargetsIfHeld(_ rpms: [Double]) throws {
+        log?.append("set targets if held")
+        lock.withLock {
+            heldCalls.append(rpms.enumerated().map { index, rpm in index < manual.count && manual[index] ? rpm : nil })
         }
     }
 
@@ -203,6 +223,7 @@ final class FakeFans: FanHardware, @unchecked Sendable {
         try lock.withLock {
             releases += 1
             if releaseFails { throw FakeFailure() }
+            manual = Array(repeating: false, count: manual.count)
             held = false
         }
     }

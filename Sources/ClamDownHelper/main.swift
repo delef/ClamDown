@@ -66,9 +66,11 @@ private func runHelper() async -> Never {
 
     let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
     // Every 3 seconds: the watchdog check, then the fan speeds (which also hands the fans back once the mode is off).
+    // A tick still running makes the next one skip, so a slow SMC call cannot build a queue that delays heartbeats.
+    let tickGate = TickGate()
     timer.schedule(deadline: .now() + 3, repeating: 3)
     timer.setEventHandler {
-        Task {
+        tickGate.start {
             _ = await core.checkWatchdog()
             await core.updateFans()
         }

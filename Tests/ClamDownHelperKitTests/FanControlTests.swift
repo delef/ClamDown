@@ -708,7 +708,7 @@ import ClamDownShared
         fans.set(temperature: nil)
         await core.updateFans(now: at(3))  // a fault whose hand-back fails
         #expect(fans.releaseCount == 1)
-        #expect(fans.targets.last == [5000, 6000])
+        #expect(fans.heldWrites == [[5000, 6000]])
         #expect(store.saved?.fansManual == true)
         let status = await core.coolingStatus()
         #expect(status.problem?.hasPrefix("Could not hand the fans back to macOS") == true)
@@ -717,16 +717,37 @@ import ClamDownShared
         await core.updateFans(now: at(6))
         await core.updateFans(now: at(9))
         #expect(fans.releaseCount == 3)
-        #expect(fans.targets.count == 4)
-        #expect(fans.targets.last == [5000, 6000])
+        #expect(fans.heldWrites.count == 3)
+        #expect(fans.heldWrites.last == [5000, 6000])
         #expect(store.saved?.fansManual == true)
         fans.failRelease(false)
         await core.updateFans(now: at(12))
         #expect(!fans.isHeld)
         #expect(store.saved?.fansManual == nil)
         await ticks(core, from: 15, to: 27)
-        #expect(fans.targets.count == 4)
+        #expect(fans.heldWrites.count == 3)
+        #expect(fans.targets.count == 1)  // the full-speed path never took the fans over
+        #expect(fans.takeOverCount == 2)
         #expect(await core.coolingStatus().problem == "Cannot read the CPU temperature.")
+    }
+
+    /// A hand-back that failed halfway leaves one fan with macOS. The full-speed path leaves that fan to macOS
+    /// and never takes it back, which could block a tick for seconds and fight macOS every 3 seconds.
+    @Test func failedReleaseLeavesAFanMacOSHasAlone() async throws {
+        let first = FanReading(rpm: 1000, minimum: 1000, maximum: 5000, index: 0)
+        let second = FanReading(rpm: 1200, minimum: 1200, maximum: 6000, index: 1)
+        let fans = FakeFans(fans: [first, second])
+        let (core, _, _) = try await enabled(fans)
+        try await core.setFanPolicy(curve, now: at(0))
+        let takeOvers = fans.takeOverCount
+        fans.failRelease()
+        fans.set(manual: false, fan: 1)  // macOS has fan 2 back
+        fans.set(temperature: nil)
+        await core.updateFans(now: at(3))
+        await core.updateFans(now: at(6))
+        #expect(fans.heldWrites == [[5000, nil], [5000, nil]])
+        #expect(fans.takeOverCount == takeOvers)
+        #expect(fans.targets.count == 1)
     }
 
     /// A fan that drops out of the reading keeps the maximum it was last read with.
@@ -739,7 +760,7 @@ import ClamDownShared
         fans.failRelease()
         fans.set(fans: [first])
         await core.updateFans(now: at(3))
-        #expect(fans.targets.last == [5000, 6000])
+        #expect(fans.heldWrites.last == [5000, 6000])
     }
 
     @Test func failedReleaseAfterSwitchOffRunsTheFansAtFullSpeed() async throws {
@@ -747,16 +768,17 @@ import ClamDownShared
         try await core.setFanPolicy(curve, now: at(0))
         fans.failRelease()
         try await core.disable()
-        #expect(fans.targets.last == [5000])
+        #expect(fans.heldWrites == [[5000]])
         #expect(store.saved == SavedState(fansManual: true))
         await core.updateFans(now: at(3))
-        #expect(fans.targets.count == 3)
+        #expect(fans.heldWrites.count == 2)
         fans.failRelease(false)
         await core.updateFans(now: at(6))
         #expect(!fans.isHeld)
         #expect(store.saved == nil)
         await core.updateFans(now: at(9))
-        #expect(fans.targets.count == 3)
+        #expect(fans.heldWrites.count == 2)
+        #expect(fans.targets.count == 1)
     }
 
     /// The take-over is on disk before the first write of a retry, as on the first take-over.
