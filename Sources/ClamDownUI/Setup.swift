@@ -110,34 +110,60 @@ public struct CDStepHeader: View {
 }
 
 /// One setup step: the header, then the step's own content (cards, notes) 22 pt below it, at most 470 pt wide.
+/// The step sits in a vertical scroll view that only scrolls when the step is taller than the space it is given
+/// (a long error, larger text), so the caller's footer is never overlapped. `topInset` keeps the icon clear of a
+/// transparent title bar and scrolls away with the step.
 public struct CDStepScreen<Content: View>: View {
     private let icon: CDStepIcon
     private let title: String
     private let text: String
+    private let topInset: CGFloat
     private let content: Content
+    @State private var stepHeight: CGFloat = 0
 
-    public init(icon: CDStepIcon, title: String, text: String, @ViewBuilder content: () -> Content) {
+    public init(icon: CDStepIcon, title: String, text: String, topInset: CGFloat = 58,
+                @ViewBuilder content: () -> Content) {
         self.icon = icon
         self.title = title
         self.text = text
+        self.topInset = topInset
         self.content = content()
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            CDStepHeader(icon: icon, title: title, text: text)
-            content
-                .frame(maxWidth: 470)
-                .padding(.top, 22)
+        GeometryReader { proxy in
+            let fits = stepHeight <= proxy.size.height + 0.5
+            ScrollView(.vertical, showsIndicators: !fits) {
+                VStack(spacing: 0) {
+                    CDStepHeader(icon: icon, title: title, text: text)
+                    content
+                        .frame(maxWidth: 470)
+                        .padding(.top, 22)
+                }
+                .padding(.horizontal, 36)
+                .padding(.top, topInset)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity)
+                .background {
+                    GeometryReader { inner in
+                        Color.clear.preference(key: CDStepHeightKey.self, value: inner.size.height)
+                    }
+                }
+            }
+            .scrollDisabled(fits)
+            .onPreferenceChange(CDStepHeightKey.self) { stepHeight = $0 }
         }
-        .padding(.horizontal, 36)
-        .frame(maxWidth: .infinity)
     }
 }
 
+private struct CDStepHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 extension CDStepScreen where Content == EmptyView {
-    public init(icon: CDStepIcon, title: String, text: String) {
-        self.init(icon: icon, title: title, text: text) { EmptyView() }
+    public init(icon: CDStepIcon, title: String, text: String, topInset: CGFloat = 58) {
+        self.init(icon: icon, title: title, text: text, topInset: topInset) { EmptyView() }
     }
 }
 

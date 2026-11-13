@@ -19,7 +19,7 @@ enum SetupPreview {
     enum Scenario: String, CaseIterable {
         case welcome, helperNotSetUp, helperWaiting, helperError, helperAllowed
         case notificationsNotAsked, notificationsAllowed, notificationsDenied
-        case startup, done, helperOnlyWaiting, helperOnlyAllowed
+        case startup, startupLoginError, done, helperOnlyWaiting, helperOnlyAllowed
 
         private var mode: SetupMode {
             switch self {
@@ -33,7 +33,7 @@ enum SetupPreview {
             case .welcome: .welcome
             case .helperNotSetUp, .helperWaiting, .helperError, .helperAllowed, .helperOnlyWaiting, .helperOnlyAllowed: .helper
             case .notificationsNotAsked, .notificationsAllowed, .notificationsDenied: .notifications
-            case .startup: .startup
+            case .startup, .startupLoginError: .startup
             case .done: .done
             }
         }
@@ -52,6 +52,13 @@ enum SetupPreview {
             case .notificationsDenied: .denied
             default: .allowed
             }
+        }
+
+        /// The worst case of the Startup step: the Launch at Login error note under the switch.
+        var loginError: String? {
+            self == .startupLoginError
+                ? "Could not change Launch at Login: The operation couldn't be completed. (SMAppServiceErrorDomain error 1.)"
+                : nil
         }
 
         @MainActor func make() async -> (SetupModel, ClamDownController) {
@@ -127,7 +134,7 @@ enum SetupPreview {
                 for scenario in Scenario.allCases {
                     let (model, controller) = await scenario.make()
                     let view = SetupView(model: model, controller: controller, close: {}, bringForward: {},
-                                         loginItem: memoryLoginItem())
+                                         loginItem: memoryLoginItem(), previewLoginError: scenario.loginError)
                         .environment(\.cdLook, look)
                     await draw(view, size: SetupView.size, appearance: appearance,
                                to: directory.appendingPathComponent("\(lookName)-\(scenario.rawValue)-\(suffix).png"))

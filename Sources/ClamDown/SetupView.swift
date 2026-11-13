@@ -13,6 +13,8 @@ struct SetupView: View {
     /// Brings the window back in front of System Settings once the helper is allowed.
     let bringForward: () -> Void
     var loginItem: LoginItem = .system
+    /// Debug previews only: an error already showing under the Launch at Login switch.
+    var previewLoginError: String?
     /// Set after "Turn On Now" did not switch the mode on, so the reason is shown instead of closing silently.
     @State private var turnOnProblem: String?
 
@@ -20,8 +22,6 @@ struct SetupView: View {
         VStack(spacing: 0) {
             stepBody
                 .cdStepTransition(id: model.step)
-                // Under the transparent title bar: the same place in the window and in a picture of it.
-                .padding(.top, 58)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             footer
         }
@@ -48,7 +48,7 @@ struct SetupView: View {
         case .welcome: WelcomeStep()
         case .helper: HelperStep(model: model)
         case .notifications: NotificationsStep(model: model)
-        case .startup: StartupStep(controller: controller, loginItem: loginItem)
+        case .startup: StartupStep(controller: controller, loginItem: loginItem, loginError: previewLoginError)
         case .done: DoneStep(controller: controller)
         }
     }
@@ -243,6 +243,7 @@ private struct NotificationsStep: View {
 private struct StartupStep: View {
     @ObservedObject var controller: ClamDownController
     let loginItem: LoginItem
+    var loginError: String?
     @State private var hasFans = false
 
     var body: some View {
@@ -255,7 +256,7 @@ private struct StartupStep: View {
                 CDStatusCard {
                     // One padded block: the switch row and its error note keep their own gap.
                     VStack(alignment: .leading, spacing: 8) {
-                        LaunchAtLoginRow(controller: controller, loginItem: loginItem)
+                        LaunchAtLoginRow(controller: controller, loginItem: loginItem, initialError: loginError)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

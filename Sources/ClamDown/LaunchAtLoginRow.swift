@@ -9,6 +9,13 @@ struct LaunchAtLoginRow: View {
     var loginItem: LoginItem = .system
     @State private var error: String?
 
+    /// `initialError` is for debug previews that need the error note on screen without a failing switch.
+    init(controller: ClamDownController, loginItem: LoginItem = .system, initialError: String? = nil) {
+        self.controller = controller
+        self.loginItem = loginItem
+        _error = State(initialValue: initialError)
+    }
+
     var body: some View {
         CDSwitchRow("Launch at Login", detail: "Opens ClamDown in the menu bar when you log in.", isOn: binding)
             .task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
