@@ -21,6 +21,9 @@ let package = Package(
         .target(name: "ClamDownHelperKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
         .testTarget(name: "ClamDownHelperKitTests", dependencies: ["ClamDownHelperKit", "ClamDownSensors"]),
         .executableTarget(name: "ClamDownHelper", dependencies: ["ClamDownHelperKit", "ClamDownShared", "ClamDownSensors"]),
+        // A root-only debug tool for device checks (fan spin-up, hottest core, thermal level). Never bundled:
+        // scripts/build-app.sh builds and copies only ClamDown and ClamDownHelper.
+        .executableTarget(name: "ClamDownFanProbe", dependencies: ["ClamDownSensors", "ClamDownShared"]),
         .executableTarget(
             name: "ClamDown",
             dependencies: ["ClamDownAppKit", "ClamDownShared", "ClamDownSensors", "ClamDownUI", .product(name: "Sparkle", package: "Sparkle")],
