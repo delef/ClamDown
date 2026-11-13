@@ -48,7 +48,7 @@
           <p class="lead">Everything your agents need to keep working with the lid closed, in one free, open-source menu bar app.</p>
           <ul class="features">
             <li>Stays awake with the lid shut: agents, terminals, browsers, SSH and downloads keep running</li>
-            <li>Watches the CPU temperature and drives the fans while the lid is closed</li>
+            <li>Watches the CPU temperature and drives the fans along a curve you choose while the lid is closed</li>
             <li>Locks the screen the moment the lid closes</li>
             <li>Switches itself off before a low battery or high heat becomes a problem</li>
             <li>A watchdog puts everything back if the app ever stops</li>
@@ -278,13 +278,14 @@
         <div class="fans">
           <div class="fans__text">
             <h3>Fans that answer the heat, even with the lid shut</h3>
-            <p>macOS keeps a closed MacBook’s fans near their lowest speed, even when the chip is hot. While the lid is closed, ClamDown drives them from the CPU temperature instead.</p>
-            <p>Speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load don’t make the fans hunt. Opening the lid hands them back to macOS. Fan control needs Apple Silicon; Intel Macs show the readings.</p>
+            <p>macOS keeps a closed MacBook’s fans near their lowest speed, even when the chip is hot. With Fan Control on, ClamDown drives them from the CPU temperature while the lid is closed. With it off, macOS keeps the fans.</p>
+            <p>Pick Standard: two points, by default the fans speed up from 50 °C and reach full speed at 75 °C. Or pick Advanced and drag five points on a chart. Under both sits a safety floor ClamDown never goes under: it starts at 70 °C and reaches full speed at 95 °C. A CPU core at its limit, or a Mac that macOS reports as hot, gets full speed.</p>
+            <p>Speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load don’t make the fans hunt. If ClamDown cannot control the fans, it hands them to macOS, tries again by itself and tells you once when it has stopped. Switching Fan Control off, quitting the app or opening the lid hands them back too. Fan control needs Apple Silicon; Intel Macs show the readings.</p>
           </div>
           <figure class="chart" aria-labelledby="chart-title chart-desc">
             <figcaption>
               <span id="chart-title" class="chart__title">Fan speed by CPU temperature</span>
-              <span id="chart-desc" class="chart__desc">Lowest speed up to 50 °C, rising evenly to full speed at 75 °C. Both points are settings.</span>
+              <span id="chart-desc" class="chart__desc">The Standard curve with its default points: lowest speed up to 50 °C, rising evenly to full speed at 75 °C. Both points are settings.</span>
             </figcaption>
             <div class="chart__plot" data-chart>
               <svg viewBox="0 0 560 300" aria-hidden="true" focusable="false">
@@ -310,7 +311,7 @@
               <div class="chart__tip" role="status" hidden></div>
             </div>
             <details class="chart__table">
-              <summary>Show as a table</summary>
+              <summary>Show the default curve as a table</summary>
               <table>
                 <thead><tr><th scope="col">CPU temperature</th><th scope="col">Fan speed</th></tr></thead>
                 <tbody>
@@ -360,9 +361,9 @@
           <h2>Every rule is a setting you can see</h2>
           <div class="screens__tabs" role="tablist" aria-label="Settings pages" aria-orientation="vertical">
             <button type="button" role="tab" id="tab-cooling" aria-selected="true" aria-controls="screens-panel" data-light="assets/screens/cooling-light.webp" data-dark="assets/screens/cooling-dark.webp"
-                    data-alt="ClamDown Cooling settings: the fan curve from 50 to 75 °C, the CPU temperature, both fan speeds, and ClamDown in control of the fans.">
+                    data-alt="ClamDown Cooling settings: the Fan Control switch, the fan curve chart, the CPU temperature, each fan’s speed, and who controls the fans.">
               <strong>Cooling</strong>
-              <span>The fan curve, the CPU temperature, each fan’s speed and who drives the fans right now.</span>
+              <span>Fan Control, the fan curve, the CPU temperature, each fan’s speed and who drives the fans right now.</span>
             </button>
             <button type="button" role="tab" id="tab-protection" aria-selected="false" aria-controls="screens-panel" data-light="assets/screens/protection-light.webp" data-dark="assets/screens/protection-dark.webp" tabindex="-1"
                     data-alt="ClamDown Protection settings: switch off at 10% battery, and switch off when the thermal state reaches Serious.">
@@ -385,7 +386,7 @@
           <picture>
             <source media="(prefers-color-scheme: dark)" srcset="assets/screens/cooling-dark.webp" data-shot-dark>
             <img src="assets/screens/cooling-light.webp" width="1200" height="940" loading="lazy" data-shot-img
-                 alt="ClamDown Cooling settings: the fan curve from 50 to 75 °C, the CPU temperature, both fan speeds, and ClamDown in control of the fans.">
+                 alt="ClamDown Cooling settings: the Fan Control switch, the fan curve chart, the CPU temperature, each fan’s speed, and who controls the fans.">
           </picture>
         </figure>
       </div>
@@ -420,7 +421,7 @@
             <li>Keep the Mac from sleeping, or let it sleep again</li>
             <li>Turn Low Power Mode on or off for the battery profile</li>
             <li>Read those two values, the temperature sensors and the fans</li>
-            <li>Set fan speeds within each fan’s own range, while the mode is on</li>
+            <li>Set fan speeds within each fan’s own range, while the mode and Fan Control are on</li>
           </ul>
           <p>It accepts connections only from the ClamDown app signed by the same developer, and it resets any leftover state every time it starts. The app is signed with Developer ID, notarized by Apple and licensed under Apache 2.0.</p>
           <p><a class="link" href="https://github.com/delef/ClamDown">Read the code on GitHub</a></p>
@@ -442,7 +443,7 @@
           </details>
           <details>
             <summary>What happens if ClamDown crashes?</summary>
-            <p>The app sends the helper a heartbeat about every 30 seconds. If it stops for about 90 seconds, the helper turns sleep and Low Power Mode back to normal and hands the fans to macOS. A restart does the same.</p>
+            <p>The app sends the helper a heartbeat about every 30 seconds. If it stops for about 90 seconds, the helper turns sleep and Low Power Mode back to normal and hands the fans to macOS. A restart does the same. The fans go back to macOS in the same way when you switch Fan Control off.</p>
           </details>
           <details>
             <summary>Is my Mac unlocked while the lid is closed?</summary>
