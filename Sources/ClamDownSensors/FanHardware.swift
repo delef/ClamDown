@@ -129,6 +129,13 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         }
     }
 
+    /// Writes `Ftst` = 1 and nothing else: no fan mode, no target. For device checks of what macOS does with a fan
+    /// when only the test flag is set; the helper does not use it. `releaseFans()` undoes it.
+    public func setTestFlagOnly() throws {
+        guard supportsControl else { throw FanHardwareError.unsupported }
+        try lock.withLock { try smc.write("Ftst", bytes: [1]) }
+    }
+
     public func releaseFans() throws {
         guard supportsControl else { return }
         try lock.withLock {

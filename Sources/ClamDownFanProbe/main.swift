@@ -1,6 +1,7 @@
 // A debug tool for device checks, run by hand. Never bundled with the app.
 //
 //   sudo .build/debug/ClamDownFanProbe step
+//   sudo .build/debug/ClamDownFanProbe ftst
 //   sudo .build/debug/ClamDownFanProbe load <minutes>
 //   sudo .build/debug/ClamDownFanProbe fullLoad <minutes>
 //        .build/debug/ClamDownFanProbe thermal [minutes]     (with or without sudo)
@@ -20,6 +21,8 @@ private let usage = """
     usage: ClamDownFanProbe <command>
       step                fans to minimum for 30 s, then maximum for 30 s, then back to macOS. Root.
                           CSV: seconds,target0,actual0[,target1,actual1...] every second.
+      ftst                Ftst = 1 and no fan set to manual, for 30 s, then back to macOS. Root. Run a load meanwhile.
+                          CSV: seconds,actual0[,actual1...],md0[,md1...],ftst every second.
       load <minutes>      CSV: seconds,average,hottest,thermalLevel every second. Fans untouched. Root.
       fullLoad <minutes>  as load, with the fans held at maximum; back to macOS at the end. Root.
       thermal [minutes]   CSV: seconds,uid,thermalLevel every second, 5 minutes by default. Root not needed.
@@ -31,6 +34,7 @@ private let stepHotLimit = 95.0
 
 private enum Command {
     case step
+    case ftst
     case load(seconds: Int)
     case fullLoad(seconds: Int)
     case thermal(seconds: Int)
@@ -43,6 +47,7 @@ private enum Command {
         }
         switch arguments {
         case ["step"]: self = .step
+        case ["ftst"]: self = .ftst
         case ["release"]: self = .release
         case ["thermal"]: self = .thermal(seconds: 300)
         case let args where args.count == 2 && args[0] == "thermal":
@@ -107,6 +112,16 @@ private final class FanGuard: @unchecked Sendable {
             // Marked before the write: a write that fails halfway may already have taken a fan.
             held = true
             try hardware.setTargets(rpms)
+        }
+    }
+
+    /// Writes `Ftst` = 1 and nothing else.
+    func setTestFlag() throws {
+        try lock.withLock {
+            guard !stopping else { throw ProbeError.stopping }
+            // Marked before the write, like `set`: `release` then clears the flag on every way out.
+            held = true
+            try hardware.setTestFlagOnly()
         }
     }
 
@@ -199,6 +214,22 @@ private func step(_ hardware: SMCFanHardware, _ fans: FanGuard) throws {
     }
 }
 
+/// What a fan does when only `Ftst` = 1 is set and every `F<n>Md` stays 0. The owner runs a load meanwhile.
+private func ftst(_ hardware: SMCFanHardware, _ fans: FanGuard) throws {
+    let reading = try firstReading(hardware)
+    let count = reading.fans.count
+    emit((["seconds"] + reading.fans.indices.map { "actual\($0)" } + reading.fans.indices.map { "md\($0)" } + ["ftst"])
+        .joined(separator: ","))
+    note("Ftst = 1 and no fan mode written, for 30 s. Run a load meanwhile.")
+    try fans.setTestFlag()
+    try everySecond(30) { _, elapsed in
+        let now = try read(hardware, expectingFans: count)
+        let modes = hardware.controlModes()
+        let columns = now.fans.map { format($0.rpm, 0) } + modes.fanModes.map { format($0, 0) } + [format(modes.ftst, 0)]
+        emit(([format(elapsed, 1)] + columns).joined(separator: ","))
+    }
+}
+
 private func load(_ seconds: Int, _ hardware: SMCFanHardware, holdingAtMaximum fans: FanGuard?) throws {
     let thermal = SystemThermalState()
     // The fan count is only guarded when the probe sets targets; reading alone cannot hit the wrong fan.
@@ -279,6 +310,7 @@ private func run() -> Never {
 
     var takesFans = false
     if case .step = command { takesFans = true }
+    if case .ftst = command { takesFans = true }
     if case .fullLoad = command { takesFans = true }
     if takesFans {
         guard hardware.supportsControl else {
@@ -318,6 +350,7 @@ private func run() -> Never {
         do {
             switch command {
             case .step: try step(hardware, fans)
+            case .ftst: try ftst(hardware, fans)
             case .load(let seconds): try load(seconds, hardware, holdingAtMaximum: nil)
             case .fullLoad(let seconds): try load(seconds, hardware, holdingAtMaximum: fans)
             case .thermal, .release: break
