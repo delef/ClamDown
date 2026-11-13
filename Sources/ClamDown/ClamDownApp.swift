@@ -8,7 +8,7 @@ struct ClamDownApp: App {
     var body: some Scene {
         MenuBarExtra(isInserted: .constant(!AppDelegate.isDebugPreview)) {
             MenuContent(controller: delegate.controller, updater: delegate.updater,
-                        openSettings: { delegate.settingsWindow.show() },
+                        openSettings: { delegate.settingsWindow.show(pane: $0) },
                         openSetup: { delegate.showSetup(.menu) })
         } label: {
             MenuBarIcon(controller: delegate.controller)
@@ -35,7 +35,8 @@ private struct MenuBarIcon: View {
 private struct MenuContent: View {
     @ObservedObject var controller: ClamDownController
     @ObservedObject var updater: Updater
-    let openSettings: () -> Void
+    /// Opens Settings on a page; `nil` shows the page the user left it on.
+    let openSettings: (SettingsPane?) -> Void
     let openSetup: () -> Void
 
     /// Sessions offered under "Turn On For".
@@ -81,8 +82,7 @@ private struct MenuContent: View {
         }
         Divider()
         Button("About ClamDown") {
-            NSApp.activate(ignoringOtherApps: true)
-            NSApp.orderFrontStandardAboutPanel(nil)
+            openSettings(.about)
         }
         if let version = updater.availableVersion {
             Button("Update to \(version)…") { updater.checkForUpdates() }
@@ -91,7 +91,7 @@ private struct MenuContent: View {
                 .disabled(!updater.canCheckForUpdates)
         }
         Button("Settings…") {
-            openSettings()
+            openSettings(nil)
         }
         .keyboardShortcut(",")
         Button("Quit ClamDown") {
