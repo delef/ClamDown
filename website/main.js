@@ -39,7 +39,7 @@
   }
 
   /* ---------- Fan curve (shared by the demo and the chart) ---------- */
-  const CURVE = { low: 60, high: 85 };
+  const CURVE = { low: 50, high: 75 };
   const fanShare = (t) => Math.min(1, Math.max(0, (t - CURVE.low) / (CURVE.high - CURVE.low)));
 
   /* ---------- The lid demo ---------- */
@@ -262,8 +262,8 @@
     const knees = $(".chart__knees", svg);
     make("circle", { cx: x(CURVE.low), cy: y(0), r: 5 }, knees);
     make("circle", { cx: x(CURVE.high), cy: y(1), r: 5 }, knees);
-    make("text", { x: x(CURVE.low) - 8, y: y(0) - 14, "text-anchor": "end" }, knees).textContent = "60 °C: starts rising";
-    make("text", { x: x(CURVE.high) - 10, y: y(1) - 14, "text-anchor": "end" }, knees).textContent = "85 °C: full speed";
+    make("text", { x: x(CURVE.low) - 8, y: y(0) - 14, "text-anchor": "end" }, knees).textContent = "50 °C: starts rising";
+    make("text", { x: x(CURVE.high) - 10, y: y(1) - 14, "text-anchor": "end" }, knees).textContent = "75 °C: full speed";
 
     const cursor = $(".chart__cursor", svg);
     const cross = $(".chart__crosshair", svg);
