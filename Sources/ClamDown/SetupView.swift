@@ -1,10 +1,11 @@
 import SwiftUI
 import ClamDownAppKit
 import ClamDownShared
+import ClamDownUI
 
 /// The setup assistant: one step per screen, with the steps and their rules coming from `SetupModel`.
 struct SetupView: View {
-    static let size = CGSize(width: 560, height: 520)
+    static let size = CGSize(width: 600, height: 540)
 
     @ObservedObject var model: SetupModel
     @ObservedObject var controller: ClamDownController
@@ -18,12 +19,15 @@ struct SetupView: View {
     var body: some View {
         VStack(spacing: 0) {
             stepBody
+                .cdStepTransition(id: model.step)
+                // Under the transparent title bar: the same place in the window and in a picture of it.
+                .padding(.top, 58)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            Divider()
             footer
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background { CDSetupBackground() }
+        .ignoresSafeArea(.container, edges: .top)
         .task {
             await model.refreshNotifications()
             // macOS sends no notice when the helper is allowed in System Settings, so ask once a second.
@@ -52,19 +56,17 @@ struct SetupView: View {
     private var footer: some View {
         HStack(spacing: 10) {
             if let turnOnProblem {
-                Text(turnOnProblem)
-                    .font(.callout)
-                    .foregroundStyle(.orange)
+                CDNote(turnOnProblem, tone: .warning)
                     .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
             } else if model.mode == .full {
-                StepDots(steps: model.steps, current: model.step)
+                CDStepDots(count: model.steps.count, current: model.steps.firstIndex(of: model.step) ?? 0)
             }
             Spacer(minLength: 12)
             buttons
         }
-        .padding(.horizontal, 20)
-        .frame(height: 60)
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 20)
         // The assistant is read at arm's length, once: its buttons are the large ones of a macOS setup window.
         .controlSize(.large)
     }
@@ -74,24 +76,27 @@ struct SetupView: View {
         if model.mode == .helperOnly || model.step == .done {
             if model.canGoBack {
                 Button("Back") { model.back() }
+                    .cdButtonStyle(.secondary)
             }
             if controller.state.isOn {
                 Button("Done") { close() }
-                    .buttonStyle(.borderedProminent)
+                    .cdButtonStyle(.primary)
                     .keyboardShortcut(.defaultAction)
             } else {
                 Button("Done") { close() }
+                    .cdButtonStyle(.secondary)
                 Button("Turn On Now") { turnOnNow() }
-                    .buttonStyle(.borderedProminent)
+                    .cdButtonStyle(.primary)
                     .keyboardShortcut(model.helper == .ready ? .defaultAction : nil)
                     .disabled(model.helper != .ready || model.isTurningOn)
             }
         } else {
             if model.canGoBack {
                 Button("Back") { model.back() }
+                    .cdButtonStyle(.secondary)
             }
             Button(continueTitle) { model.advance() }
-                .buttonStyle(.borderedProminent)
+                .cdButtonStyle(.primary)
                 .keyboardShortcut(continueIsDefault ? .defaultAction : nil)
                 .disabled(!model.canContinue)
         }
@@ -125,14 +130,15 @@ struct SetupView: View {
 
 private struct WelcomeStep: View {
     var body: some View {
-        StepLayout(
+        CDStepScreen(
             icon: .app,
             title: "Welcome to ClamDown",
             text: "ClamDown keeps your MacBook working with the lid closed, so your agents keep going. It locks the screen, drives the fans, and switches itself off before a low battery or heat becomes a problem."
         ) {
             Text("Setup takes about a minute.")
                 .font(.callout)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
         }
     }
 }
@@ -141,16 +147,18 @@ private struct HelperStep: View {
     @ObservedObject var model: SetupModel
 
     var body: some View {
-        StepLayout(
-            icon: .symbol("gearshape.2.fill", .accentColor),
+        CDStepScreen(
+            icon: .symbol("key.fill"),
             title: "Allow the helper",
             text: "ClamDown needs a small background helper with administrator rights. It changes the sleep setting and drives the fans, and it does nothing else. macOS asks you to allow it once."
         ) {
-            SetupCard {
-                StatusRow(status: status) {
+            CDStatusCard {
+                CDStatusLine(symbol: status.symbol, tint: status.tint, title: status.title,
+                             detail: status.detail, detailTone: status.detailTone) {
                     if let buttonTitle {
                         Button(buttonTitle) { Task { await model.allowHelper() } }
-                            .buttonStyle(.borderedProminent)
+                            .cdButtonStyle(.primary)
+                            .controlSize(.large)
                             .keyboardShortcut(.defaultAction)
                             .disabled(model.isPreparingHelper)
                     }
@@ -161,16 +169,17 @@ private struct HelperStep: View {
 
     private var status: StatusInfo {
         if let error = model.helperError {
-            return .init(symbol: "exclamationmark.triangle.fill", color: .red, title: "The helper is not set up", detail: error, detailColor: .red)
+            return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger, title: "The helper is not set up",
+                         detail: error, detailTone: .danger)
         }
         switch model.helper {
         case .ready:
-            return .init(symbol: "checkmark.circle.fill", color: .green, title: "Allowed")
+            return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: "Allowed")
         case .requiresApproval:
-            return .init(symbol: "clock.fill", color: .orange, title: "Waiting for you",
+            return .init(symbol: "clock.fill", tint: CDColor.warning, title: "Waiting for you",
                          detail: "Turn on ClamDown in System Settings > General > Login Items & Extensions.")
         case .notRegistered, .unavailable:
-            return .init(symbol: "circle.dashed", color: .secondary, title: "Not set up yet")
+            return .init(symbol: "circle.dashed", tint: .secondary, title: "Not set up yet")
         }
     }
 
@@ -188,17 +197,19 @@ private struct NotificationsStep: View {
     @ObservedObject var model: SetupModel
 
     var body: some View {
-        StepLayout(
-            icon: .symbol("bell.badge.fill", .accentColor),
+        CDStepScreen(
+            icon: .symbol("bell.badge.fill"),
             title: "Know when ClamDown switches off",
             text: "With the lid closed you cannot see the menu. A notification tells you when ClamDown switched itself off, for example at low battery or when the Mac got hot."
         ) {
-            SetupCard {
-                StatusRow(status: status) {
+            CDStatusCard {
+                CDStatusLine(symbol: status.symbol, tint: status.tint, title: status.title,
+                             detail: status.detail, detailTone: status.detailTone) {
                     switch model.notifications {
                     case .notAsked:
                         Button("Allow Notifications") { Task { await model.allowNotifications() } }
-                            .buttonStyle(.borderedProminent)
+                            .cdButtonStyle(.primary)
+                            .controlSize(.large)
                             .keyboardShortcut(.defaultAction)
                             .disabled(model.isRequestingNotifications)
                     case .denied:
@@ -206,6 +217,8 @@ private struct NotificationsStep: View {
                             model.openedNotificationSettings()
                             SystemSettings.openNotifications()
                         }
+                        .cdButtonStyle(.secondary)
+                        .controlSize(.large)
                     case .allowed:
                         EmptyView()
                     }
@@ -217,11 +230,11 @@ private struct NotificationsStep: View {
     private var status: StatusInfo {
         switch model.notifications {
         case .notAsked:
-            .init(symbol: "bell", color: .secondary, title: "Not allowed yet")
+            .init(symbol: "bell", tint: .secondary, title: "Not allowed yet")
         case .allowed:
-            .init(symbol: "checkmark.circle.fill", color: .green, title: "Allowed")
+            .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: "Allowed")
         case .denied:
-            .init(symbol: "bell.slash.fill", color: .orange, title: "Switched off",
+            .init(symbol: "bell.slash.fill", tint: CDColor.warning, title: "Switched off",
                   detail: "Notifications for ClamDown are off in System Settings.")
         }
     }
@@ -233,34 +246,37 @@ private struct StartupStep: View {
     @State private var hasFans = false
 
     var body: some View {
-        StepLayout(
-            icon: .symbol("power", .accentColor),
+        CDStepScreen(
+            icon: .symbol("power"),
             title: "Start with your Mac",
             text: "ClamDown can open in the menu bar when you log in, so it is ready when you need it."
         ) {
-            VStack(alignment: .leading, spacing: 14) {
-                SetupCard {
-                    LaunchAtLoginRow(controller: controller, loginItem: loginItem)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+            VStack(alignment: .leading, spacing: 10) {
+                CDStatusCard {
+                    // One padded block: the switch row and its error note keep their own gap.
+                    VStack(alignment: .leading, spacing: 8) {
+                        LaunchAtLoginRow(controller: controller, loginItem: loginItem)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Label(protection.isEmpty ? "No protection is switched on" : "Protection is already on",
                           systemImage: "shield.lefthalf.filled")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                     if !protection.isEmpty {
-                        SetupCard {
+                        CDStatusCard {
                             ForEach(Array(protection.enumerated()), id: \.offset) { index, item in
-                                if index > 0 { Divider() }
+                                if index > 0 { Divider().padding(.horizontal, 16) }
                                 ProtectionRow(icon: item.icon, text: item.text)
                             }
                         }
                     }
                     Text("You can change all of this in Settings.")
                         .font(.callout)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                 }
             }
@@ -298,17 +314,15 @@ private struct DoneStep: View {
     @ObservedObject var controller: ClamDownController
 
     var body: some View {
-        StepLayout(
-            icon: .symbol("checkmark", .green),
+        CDStepScreen(
+            icon: .success,
             title: "You're set",
             text: "ClamDown lives in the menu bar. Look for this icon:"
         ) {
             VStack(spacing: 18) {
-                MenuBarIconGlyph(symbol: controller.settings.menuBarIcon.offSymbol)
-                    .font(.system(size: 20, weight: .regular))
-                    .frame(width: 64, height: 36)
-                    .background(Capsule().fill(Color.primary.opacity(0.08)))
-                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.10)))
+                CDMenuBarStrip(clock: Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())) {
+                    MenuBarIconGlyph(symbol: controller.settings.menuBarIcon.offSymbol)
+                }
                 Text("Turn it on before you close the lid.")
                     .foregroundStyle(.secondary)
             }
@@ -318,112 +332,13 @@ private struct DoneStep: View {
 
 // MARK: - Parts
 
-/// The shared look of a step: a centered icon, title and explanation, with the step's own content below.
-private struct StepLayout<Content: View>: View {
-    enum Icon {
-        case app
-        case symbol(String, Color)
-    }
-
-    let icon: Icon
-    let title: String
-    let text: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(spacing: 0) {
-            iconView
-                .padding(.top, 34)
-            Text(title)
-                .font(.system(size: 26, weight: .bold))
-                .multilineTextAlignment(.center)
-                .padding(.top, 14)
-            Text(text)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 450)
-                .padding(.top, 8)
-            content
-                .padding(.top, 20)
-        }
-        .padding(.horizontal, 36)
-    }
-
-    @ViewBuilder private var iconView: some View {
-        switch icon {
-        case .app:
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 76, height: 76)
-        case .symbol(let name, let color):
-            Image(systemName: name)
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(color)
-                .frame(width: 60, height: 60)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(color.opacity(0.14)))
-        }
-    }
-}
-
-/// The rounded card of the settings window, without a title.
-private struct SetupCard<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(spacing: 0) {
-            content
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08))
-        )
-    }
-}
-
-/// What a status row says: a colored symbol, a short title and an optional sentence under it.
+/// What a status line says: a symbol, a short title and an optional sentence under it.
 private struct StatusInfo {
     let symbol: String
-    let color: Color
+    let tint: Color
     let title: String
     var detail: String?
-    var detailColor: Color = .secondary
-}
-
-/// A state and, on the right, the action that changes it.
-private struct StatusRow<Action: View>: View {
-    let status: StatusInfo
-    @ViewBuilder var action: Action
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: status.symbol)
-                .font(.system(size: 18))
-                .foregroundStyle(status.color)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(status.title)
-                    .fontWeight(.medium)
-                if let detail = status.detail {
-                    Text(detail)
-                        .font(.callout)
-                        .foregroundStyle(status.detailColor)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 12)
-            action
-                .controlSize(.large)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
+    var detailTone: CDTone = .secondary
 }
 
 private struct ProtectionRow: View {
@@ -439,27 +354,9 @@ private struct ProtectionRow: View {
             Spacer(minLength: 12)
             Image(systemName: "checkmark")
                 .font(.callout.weight(.semibold))
-                .foregroundStyle(.green)
+                .foregroundStyle(CDColor.success)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-    }
-}
-
-/// One dot per step, the current one in the accent color.
-private struct StepDots: View {
-    let steps: [SetupStep]
-    let current: SetupStep
-
-    var body: some View {
-        HStack(spacing: 7) {
-            ForEach(steps, id: \.self) { step in
-                Circle()
-                    .fill(step == current ? Color.accentColor : Color.primary.opacity(0.18))
-                    .frame(width: 7, height: 7)
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel("Step \((steps.firstIndex(of: current) ?? 0) + 1) of \(steps.count)")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
     }
 }

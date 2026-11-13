@@ -4,12 +4,15 @@ import SwiftUI
 import ClamDownAppKit
 import ClamDownSensors
 import ClamDownShared
+import ClamDownUI
 
 /// Debug builds only: shows or draws the setup assistant in states a Mac that is already set up cannot reach,
 /// such as "notifications never asked" or a registration error. Nothing here touches the real helper, settings,
 /// notification permission or login item: every one is a stand-in, and the menu bar item is not shown.
 ///
-///     ClamDown -setupSnapshot <directory>   draws every screen to PNG files, light and dark, then quits
+///     ClamDown -setupSnapshot <directory>   draws every screen to PNG files, light and dark, glass and classic, then
+///                                           quits, with no window, no Dock icon and no activation
+///                                           (the system draws no glass offscreen, so the glass look shows its fallback)
 ///     ClamDown -setupPreview <scenario>     opens the assistant in that state
 @MainActor
 enum SetupPreview {
@@ -87,6 +90,8 @@ enum SetupPreview {
     static func run(setupWindow: SetupWindowController) -> Bool {
         let arguments = UserDefaults.standard
         if let directory = arguments.string(forKey: "setupSnapshot") {
+            // No Dock icon and no activation: the pictures are drawn in windows far off screen.
+            NSApp.setActivationPolicy(.accessory)
             Task {
                 await snapshot(into: URL(fileURLWithPath: directory))
                 exit(0)
@@ -116,13 +121,17 @@ enum SetupPreview {
     private static func snapshot(into directory: URL) async {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let appearances: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
+        let looks: [(String, CDLook)] = [("glass", .glass), ("classic", .classic)]
         for (suffix, appearance) in appearances {
-            for scenario in Scenario.allCases {
-                let (model, controller) = await scenario.make()
-                let view = SetupView(model: model, controller: controller, close: {}, bringForward: {},
-                                     loginItem: memoryLoginItem())
-                await draw(view, size: SetupView.size, appearance: appearance,
-                           to: directory.appendingPathComponent("\(scenario.rawValue)-\(suffix).png"))
+            for (lookName, look) in looks {
+                for scenario in Scenario.allCases {
+                    let (model, controller) = await scenario.make()
+                    let view = SetupView(model: model, controller: controller, close: {}, bringForward: {},
+                                         loginItem: memoryLoginItem())
+                        .environment(\.cdLook, look)
+                    await draw(view, size: SetupView.size, appearance: appearance,
+                               to: directory.appendingPathComponent("\(lookName)-\(scenario.rawValue)-\(suffix).png"))
+                }
             }
             await draw(MenuBarIconSheet(), size: CGSize(width: 640, height: 150), appearance: appearance,
                        to: directory.appendingPathComponent("menu-bar-icons-\(suffix).png"))

@@ -109,6 +109,87 @@ public struct CDStepHeader: View {
     }
 }
 
+/// One setup step: the header, then the step's own content (cards, notes) 22 pt below it, at most 470 pt wide.
+public struct CDStepScreen<Content: View>: View {
+    private let icon: CDStepIcon
+    private let title: String
+    private let text: String
+    private let content: Content
+
+    public init(icon: CDStepIcon, title: String, text: String, @ViewBuilder content: () -> Content) {
+        self.icon = icon
+        self.title = title
+        self.text = text
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            CDStepHeader(icon: icon, title: title, text: text)
+            content
+                .frame(maxWidth: 470)
+                .padding(.top, 22)
+        }
+        .padding(.horizontal, 36)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+extension CDStepScreen where Content == EmptyView {
+    public init(icon: CDStepIcon, title: String, text: String) {
+        self.init(icon: icon, title: title, text: text) { EmptyView() }
+    }
+}
+
+/// A picture of the menu bar for the last setup step: a capsule with the app's icon ringed in the accent colour,
+/// and the clock after it. The icon is the caller's view, so it can be the drawn Lid or a symbol.
+public struct CDMenuBarStrip<Icon: View>: View {
+    private let clock: String
+    private let icon: Icon
+    @Environment(\.cdLook) private var look
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    public init(clock: String, @ViewBuilder icon: () -> Icon) {
+        self.clock = clock
+        self.icon = icon()
+    }
+
+    public var body: some View {
+        let strip = CDGlassCapsule {
+            HStack(spacing: 18) {
+                Spacer(minLength: 0)
+                icon
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                            .opacity(pulsing ? 0.45 : 1)
+                    }
+                Text(clock)
+                    .font(.system(size: 12.5))
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: 420)
+        }
+        Group {
+            if look == .glass {
+                strip
+            } else {
+                // Without glass the strip is a plain capsule of material, as the menu bar is before macOS 26.
+                strip.background(.regularMaterial, in: Capsule())
+            }
+        }
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { pulsing = true }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("The ClamDown icon in the menu bar")
+    }
+}
+
 /// A card for the facts of a setup step: a regular material, never glass.
 public struct CDStatusCard<Content: View>: View {
     private let content: Content
