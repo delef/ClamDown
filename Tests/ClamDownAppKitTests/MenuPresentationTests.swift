@@ -18,6 +18,14 @@ import Testing
         #expect(p.symbolName == "cup.and.saucer" && p.toggleTitle == "Turn On")
     }
 
+    @Test func attentionBadge() {
+        #expect(MenuPresentation(state: .off, notice: nil, helperReady: false).needsAttention)
+        #expect(MenuPresentation(state: .failed("boom"), notice: nil).needsAttention)
+        #expect(MenuPresentation(state: .needsApproval, notice: nil).needsAttention)
+        #expect(!MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").needsAttention)
+        #expect(!MenuPresentation(state: .on, notice: nil).needsAttention)
+    }
+
     @Test func failedShowsMessage() {
         #expect(MenuPresentation(state: .failed("boom"), notice: nil).statusLine == "boom")
     }

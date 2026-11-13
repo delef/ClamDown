@@ -2,24 +2,24 @@ import Foundation
 import UserNotifications
 
 /// Posts banner notifications. Only works inside an app bundle (`UNUserNotificationCenter` needs one).
-public final class UserNotificationNotifier: Notifying, @unchecked Sendable {
-    private let lock = NSLock()
-    private var requestedAuthorization = false
-
+public final class UserNotificationNotifier: Notifying, NotificationAuthorizing, Sendable {
     public init() {}
 
-    /// Asks for permission once. Call at launch so the system prompt shows up early.
-    public func requestAuthorization() {
-        let shouldRequest = lock.withLock {
-            defer { requestedAuthorization = true }
-            return !requestedAuthorization
+    public func permission() async -> NotificationPermission {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                continuation.resume(returning: NotificationPermission(settings.authorizationStatus))
+            }
         }
-        guard shouldRequest else { return }
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
+    public func requestPermission() async -> NotificationPermission {
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        return await permission()
+    }
+
+    /// Never asks for permission by itself: without it macOS drops the notification, and the menu still shows the reason.
     public func post(title: String, body: String) {
-        requestAuthorization()
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

@@ -92,7 +92,16 @@ Version 0.1.0 has no updater: install a newer release by hand once.
 
 ## First run
 
-ClamDown needs a small root helper to run `pmset`. The first click on the switch registers it, and macOS asks you to approve it: open System Settings > General > Login Items & Extensions and enable ClamDown. Click the switch again afterwards.
+The first launch opens a setup assistant. It takes about a minute:
+
+1. **Allow the helper.** ClamDown needs a small root helper to run `pmset` and drive the fans. "Allow…" registers it and opens System Settings > General > Login Items & Extensions; switch ClamDown on there. The assistant notices by itself and comes back to the front.
+2. **Notifications** (optional). With the lid closed you cannot see the menu, so a notification tells you when ClamDown switched itself off.
+3. **Launch at Login** (optional), with a list of the protection that is already on.
+4. **Turn On Now**, or Done.
+
+You can close the assistant at any step; the menu then offers "Finish Setup…". Settings > Helper > Setup Assistant opens it again.
+
+When ClamDown cannot work until you do something, for example after macOS took the helper's approval back, the menu bar icon carries a small exclamation mark and the Dock icon, when shown, a "!" badge.
 
 ## Safety behavior
 

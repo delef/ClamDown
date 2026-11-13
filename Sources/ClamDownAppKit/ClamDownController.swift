@@ -13,6 +13,23 @@ public enum SwitchState: Equatable {
     public var isOn: Bool { self == .on }
 }
 
+/// The outcome of getting the helper registered and up to date.
+public enum HelperPreparation: Equatable, Sendable {
+    case ready
+    /// The helper is registered and waits for the user's approval in Login Items.
+    case needsApproval
+    case failed(String)
+}
+
+/// A Turn On that stopped because the helper needs approval. A nil duration means "until switched off".
+public struct TurnOnRequest: Equatable, Sendable {
+    public let duration: Duration?
+
+    public init(duration: Duration?) {
+        self.duration = duration
+    }
+}
+
 /// Owns the on/off switch: talks to the helper, applies the cut-off rules, keeps the user informed.
 @MainActor
 public final class ClamDownController: ObservableObject {
@@ -22,6 +39,14 @@ public final class ClamDownController: ObservableObject {
     @Published public private(set) var settings: Settings
     /// When the timer will switch the mode off. Nil while off or when no timer is running.
     @Published public private(set) var offAt: Date?
+    /// The helper's registration state as last read from the system. The icons follow it, so it is published;
+    /// `refreshHelperAvailability()` reads it again.
+    @Published public private(set) var helperAvailability: HelperAvailability = .ready
+    /// The last Turn On that stopped for approval, so the setup assistant's "Turn On Now" can finish it.
+    public private(set) var pendingTurnOn: TurnOnRequest?
+    /// Called on every Turn On or reinstall that stops because the helper needs approval.
+    /// The app answers by opening the setup assistant; System Settings no longer opens by itself.
+    public var onHelperNeedsApproval: (@MainActor () -> Void)?
 
     private let helper: HelperControlling
     private let registrar: HelperRegistering
@@ -37,6 +62,9 @@ public final class ClamDownController: ObservableObject {
     private let screenLocker: ScreenLocking?
     /// Reads temperatures and fans directly when the helper cannot answer, for example before it is installed.
     private let sensors: SensorReading?
+    /// True while a Turn On or a helper install, update or removal runs. These wait on macOS, so a second button
+    /// press can arrive in the middle; it is turned away instead of racing the first.
+    private var helperBusy = false
     private let now: @Sendable () -> Date
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
@@ -97,6 +125,23 @@ public final class ClamDownController: ObservableObject {
         await performTurnOn(duration: duration)
     }
 
+    /// "Turn On Now" in the setup assistant: finishes the Turn On that waited for approval, with the duration
+    /// it asked for. With none remembered it behaves like the menu's Turn On.
+    public func resumeTurnOn() async {
+        guard !state.isOn else {
+            pendingTurnOn = nil
+            return
+        }
+        // A remembered request with a nil duration means "until switched off", so it must not fall through to the setting.
+        let duration = pendingTurnOn.map(\.duration) ?? settings.autoOffTimer.duration
+        await performTurnOn(duration: duration)
+    }
+
+    /// Forgets the Turn On that waited for approval. Call when the setup assistant closes.
+    public func dropPendingTurnOn() {
+        pendingTurnOn = nil
+    }
+
     /// Re-checks the cut-off rules after any power, battery, thermal or wake event.
     /// While on and still allowed to run, it also confirms with the helper that the mode is still on.
     public func handleSystemChange() async {
@@ -124,8 +169,12 @@ public final class ClamDownController: ObservableObject {
         }
         guard !stillOn, state.isOn else { return }
         finishOff()
-        announce("Turned off: the helper stopped the mode.")
+        // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
+        refreshHelperAvailability()
+        announce(helperAvailability == .ready ? "Turned off: the helper stopped the mode." : Self.helperLost)
     }
+
+    static let helperLost = "Turned off: macOS no longer allows the helper. Open Setup to allow it again."
 
     public func updateSettings(_ new: Settings) async {
         let previous = settings
@@ -181,6 +230,9 @@ public final class ClamDownController: ObservableObject {
 
     /// Installs the helper from this app build again. Use it when the helper gets stuck.
     public func reinstallHelper() async {
+        guard !helperBusy else { return }
+        helperBusy = true
+        defer { helperBusy = false }
         if state.isOn {
             await turnOff()
             guard !state.isOn else { return }
@@ -193,7 +245,8 @@ public final class ClamDownController: ObservableObject {
             return
         }
         installedHelper.fingerprint = nil
-        guard reportReadiness(registrar.availability()) else { return }
+        refreshHelperAvailability()
+        guard show(Self.preparation(for: helperAvailability)) else { return }
         installedHelper.fingerprint = helperFingerprint
         notice = "Helper reinstalled."
     }
@@ -205,11 +258,38 @@ public final class ClamDownController: ObservableObject {
         await updateSettings(defaults)
     }
 
-    /// The helper's registration state, read from the system each time.
-    public var helperAvailability: HelperAvailability { registrar.availability() }
+    /// Reads the helper's registration state from the system again. macOS sends no notice when the user
+    /// changes it in System Settings, so the app calls this on a timer.
+    public func refreshHelperAvailability() {
+        let current = registrar.availability()
+        if current != helperAvailability { helperAvailability = current }
+        // The user approved the helper without pressing Turn On again: nothing is waiting on them any more.
+        if current == .ready, state == .needsApproval { state = .off }
+    }
+
+    /// True when ClamDown cannot work until the user does something: the helper is not ready, or switching on failed.
+    /// An automatic switch-off is not such a case; the off icon and the menu's reason line cover it.
+    public var needsAttention: Bool {
+        if helperAvailability != .ready { return true }
+        switch state {
+        case .failed, .needsApproval: return true
+        case .on, .off: return false
+        }
+    }
+
+    /// Replaces the stored Launch at Login value with the system's, which the user can change in System Settings.
+    public func syncLaunchAtLogin(systemValue: Bool) async {
+        guard settings.launchAtLogin != systemValue else { return }
+        var updated = settings
+        updated.launchAtLogin = systemValue
+        await updateSettings(updated)
+    }
 
     /// Removes the helper. Turn On sets it up again.
     public func removeHelper() async {
+        guard !helperBusy else { return }
+        helperBusy = true
+        defer { helperBusy = false }
         if state.isOn {
             await turnOff()
             guard !state.isOn else { return }
@@ -223,13 +303,19 @@ public final class ClamDownController: ObservableObject {
         installedHelper.fingerprint = nil
         state = .off
         notice = "Helper removed. Turn On sets it up again."
+        refreshHelperAvailability()
     }
 
     // MARK: - Switching
 
     private func performTurnOn(duration: Duration?) async {
+        guard !helperBusy else { return }
+        helperBusy = true
+        defer { helperBusy = false }
         notice = nil
-        guard await helperIsReady() else { return }
+        let preparation = await prepareHelperExclusively()
+        pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
+        guard show(preparation) else { return }
         if let reason = AutoOffPolicy.reason(for: monitor.snapshot(), settings: settings) {
             let text = "Not turned on: \(reason.summary)."
             state = .off
@@ -331,8 +417,19 @@ public final class ClamDownController: ObservableObject {
         state = .off
     }
 
-    /// Registers the helper when needed. Returns false and sets `state` when the user must act or it failed.
-    private func helperIsReady() async -> Bool {
+    /// Registers the helper when needed and replaces one that comes from another build, without turning the mode on.
+    /// It changes neither `state` nor System Settings: the caller decides what to show.
+    public func prepareHelper() async -> HelperPreparation {
+        guard !helperBusy else { return .failed(Self.helperBusyMessage) }
+        helperBusy = true
+        defer { helperBusy = false }
+        return await prepareHelperExclusively()
+    }
+
+    static let helperBusyMessage = "ClamDown is still setting up the helper. Try again in a moment."
+
+    /// The work of `prepareHelper()`. The caller holds `helperBusy`.
+    private func prepareHelperExclusively() async -> HelperPreparation {
         var availability = registrar.availability()
         if availability.canAttemptRegistration {
             do {
@@ -342,48 +439,56 @@ public final class ClamDownController: ObservableObject {
                 // Registering can throw when approval is pending; that is not a failure.
                 // An unavailable helper keeps its own message below, which says more than the registration error.
                 if afterAttempt != .requiresApproval, !afterAttempt.isUnavailable {
-                    state = .failed(Self.describe(error))
-                    return false
+                    helperAvailability = afterAttempt
+                    return .failed(Self.describe(error))
                 }
             }
             availability = registrar.availability()
             recordInstalledBuild(after: availability)
         }
-        guard reportReadiness(availability) else { return false }
+        helperAvailability = availability
+        let preparation = Self.preparation(for: availability)
+        guard preparation == .ready else { return preparation }
         return await syncHelperIfNeeded()
     }
 
-    /// Sets `state` for every availability except ready. Returns true only when the helper is ready.
-    private func reportReadiness(_ availability: HelperAvailability) -> Bool {
+    private static func preparation(for availability: HelperAvailability) -> HelperPreparation {
         switch availability {
+        case .ready: .ready
+        case .requiresApproval: .needsApproval
+        case .notRegistered: .failed("The helper could not be registered.")
+        case .unavailable(let message): .failed(message)
+        }
+    }
+
+    /// Puts a preparation that did not end ready into `state`. Returns true only for ready.
+    private func show(_ preparation: HelperPreparation) -> Bool {
+        switch preparation {
         case .ready:
             return true
-        case .requiresApproval:
+        case .needsApproval:
             state = .needsApproval
-            registrar.openApprovalSettings()
+            onHelperNeedsApproval?()
             return false
-        case .notRegistered:
-            state = .failed("The helper could not be registered.")
-            return false
-        case .unavailable(let message):
+        case .failed(let message):
             state = .failed(message)
             return false
         }
     }
 
     /// Reinstalls the helper when the registered one comes from another build, so launchd runs this build's binary.
-    /// Returns false, with `state` set, when that fails or the helper needs approval again.
-    private func syncHelperIfNeeded() async -> Bool {
-        guard let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint else { return true }
+    private func syncHelperIfNeeded() async -> HelperPreparation {
+        guard let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint else { return .ready }
         do {
             try await reregisterHelper()
         } catch {
-            state = .failed("Could not update the helper: \(Self.describe(error))")
-            return false
+            refreshHelperAvailability()
+            return .failed("Could not update the helper: \(Self.describe(error))")
         }
         let availability = registrar.availability()
+        helperAvailability = availability
         recordInstalledBuild(after: availability)
-        return reportReadiness(availability)
+        return Self.preparation(for: availability)
     }
 
     /// Records this build as the registered helper once registering it went through, even while approval is pending.
@@ -418,11 +523,19 @@ public final class ClamDownController: ObservableObject {
         }
     }
 
+    /// One plain sentence for the user. Raw system errors read like "Error Domain=SMAppServiceErrorDomain Code=1".
     private static func describe(_ error: Error) -> String {
         switch error as? HelperClientError {
-        case .helper(let message), .connection(let message): message
-        case .unsigned: "The app is not code-signed, so it cannot talk to the helper."
-        case nil: String(describing: error)
+        case .helper(let message), .connection(let message): return message
+        case .unsigned: return "The app is not code-signed, so it cannot talk to the helper."
+        case nil: break
         }
+        let systemError = error as NSError
+        guard systemError.domain == "SMAppServiceErrorDomain" else { return systemError.localizedDescription }
+        // Code 1 is "operation not permitted": macOS has not allowed the helper, or refused to start it.
+        if systemError.code == 1 {
+            return "macOS did not allow the helper to start. Allow ClamDown in Login Items, then try again."
+        }
+        return "macOS could not set up the helper (error \(systemError.code))."
     }
 }

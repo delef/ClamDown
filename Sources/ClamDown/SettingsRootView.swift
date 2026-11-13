@@ -26,6 +26,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 /// The settings window: a sidebar of pages on the left, the selected page on the right.
 struct SettingsRootView: View {
     @ObservedObject var controller: ClamDownController
+    let notifications: NotificationAuthorizing
+    let openSetup: () -> Void
     @State private var tab: SettingsTab = .general
 
     var body: some View {
@@ -83,12 +85,12 @@ struct SettingsRootView: View {
 
     @ViewBuilder private var page: some View {
         switch tab {
-        case .general: GeneralPage(controller: controller)
+        case .general: GeneralPage(controller: controller, notifications: notifications)
         case .sleep: SleepPage(controller: controller)
         case .protection: ProtectionPage(controller: controller)
         case .cooling: CoolingPage(controller: controller)
         case .appearance: AppearancePage(controller: controller)
-        case .helper: HelperPage(controller: controller)
+        case .helper: HelperPage(controller: controller, openSetup: openSetup)
         }
     }
 }

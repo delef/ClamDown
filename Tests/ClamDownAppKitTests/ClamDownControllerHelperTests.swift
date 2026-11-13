@@ -32,7 +32,7 @@ import Testing
         await rig.controller.toggle()
         #expect(rig.controller.state == .needsApproval)
         #expect(rig.helper.enableCalls.isEmpty)
-        #expect(rig.registrar.openApprovalCount == 1)
+        #expect(rig.registrar.openApprovalCount == 0)
         // The registered helper is already this build, so approving it must not trigger another reinstall.
         #expect(rig.installed.fingerprint == "new")
     }

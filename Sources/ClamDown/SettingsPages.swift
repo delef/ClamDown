@@ -23,19 +23,15 @@ extension ClamDownController {
 
 struct GeneralPage: View {
     @ObservedObject var controller: ClamDownController
+    let notifications: NotificationAuthorizing
     @EnvironmentObject private var updater: Updater
-    @State private var launchAtLoginError: String?
+    /// Assumed allowed until read, so the hint below does not flash while the page opens.
+    @State private var permission: NotificationPermission = .allowed
 
     var body: some View {
         SettingsPage(title: "General") {
             SettingsSection(title: "Startup", icon: "power") {
-                SettingRow(icon: "arrow.right.circle", title: "Launch at Login",
-                           help: "Opens ClamDown in the menu bar when you log in.") {
-                    StatusToggle(isOn: launchAtLoginBinding)
-                }
-                if let launchAtLoginError {
-                    SettingDetail { Text(launchAtLoginError).foregroundStyle(.red) }
-                }
+                LaunchAtLoginRow(controller: controller)
                 RowDivider()
                 SettingRow(icon: "dock.rectangle", title: "Show Dock Icon",
                            help: "Adds ClamDown to the Dock. Clicking it opens these settings.") {
@@ -47,6 +43,7 @@ struct GeneralPage: View {
                            help: "Shows a notification when ClamDown switches itself off, for example at low battery. The menu always shows the reason.") {
                     StatusToggle(isOn: controller.binding(\.notificationsEnabled))
                 }
+                notificationHint
             }
             SettingsSection(title: "Updates", icon: "arrow.down.circle") {
                 SettingRow(icon: "clock.arrow.circlepath", title: "Check Automatically",
@@ -67,23 +64,36 @@ struct GeneralPage: View {
                 }
             }
         }
+        .task { permission = await notifications.permission() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { permission = await notifications.permission() }
+        }
     }
 
-    private var launchAtLoginBinding: Binding<Bool> {
-        Binding(
-            get: { controller.settings.launchAtLogin },
-            set: { wanted in
-                launchAtLoginError = nil
-                do {
-                    try LaunchAtLogin.apply(wanted)
-                } catch {
-                    launchAtLoginError = "Could not change Launch at Login: \(error.localizedDescription)"
-                }
-                var updated = controller.settings
-                updated.launchAtLogin = LaunchAtLogin.isEnabled
-                Task { await controller.updateSettings(updated) }
+    /// Says so when the setting is on but macOS shows nothing, and offers the way out.
+    @ViewBuilder private var notificationHint: some View {
+        switch permission.hint(settingOn: controller.settings.notificationsEnabled) {
+        case .nothing:
+            EmptyView()
+        case .allow:
+            notificationHintLine(button: "Allow") {
+                Task { permission = await notifications.requestPermission() }
             }
-        )
+        case .openSettings:
+            notificationHintLine(button: "Open Notification Settings") {
+                SystemSettings.openNotifications()
+            }
+        }
+    }
+
+    private func notificationHintLine(button: String, action: @escaping () -> Void) -> some View {
+        SettingDetail {
+            HStack {
+                Text("macOS is not showing ClamDown's notifications yet.").foregroundStyle(.orange)
+                Spacer(minLength: 12)
+                Button(button, action: action)
+            }
+        }
     }
 }
 
@@ -344,7 +354,7 @@ private struct IconTile: View {
 
 struct HelperPage: View {
     @ObservedObject var controller: ClamDownController
-    @State private var availability: HelperAvailability?
+    let openSetup: () -> Void
 
     var body: some View {
         SettingsPage(title: "Helper") {
@@ -372,33 +382,35 @@ struct HelperPage: View {
                     Button("Remove", role: .destructive) { run { await controller.removeHelper() } }
                 }
             }
+            SettingsSection(title: "Setup", icon: "sparkles") {
+                SettingRow(icon: "list.bullet.clipboard", title: "Setup Assistant",
+                           help: "Walks through the helper, notifications and startup again.") {
+                    Button("Open") { openSetup() }
+                }
+            }
         }
-        .onAppear { availability = controller.helperAvailability }
+        .onAppear { controller.refreshHelperAvailability() }
     }
 
     private func run(_ work: @escaping () async -> Void) {
-        Task {
-            await work()
-            availability = controller.helperAvailability
-        }
+        Task { await work() }
     }
 
+    /// The controller's published state, so this page and the setup assistant never disagree.
     private var statusText: String {
-        switch availability {
+        switch controller.helperAvailability {
         case .ready: "Running"
         case .requiresApproval: "Needs approval"
         case .notRegistered: "Not installed"
         case .unavailable(let message): message
-        case nil: "Checking…"
         }
     }
 
     private var statusColor: Color {
-        switch availability {
+        switch controller.helperAvailability {
         case .ready: .green
         case .requiresApproval: .orange
         case .notRegistered, .unavailable: .red
-        case nil: .secondary
         }
     }
 }

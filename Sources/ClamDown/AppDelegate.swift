@@ -22,8 +22,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller: ClamDownController
     private let notifier = UserNotificationNotifier()
     let updater = Updater()
-    private(set) lazy var settingsWindow = SettingsWindowController(controller: controller, updater: updater)
-    private var settingsObserver: AnyCancellable?
+    private let setupStore = UserDefaultsSetupStore()
+    private(set) lazy var setupWindow = SetupWindowController(controller: controller, store: setupStore, notifications: notifier)
+    private(set) lazy var settingsWindow = SettingsWindowController(
+        controller: controller, updater: updater, notifications: notifier,
+        openSetup: { [weak self] in self?.showSetup(.settings) })
+    private var observers: Set<AnyCancellable> = []
+    private var helperTimer: Timer?
+    private var showDockIcon = false
 
     override init() {
         let appBundleID = Bundle.main.bundleIdentifier ?? "unknown"
@@ -60,17 +66,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        notifier.requestAuthorization()
-        settingsObserver = controller.$settings
+        controller.$settings
             .map(\.showDockIcon)
             .removeDuplicates()
-            .sink { NSApp.setActivationPolicy($0 ? .regular : .accessory) }
+            .sink { [weak self] wanted in
+                self?.showDockIcon = wanted
+                self?.applyActivationPolicy()
+            }
+            .store(in: &observers)
+        setupWindow.onVisibilityChange = { [weak self] _ in self?.applyActivationPolicy() }
+        #if DEBUG
+        if SetupPreview.run(setupWindow: setupWindow) { return }
+        #endif
+
+        // The published values change after this notice, so read them on the next turn of the run loop.
+        controller.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.applyDockBadge() }
+            .store(in: &observers)
+        controller.onHelperNeedsApproval = { [weak self] in self?.showSetup(.turnOnNeedsApproval) }
+        controller.refreshHelperAvailability()
+        // macOS sends no notice when the helper's approval changes in System Settings.
+        helperTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.controller.refreshHelperAvailability() }
+        }
         Task { await controller.start() }
+
+        if SetupFlow.completesSilently(completed: setupStore.completed, helper: controller.helperAvailability) {
+            setupStore.completed = true
+        }
+        showSetup(.launch)
+        applyDockBadge()
     }
 
-    /// Clicking the Dock icon, when it is shown, opens the settings.
+    /// Opens the setup assistant for an entry point, when the rules say it has something to show.
+    func showSetup(_ entry: SetupEntry) {
+        guard let presentation = SetupFlow.presentation(for: entry, completed: setupStore.completed,
+                                                        helper: controller.helperAvailability) else { return }
+        setupWindow.show(presentation)
+    }
+
+    /// The Dock icon follows the setting, and is always there while the setup assistant is open.
+    private func applyActivationPolicy() {
+        let wanted: NSApplication.ActivationPolicy = showDockIcon || setupWindow.isOpen ? .regular : .accessory
+        guard NSApp.activationPolicy() != wanted else { return }
+        NSApp.setActivationPolicy(wanted)
+        // Losing the Dock icon can drop an open settings window behind other apps; keep it where the user left it.
+        if wanted == .accessory, settingsWindow.isVisible {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func applyDockBadge() {
+        NSApp.dockTile.badgeLabel = controller.needsAttention ? "!" : nil
+    }
+
+    /// Clicking the Dock icon, when it is shown, opens the settings, or brings an open setup assistant forward.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        settingsWindow.show()
+        if setupWindow.isOpen {
+            setupWindow.bringForward()
+        } else {
+            settingsWindow.show()
+        }
         return true
     }
 

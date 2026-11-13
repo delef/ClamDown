@@ -92,11 +92,12 @@ struct Rig {
         #expect(rig.controller.notice?.contains("Mac is hot (serious)") == true)
     }
 
-    @Test func requiresApprovalStaysOffAndOpensSettings() async {
+    /// System Settings no longer opens by itself: the setup assistant explains the step first.
+    @Test func requiresApprovalStaysOffAndLeavesSystemSettingsClosed() async {
         let rig = Rig(availability: [.requiresApproval])
         await rig.controller.toggle()
         #expect(rig.controller.state == .needsApproval)
-        #expect(rig.registrar.openApprovalCount == 1)
+        #expect(rig.registrar.openApprovalCount == 0)
         #expect(rig.helper.enableCalls.isEmpty)
     }
 

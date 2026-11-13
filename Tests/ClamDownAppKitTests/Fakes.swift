@@ -169,6 +169,42 @@ final class FakeNotifier: Notifying, @unchecked Sendable {
     }
 }
 
+/// Answers the permission from memory; a request moves it to `afterRequest`, like the system prompt would.
+final class FakeNotificationAuthorizer: NotificationAuthorizing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: NotificationPermission
+    private let afterRequest: NotificationPermission
+    private var requests = 0
+
+    init(_ current: NotificationPermission = .notAsked, afterRequest: NotificationPermission = .allowed) {
+        self.current = current
+        self.afterRequest = afterRequest
+    }
+
+    var requestCount: Int { lock.withLock { requests } }
+
+    /// The user changed the permission in System Settings.
+    func changeInSystemSettings(to permission: NotificationPermission) {
+        lock.withLock { current = permission }
+    }
+
+    func permission() async -> NotificationPermission { lock.withLock { current } }
+
+    func requestPermission() async -> NotificationPermission {
+        lock.withLock {
+            requests += 1
+            current = afterRequest
+            return current
+        }
+    }
+}
+
+final class FakeSetupStore: SetupStoring {
+    var completed: Bool
+
+    init(_ completed: Bool = false) { self.completed = completed }
+}
+
 final class FakeActivity: ProcessActivityHolding {
     private(set) var beginCount = 0
     private(set) var endCount = 0

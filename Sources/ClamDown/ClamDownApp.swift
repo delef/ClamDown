@@ -5,10 +5,20 @@ import ClamDownAppKit
 struct ClamDownApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    /// A debug preview shows made-up states, so it must not offer the real switch next to them.
+    private var showsMenuBarItem: Bool {
+        #if DEBUG
+        !SetupPreview.isRequested
+        #else
+        true
+        #endif
+    }
+
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: .constant(showsMenuBarItem)) {
             MenuContent(controller: delegate.controller, updater: delegate.updater,
-                        openSettings: { delegate.settingsWindow.show() })
+                        openSettings: { delegate.settingsWindow.show() },
+                        openSetup: { delegate.showSetup(.menu) })
         } label: {
             MenuBarIcon(controller: delegate.controller)
         }
@@ -20,8 +30,14 @@ private struct MenuBarIcon: View {
     @ObservedObject var controller: ClamDownController
 
     var body: some View {
-        Image(systemName: MenuPresentation(state: controller.state, notice: controller.notice,
-                                           icon: controller.settings.menuBarIcon).symbolName)
+        let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
+                                            icon: controller.settings.menuBarIcon,
+                                            helperReady: controller.helperAvailability == .ready)
+        if presentation.needsAttention {
+            Image(nsImage: MenuBarIconImage.attention(symbol: presentation.symbolName))
+        } else {
+            Image(systemName: presentation.symbolName)
+        }
     }
 }
 
@@ -29,6 +45,7 @@ private struct MenuContent: View {
     @ObservedObject var controller: ClamDownController
     @ObservedObject var updater: Updater
     let openSettings: () -> Void
+    let openSetup: () -> Void
 
     /// Sessions offered under "Turn On For".
     private static let durations: [AutoOffTimer] = [.minutes30, .hour1, .hours2, .hours4, .hours8]
@@ -58,9 +75,9 @@ private struct MenuContent: View {
         if let line = presentation.statusLine {
             Text(line)
         }
-        if controller.state == .needsApproval {
-            Button("Open Login Items…") {
-                controller.openHelperApproval()
+        if controller.helperAvailability != .ready {
+            Button("Finish Setup…") {
+                openSetup()
             }
         }
         Divider()

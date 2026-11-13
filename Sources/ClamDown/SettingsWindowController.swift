@@ -7,12 +7,19 @@ import ClamDownAppKit
 final class SettingsWindowController {
     private let controller: ClamDownController
     private let updater: Updater
+    private let notifications: NotificationAuthorizing
+    private let openSetup: () -> Void
     private var window: NSWindow?
 
-    init(controller: ClamDownController, updater: Updater) {
+    init(controller: ClamDownController, updater: Updater, notifications: NotificationAuthorizing,
+         openSetup: @escaping () -> Void) {
         self.controller = controller
         self.updater = updater
+        self.notifications = notifications
+        self.openSetup = openSetup
     }
+
+    var isVisible: Bool { window?.isVisible ?? false }
 
     func show() {
         let window = window ?? makeWindow()
@@ -22,7 +29,8 @@ final class SettingsWindowController {
     }
 
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsRootView(controller: controller).environmentObject(updater)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsRootView(
+            controller: controller, notifications: notifications, openSetup: openSetup).environmentObject(updater)))
         window.title = "ClamDown"
         window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
