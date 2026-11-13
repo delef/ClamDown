@@ -334,8 +334,8 @@ private struct IconTile: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 HStack(spacing: 6) {
-                    Image(systemName: style.offSymbol)
-                    Image(systemName: style.onSymbol)
+                    MenuBarIconGlyph(symbol: style.offSymbol)
+                    MenuBarIconGlyph(symbol: style.onSymbol)
                 }
                 .font(.title3)
                 Text(style.title).font(.caption)

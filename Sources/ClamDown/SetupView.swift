@@ -302,7 +302,7 @@ private struct DoneStep: View {
             text: "ClamDown lives in the menu bar. Look for this icon:"
         ) {
             VStack(spacing: 18) {
-                Image(systemName: controller.settings.menuBarIcon.offSymbol)
+                MenuBarIconGlyph(symbol: controller.settings.menuBarIcon.offSymbol)
                     .font(.system(size: 20, weight: .regular))
                     .frame(width: 64, height: 36)
                     .background(Capsule().fill(Color.primary.opacity(0.08)))

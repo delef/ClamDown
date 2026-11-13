@@ -27,7 +27,7 @@ private struct MenuBarIcon: View {
         if presentation.needsAttention {
             Image(nsImage: MenuBarIconImage.attention(symbol: presentation.symbolName))
         } else {
-            Image(systemName: presentation.symbolName)
+            Image(nsImage: MenuBarIconImage.base(symbol: presentation.symbolName) ?? NSImage())
         }
     }
 }

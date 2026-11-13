@@ -124,7 +124,7 @@ enum SetupPreview {
                 await draw(view, size: SetupView.size, appearance: appearance,
                            to: directory.appendingPathComponent("\(scenario.rawValue)-\(suffix).png"))
             }
-            await draw(MenuBarIconSheet(), size: CGSize(width: 520, height: 150), appearance: appearance,
+            await draw(MenuBarIconSheet(), size: CGSize(width: 640, height: 150), appearance: appearance,
                        to: directory.appendingPathComponent("menu-bar-icons-\(suffix).png"))
         }
         print("wrote the setup screens to \(directory.path)")
@@ -172,7 +172,7 @@ private struct MenuBarIconSheet: View {
     private func row(_ symbol: KeyPath<MenuBarIconStyle, String>) -> some View {
         HStack(spacing: 0) {
             ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
-                Image(systemName: style[keyPath: symbol]).scaleEffect(2.5).frame(width: 62, height: 66)
+                Image(nsImage: MenuBarIconImage.base(symbol: style[keyPath: symbol]) ?? NSImage()).scaleEffect(2.5).frame(width: 62, height: 66)
                 Image(nsImage: MenuBarIconImage.attention(symbol: style[keyPath: symbol])).scaleEffect(2.5).frame(width: 62, height: 66)
             }
         }
