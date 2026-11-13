@@ -22,14 +22,15 @@ private let usage = """
       step                fans to minimum for 30 s, then maximum for 30 s, then back to macOS. Root.
                           CSV: seconds,target0,actual0[,target1,actual1...] every second.
       ftst                Ftst = 1 and no fan set to manual, for 30 s, then back to macOS. Root. Run a load meanwhile.
-                          CSV: seconds,actual0[,actual1...],md0[,md1...],ftst every second.
+                          Stops early when the CPU gets hot, as step does.
+                          CSV: seconds,average,hottest,actual0[,actual1...],md0[,md1...],ftst every second.
       load <minutes>      CSV: seconds,average,hottest,thermalLevel every second. Fans untouched. Root.
       fullLoad <minutes>  as load, with the fans held at maximum; back to macOS at the end. Root.
       thermal [minutes]   CSV: seconds,uid,thermalLevel every second, 5 minutes by default. Root not needed.
       release             hands every fan back to macOS and prints each fan's mode. Root. Safe any time.
     """
 
-/// The hottest core (or the average when it is missing) at which `step` gives up its minimum phase.
+/// The hottest core (or the average when it is missing) at which `step` gives up its minimum phase and `ftst` stops.
 private let stepHotLimit = 95.0
 
 private enum Command {
@@ -77,7 +78,7 @@ private enum ProbeError: Error, CustomStringConvertible {
         case .fanCountChanged(let expected, let got):
             "read \(got) fans instead of \(expected); stopping so no target lands on the wrong fan"
         case .tooHot(let celsius):
-            "the CPU reached \(format(celsius, 1)) °C with the fans at minimum; stopped early"
+            "the CPU reached \(format(celsius, 1)) °C while the fans were held low; stopped early"
         }
     }
 }
@@ -218,15 +219,20 @@ private func step(_ hardware: SMCFanHardware, _ fans: FanGuard) throws {
 private func ftst(_ hardware: SMCFanHardware, _ fans: FanGuard) throws {
     let reading = try firstReading(hardware)
     let count = reading.fans.count
-    emit((["seconds"] + reading.fans.indices.map { "actual\($0)" } + reading.fans.indices.map { "md\($0)" } + ["ftst"])
-        .joined(separator: ","))
-    note("Ftst = 1 and no fan mode written, for 30 s. Run a load meanwhile.")
+    emit((["seconds", "average", "hottest"] + reading.fans.indices.map { "actual\($0)" }
+        + reading.fans.indices.map { "md\($0)" } + ["ftst"]).joined(separator: ","))
+    note("Ftst = 1 and no fan mode written, for 30 s. Run a load meanwhile. Stops at \(format(stepHotLimit, 0)) °C; "
+        + "an early stop is itself an answer: the fans did not rise while the CPU heated.")
     try fans.setTestFlag()
     try everySecond(30) { _, elapsed in
         let now = try read(hardware, expectingFans: count)
         let modes = hardware.controlModes()
         let columns = now.fans.map { format($0.rpm, 0) } + modes.fanModes.map { format($0, 0) } + [format(modes.ftst, 0)]
-        emit(([format(elapsed, 1)] + columns).joined(separator: ","))
+        emit(([format(elapsed, 1), format(now.cpuTemperature, 1), format(now.hottestCPUTemperature, 1)] + columns)
+            .joined(separator: ","))
+        if let celsius = now.hottestCPUTemperature ?? now.cpuTemperature, celsius >= stepHotLimit {
+            throw ProbeError.tooHot(celsius)
+        }
     }
 }
 
