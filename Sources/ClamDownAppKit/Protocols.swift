@@ -56,6 +56,12 @@ public protocol LidMonitoring: AnyObject {
     func stop()
 }
 
+/// Tells whether a display other than the built-in one is connected.
+public protocol DisplayReading: Sendable {
+    /// True also when it cannot be told: someone may be working on it.
+    func hasExternalDisplay() -> Bool
+}
+
 /// Puts the Mac to sleep at once.
 public protocol SystemSleeping: Sendable {
     func sleepNow()

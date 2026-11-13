@@ -64,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             screenLocker: LiveScreenLocker(),
             sensors: SMCFanHardware(),
             lid: SystemLid(),
+            idle: SystemIdle(),
+            displays: SystemDisplays(),
             sleeper: LiveSystemSleeper()
         )
         super.init()
@@ -141,18 +143,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &observers)
     }
 
-    /// Tells the returning user why ClamDown let the Mac sleep. A notification when macOS shows ours;
-    /// a plain window when the user wants to be told but macOS does not show them. Nothing when they switched this off.
+    /// Tells the returning user why ClamDown let the Mac sleep, in a window that stays until they close it.
+    /// A notification banner is gone in seconds, and it can pass while the screen is still waking or locked.
     private func deliverWakeReport(_ text: String) {
-        guard controller.settings.notificationsEnabled else { return }
-        Task {
-            if await notifier.permission() == .allowed {
-                notifier.post(title: "ClamDown", body: text)
-            } else {
+        // From the run loop, not from a task: a window that waits for a click inside a main-actor task
+        // would hold up everything else the app does on the main actor until it is closed.
+        RunLoop.main.perform {
+            MainActor.assumeIsolated {
                 let alert = NSAlert()
                 alert.messageText = "ClamDown switched off while you were away"
                 alert.informativeText = text
                 alert.addButton(withTitle: "OK")
+                alert.window.level = .floating
                 NSApp.activate(ignoringOtherApps: true)
                 alert.runModal()
             }

@@ -13,8 +13,9 @@ public struct LidState: Equatable, Sendable {
         self.closingCausesSleep = closingCausesSleep
     }
 
-    /// The lid is closed and macOS would have this Mac asleep: nobody is using it, it may be in a bag.
-    public var isUnattended: Bool { closed && closingCausesSleep }
+    /// The lid is closed and macOS would have this Mac asleep. On its own this does not prove that nobody is there:
+    /// macOS refreshes the second value only on some events. `Attendance` adds the other signs.
+    public var isClosedForSleep: Bool { closed && closingCausesSleep }
 }
 
 public protocol LidReading: Sendable {

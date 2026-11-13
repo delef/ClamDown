@@ -16,6 +16,9 @@ struct Rig {
     let lid = FakeLidMonitor()
     let locker = FakeScreenLocker()
     let lidReader: FakeLidReader
+    let idle = FakeIdle()
+    let displays = FakeDisplays()
+    let pauser = FakePauser()
     let sleeper = FakeSleeper()
     let clock = FakeClock()
 
@@ -48,9 +51,14 @@ struct Rig {
             screenLocker: locker,
             sensors: sensors,
             lid: lidReader,
+            idle: idle,
+            displays: displays,
             sleeper: sleeper,
             now: { [clock] in clock.now },
-            pause: { [registrar] in registrar.pause($0) }
+            pause: { [registrar, pauser] duration in
+                registrar.pause(duration)
+                await pauser.pause(duration)
+            }
         )
     }
 }

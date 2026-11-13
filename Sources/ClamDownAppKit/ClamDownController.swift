@@ -65,7 +65,11 @@ public final class ClamDownController: ObservableObject {
     /// Reads temperatures and fans directly when the helper cannot answer, for example before it is installed.
     private let sensors: SensorReading?
     private let lid: LidReading?
+    private let idle: IdleReading?
+    private let displays: DisplayReading?
     private let sleeper: SystemSleeping?
+    /// Waits for the Mac to fall asleep after ClamDown asked for it, and asks again when it did not.
+    private(set) var sleepWatch: Task<Void, Never>?
     /// What to tell the user when they open the lid after ClamDown let the Mac sleep.
     private var pendingWakeReport: WakeReport?
     /// True while a Turn On or a helper install, update or removal runs. These wait on macOS, so a second button
@@ -73,10 +77,33 @@ public final class ClamDownController: ObservableObject {
     private var helperBusy = false
 
     private struct WakeReport {
-        let text: String
-        /// True once the Mac went to sleep after the switch-off. A switch-off the user sat through needs no second telling.
-        var slept: Bool
+        /// When ClamDown switched off.
+        let at: Date
+        let why: String
+        /// True when the lid was closed at the switch-off: nobody saw the notification then.
+        let away: Bool
+        /// True once ClamDown asked for the sleep itself.
+        var forced = false
+        /// True once the Mac went to sleep after the switch-off. A switch-off that no sleep followed needs no second telling.
+        var slept = false
+
+        func text(asOf now: Date) -> String {
+            let action = forced ? "put the Mac to sleep" : "let the Mac sleep"
+            let when = Calendar.current.isDate(at, inSameDayAs: now)
+                ? "at \(at.formatted(date: .omitted, time: .shortened))"
+                : "on \(at.formatted(date: .abbreviated, time: .shortened))"
+            return "ClamDown \(action) \(when): \(why)."
+        }
     }
+
+    /// How long after a switch-off a sleep still counts as its consequence, for a user who was at the Mac.
+    static let reportWindow: TimeInterval = 30 * 60
+    /// How long to wait for the Mac to fall asleep before asking again.
+    static let sleepConfirmation: Duration = .seconds(20)
+    static let sleepRequestLimit = 3
+    /// Rounds of waiting and looking again, so a Mac that is never quiet is not watched for ever.
+    static let sleepWatchRounds = 6
+    private var sleepRequests = 0
     private let now: @Sendable () -> Date
     /// Waits for the given time. Tests replace it, so they do not wait for real.
     private let pause: @Sendable (Duration) async -> Void
@@ -97,6 +124,8 @@ public final class ClamDownController: ObservableObject {
         screenLocker: ScreenLocking? = nil,
         sensors: SensorReading? = nil,
         lid: LidReading? = nil,
+        idle: IdleReading? = nil,
+        displays: DisplayReading? = nil,
         sleeper: SystemSleeping? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         pause: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
@@ -114,6 +143,8 @@ public final class ClamDownController: ObservableObject {
         self.screenLocker = screenLocker
         self.sensors = sensors
         self.lid = lid
+        self.idle = idle
+        self.displays = displays
         self.sleeper = sleeper
         self.now = now
         self.pause = pause
@@ -193,13 +224,20 @@ public final class ClamDownController: ObservableObject {
         refreshHelperAvailability()
         let helperStillAllowed = helperAvailability == .ready
         announce(helperStillAllowed ? "Turned off: the helper stopped the mode." : Self.helperLost)
-        leaveWakeReport(forcedSleep: false,
-                        why: helperStillAllowed ? "the helper stopped the mode" : "macOS no longer allows the helper")
+        leaveWakeReport(why: helperStillAllowed ? "the helper stopped the mode" : "macOS no longer allows the helper")
     }
 
     /// Call when the Mac is about to sleep.
     public func systemWillSleep() {
-        pendingWakeReport?.slept = true
+        stopSleepWatch()
+        guard var report = pendingWakeReport, !report.slept else { return }
+        // A user who was at the Mac saw the switch-off when it happened. A sleep long after that is their own doing.
+        guard report.away || now().timeIntervalSince(report.at) <= Self.reportWindow else {
+            pendingWakeReport = nil
+            return
+        }
+        report.slept = true
+        pendingWakeReport = report
     }
 
     /// Call when the Mac or its screens wake. Tells the user why ClamDown let the Mac sleep, once, when the lid is open.
@@ -208,7 +246,10 @@ public final class ClamDownController: ObservableObject {
         // A power event can wake a Mac that is still closed in a bag. Keep the report for the person who opens it.
         if lid?.lid()?.closed == true { return }
         pendingWakeReport = nil
-        onWakeReport?(report.text)
+        let text = report.text(asOf: now())
+        // "The Mac is going to sleep." is old news to the person reading the menu now.
+        notice = text
+        onWakeReport?(text)
     }
 
     static let helperLost = "Turned off: macOS no longer allows the helper. Open Setup to allow it again."
@@ -352,6 +393,7 @@ public final class ClamDownController: ObservableObject {
         notice = nil
         // The user is back and acting, so an undelivered "why the Mac slept" is old news.
         pendingWakeReport = nil
+        stopSleepWatch()
         let preparation = await prepareHelperExclusively()
         pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
         guard show(preparation) else { return }
@@ -402,31 +444,84 @@ public final class ClamDownController: ObservableObject {
         do {
             try await helper.disable()
         } catch {
+            // Another switch-off may have finished while this one waited for the helper.
+            guard state.isOn else { return }
             // Stop the heartbeat on purpose: the helper's own watchdog then resets the Mac within about 90 seconds.
             finishOff()
             announce("Turned off: \(reason.summary). The helper did not confirm, so it will reset by itself within 90 seconds.")
-            leaveWakeReport(forcedSleep: false, why: reason.summary)
+            leaveWakeReport(why: reason.summary)
             return
         }
+        guard state.isOn else { return }
         finishOff()
-        let sleeps = shouldSleep(after: reason)
-        announce("Turned off: \(reason.summary). " + (sleeps ? "The Mac is going to sleep." : "The Mac can sleep now."))
-        leaveWakeReport(forcedSleep: sleeps, why: reason.summary)
-        if sleeps { sleeper?.sleepNow() }
+        let attendance = forcesSleep(after: reason) ? attendance() : .attended
+        announce("Turned off: \(reason.summary). "
+            + (attendance == .unattended ? "The Mac is going to sleep." : "The Mac can sleep now."))
+        leaveWakeReport(why: reason.summary)
+        startSleepWatch(attendance)
     }
 
-    /// Protection fired and nobody is at the Mac: the lid is closed and macOS itself would have it asleep.
-    /// Then waiting for macOS is a risk, because an app can keep an idle Mac awake in a bag. With the lid open,
-    /// or closed in front of an external display, someone is using the Mac and it is left alone.
-    private func shouldSleep(after reason: AutoOffReason) -> Bool {
-        guard reason.isProtective, settings.sleepAfterProtection, sleeper != nil else { return false }
-        return lid?.lid()?.isUnattended == true
+    /// Protection fired: when nobody is at the Mac it is put to sleep, because an app can keep an idle Mac awake
+    /// in a bag for as long as it likes.
+    private func forcesSleep(after reason: AutoOffReason) -> Bool {
+        reason.isProtective && settings.sleepAfterProtection && sleeper != nil
     }
 
-    private func leaveWakeReport(forcedSleep: Bool, why: String) {
-        let time = now().formatted(date: .omitted, time: .shortened)
-        let action = forcedSleep ? "put the Mac to sleep" : "let the Mac sleep"
-        pendingWakeReport = WakeReport(text: "ClamDown \(action) at \(time): \(why).", slept: forcedSleep)
+    /// Whether somebody is at the Mac. The lid alone does not say: macOS refreshes "closing the lid sleeps this Mac"
+    /// only on some events, so the keyboard and the displays have their say too.
+    private func attendance() -> Attendance {
+        Attendance(lid: lid?.lid(), idle: idle?.idleTime(), externalDisplay: displays?.hasExternalDisplay() ?? true)
+    }
+
+    /// Puts an unattended Mac to sleep, or waits for a Mac that was touched a moment ago to become quiet.
+    private func startSleepWatch(_ attendance: Attendance) {
+        stopSleepWatch()
+        sleepRequests = 0
+        let firstWait: Duration
+        switch attendance {
+        case .attended:
+            return
+        case .leaving(let untilQuiet):
+            firstWait = untilQuiet
+        case .unattended:
+            requestSleep()
+            firstWait = Self.sleepConfirmation
+        }
+        sleepWatch = Task { [weak self] in await self?.watchSleep(after: firstWait) }
+    }
+
+    private func stopSleepWatch() {
+        sleepWatch?.cancel()
+        sleepWatch = nil
+    }
+
+    private func requestSleep() {
+        sleepRequests += 1
+        pendingWakeReport?.forced = true
+        sleeper?.sleepNow()
+    }
+
+    /// One request for sleep can be refused, so this asks again while the Mac stays awake and nobody is there.
+    /// `systemWillSleep` ends it, and so does anyone coming back.
+    private func watchSleep(after firstWait: Duration) async {
+        var wait = firstWait
+        for _ in 0..<Self.sleepWatchRounds {
+            await pause(wait)
+            guard !Task.isCancelled, !state.isOn, sleepRequests < Self.sleepRequestLimit else { return }
+            switch attendance() {
+            case .attended:
+                return
+            case .leaving(let untilQuiet):
+                wait = untilQuiet
+            case .unattended:
+                requestSleep()
+                wait = Self.sleepConfirmation
+            }
+        }
+    }
+
+    private func leaveWakeReport(why: String) {
+        pendingWakeReport = WakeReport(at: now(), why: why, away: lid?.lid()?.closed == true)
     }
 
     private func announce(_ text: String) {

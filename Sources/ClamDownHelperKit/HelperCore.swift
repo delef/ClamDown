@@ -13,6 +13,7 @@ public actor HelperCore {
     private let runner: PmsetRunning
     private let store: SavedStateStoring
     private let lid: LidReading?
+    private let idle: IdleReading?
     private let watchdogTimeout: Duration
     private let hardware: FanHardware?
     /// How far a fan's target may fall per `updateFans` call, in rpm.
@@ -24,6 +25,7 @@ public actor HelperCore {
     /// The user's own `SleepDisabled` value before we turned it on. Put back on every switch-off.
     private var priorSleepDisabled: Bool?
     private var lastHeartbeat: SuspendingClock.Instant = .now
+    private var owedSleep: OwedSleep?
     /// What is on disk, so fan changes can be added to it.
     private var saved: SavedState?
 
@@ -42,6 +44,7 @@ public actor HelperCore {
         store: SavedStateStoring,
         fans: FanHardware? = nil,
         lid: LidReading? = nil,
+        idle: IdleReading? = nil,
         watchdogTimeout: Duration = .seconds(90),
         fanStepDown: Double = 150
     ) {
@@ -49,6 +52,7 @@ public actor HelperCore {
         self.store = store
         self.hardware = fans
         self.lid = lid
+        self.idle = idle
         self.watchdogTimeout = watchdogTimeout
         self.fanStepDown = fanStepDown
     }
@@ -56,6 +60,8 @@ public actor HelperCore {
     public var isEnabled: Bool { enabled }
 
     public func enable(lowPowerOnBattery: Bool, now: SuspendingClock.Instant = .now) throws {
+        // The app is back, so the sleep an earlier watchdog switch-off owed is off.
+        owedSleep = nil
         if enabled {
             lastHeartbeat = now
             try applyLowPower(lowPowerOnBattery)
@@ -121,22 +127,56 @@ public actor HelperCore {
     /// A failed reset leaves the mode enabled, so the next tick tries again.
     /// `SuspendingClock` does not advance while the Mac sleeps, so a manual sleep is not a missed heartbeat.
     public func checkWatchdog(now: SuspendingClock.Instant = .now) -> Bool {
-        guard enabled, lastHeartbeat.duration(to: now) > watchdogTimeout else { return false }
+        guard enabled else {
+            sleepIfOwed(now: now)
+            return false
+        }
+        guard lastHeartbeat.duration(to: now) > watchdogTimeout else { return false }
         do {
             try disable()
         } catch {
             return false
         }
-        sleepIfUnattended()
+        owedSleep = OwedSleep(since: now)
+        sleepIfOwed(now: now)
         return true
     }
 
-    /// The app is gone, so nothing asks for this Mac to stay awake any more. With the lid closed and macOS ready
-    /// to sleep it, it may be heating up or running flat in a bag: sleep now rather than when macOS gets to it.
-    /// A failure changes nothing, because the sleep setting is already back.
-    private func sleepIfUnattended() {
-        guard lid?.lid()?.isUnattended == true else { return }
-        _ = try? runner.run(.sleepNow)
+    /// A sleep the watchdog still owes an abandoned Mac.
+    private struct OwedSleep {
+        let since: SuspendingClock.Instant
+        var requests = 0
+        var lastRequest: SuspendingClock.Instant?
+    }
+
+    static let sleepRequestLimit = 3
+    /// One `pmset sleepnow` can be refused, so the next request follows when the Mac is still awake this much later.
+    static let sleepRequestGap: Duration = .seconds(20)
+    /// After this long the watchdog's switch-off is history, and a Mac that closes now is somebody's own business.
+    static let owedSleepLifetime: Duration = .seconds(300)
+
+    /// The app is gone, so nothing asks for this Mac to stay awake any more. Closed and quiet, it may be heating up
+    /// or running flat in a bag: sleep now rather than when macOS gets to it. The helper cannot see displays, so the
+    /// lid and the time since the last key press decide; anyone coming back cancels the sleep.
+    /// A failed request changes nothing, because the sleep setting is already back.
+    private func sleepIfOwed(now: SuspendingClock.Instant) {
+        guard var owed = owedSleep else { return }
+        guard owed.since.duration(to: now) <= Self.owedSleepLifetime else {
+            owedSleep = nil
+            return
+        }
+        switch Attendance(lid: lid?.lid(), idle: idle?.idleTime(), externalDisplay: false) {
+        case .attended:
+            owedSleep = nil
+        case .leaving:
+            break
+        case .unattended:
+            if let last = owed.lastRequest, last.duration(to: now) < Self.sleepRequestGap { return }
+            _ = try? runner.run(.sleepNow)
+            owed.requests += 1
+            owed.lastRequest = now
+            owedSleep = owed.requests < Self.sleepRequestLimit ? owed : nil
+        }
     }
 
     public func setLowPowerOnBattery(_ on: Bool) throws {

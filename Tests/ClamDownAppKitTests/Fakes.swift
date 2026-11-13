@@ -235,6 +235,45 @@ final class FakeLidReader: LidReading, @unchecked Sendable {
     func lid() -> LidState? { state }
 }
 
+final class FakeIdle: IdleReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: Duration?
+
+    /// Ten minutes by default: nobody has touched the Mac for a while.
+    init(_ time: Duration? = .seconds(600)) { current = time }
+
+    var time: Duration? {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+
+    func idleTime() -> Duration? { time }
+}
+
+final class FakeDisplays: DisplayReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = false
+
+    var external: Bool {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+
+    func hasExternalDisplay() -> Bool { external }
+}
+
+/// Stands in for waiting. Records each wait and lets a test say what happens in the world meanwhile.
+@MainActor
+final class FakePauser {
+    private(set) var waits: [Duration] = []
+    var whilePaused: ((Duration) -> Void)?
+
+    func pause(_ duration: Duration) {
+        waits.append(duration)
+        whilePaused?(duration)
+    }
+}
+
 final class FakeSleeper: SystemSleeping, @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0

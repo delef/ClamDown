@@ -51,10 +51,33 @@ final class FakeRunner: PmsetRunning, @unchecked Sendable {
     }
 }
 
-struct FakeLid: LidReading {
-    let state: LidState?
+final class FakeLid: LidReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: LidState?
+
+    init(state: LidState?) { current = state }
+
+    var state: LidState? {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
 
     func lid() -> LidState? { state }
+}
+
+final class FakeIdle: IdleReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: Duration?
+
+    /// Ten minutes by default: nobody has touched the Mac for a while.
+    init(_ time: Duration? = .seconds(600)) { current = time }
+
+    var time: Duration? {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+
+    func idleTime() -> Duration? { time }
 }
 
 final class FakeStore: SavedStateStoring, @unchecked Sendable {

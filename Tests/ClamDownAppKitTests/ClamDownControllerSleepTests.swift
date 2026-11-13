@@ -93,6 +93,111 @@ import Testing
         #expect(rig.sleeper.sleepCount == 0)
     }
 
+    // MARK: Nobody is there
+
+    /// macOS can keep saying "closing the lid sleeps this Mac" in front of an external display. The display wins.
+    @Test func noSleepWithAnExternalDisplayConnected() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.displays.external = true
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        #expect(rig.controller.state == .off)
+        #expect(rig.sleeper.sleepCount == 0)
+        #expect(rig.controller.notice == "Turned off: Mac is hot (serious). The Mac can sleep now.")
+    }
+
+    @Test func noSleepWhileSomeoneKeepsTyping() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.idle.time = .seconds(5)
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        #expect(rig.sleeper.sleepCount == 0)
+        #expect(rig.controller.notice == "Turned off: Mac is hot (serious). The Mac can sleep now.")
+        #expect(!rig.pauser.waits.isEmpty && rig.pauser.waits.count <= 6)
+        #expect(rig.pauser.waits.allSatisfy { $0 == .seconds(55) })
+    }
+
+    @Test func noSleepWhenIdleTimeIsUnknown() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.idle.time = nil
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        #expect(rig.sleeper.sleepCount == 0)
+    }
+
+    /// The lid was closed seconds before the heat trigger: wait out the minute, then sleep.
+    @Test func sleepsOnceTheMacHasBeenQuietForAMinute() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.idle.time = .seconds(5)
+        rig.pauser.whilePaused = { [idle = rig.idle, controller = rig.controller] wait in
+            if wait == .seconds(55) { idle.time = .seconds(60) } else { controller.systemWillSleep() }
+        }
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        #expect(rig.sleeper.sleepCount == 0)
+        await rig.controller.sleepWatch?.value
+        #expect(rig.pauser.waits == [.seconds(55), .seconds(20)])
+        #expect(rig.sleeper.sleepCount == 1)
+    }
+
+    // MARK: Sleep that is confirmed
+
+    /// One `pmset sleepnow` can be refused. ClamDown asks again, three times in all, twenty seconds apart.
+    @Test func sleepIsAskedAgainWhileTheMacStaysAwake() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        #expect(rig.sleeper.sleepCount == 1)
+        await rig.controller.sleepWatch?.value
+        #expect(rig.sleeper.sleepCount == 3)
+        #expect(rig.pauser.waits == [.seconds(20), .seconds(20), .seconds(20)])
+    }
+
+    @Test func sleepIsNotAskedAgainOnceTheMacSleeps() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.pauser.whilePaused = { [controller = rig.controller] _ in controller.systemWillSleep() }
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        #expect(rig.sleeper.sleepCount == 1)
+    }
+
+    @Test func sleepIsNotAskedAgainOnceSomeoneOpensTheLid() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.pauser.whilePaused = { [lid = rig.lidReader] _ in lid.state = Self.open }
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        #expect(rig.sleeper.sleepCount == 1)
+    }
+
+    @Test func turningOnStopsTheSleepRequests() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        let watch = rig.controller.sleepWatch
+        rig.monitor.current = .calm
+        await rig.controller.toggle()
+        await watch?.value
+        #expect(rig.controller.state == .on)
+        #expect(rig.sleeper.sleepCount == 1)
+    }
+
+    /// The timer and a battery event can both find the mode on while the first switch-off still waits for the helper.
+    @Test func overlappingSwitchOffsActOnce() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.pauser.whilePaused = { [controller = rig.controller] _ in controller.systemWillSleep() }
+        rig.monitor.current = Self.hot
+        async let first: Void = rig.controller.handleSystemChange()
+        async let second: Void = rig.controller.handleSystemChange()
+        _ = await (first, second)
+        #expect(rig.notifier.posted.count == 1)
+        #expect(rig.sleeper.sleepCount == 1)
+    }
+
     // MARK: Told on return
 
     @Test func reportArrivesOnceAtWakeWithTheLidOpen() async {
@@ -106,6 +211,17 @@ import Testing
         rig.controller.systemDidWake()
         rig.controller.systemDidWake()
         #expect(reports == ["ClamDown put the Mac to sleep at \(time(rig)): battery at 5%."])
+    }
+
+    /// "The Mac is going to sleep." is stale once the user is back. The menu then says what happened.
+    @Test func reportReplacesTheSwitchOffLineInTheMenu() async {
+        let rig = await onRig(lid: Self.unattended)
+        rig.monitor.current = Self.lowBattery
+        await rig.controller.handleSystemChange()
+        rig.controller.systemWillSleep()
+        rig.lidReader.state = Self.open
+        rig.controller.systemDidWake()
+        #expect(rig.controller.notice == "ClamDown put the Mac to sleep at \(time(rig)): battery at 5%.")
     }
 
     @Test func allowedSleepIsWordedAsLet() async {
@@ -128,11 +244,79 @@ import Testing
         rig.controller.onWakeReport = { reports.append($0) }
         rig.monitor.current = Self.hot
         await rig.controller.handleSystemChange()
+        rig.controller.systemWillSleep()
         rig.controller.systemDidWake()
         #expect(reports.isEmpty)
         rig.lidReader.state = Self.open
         rig.controller.systemDidWake()
         #expect(reports.count == 1)
+    }
+
+    /// The Mac was asked to sleep and did not. Saying on return that it slept would be a guess.
+    @Test func sleepThatNeverCameIsNotReported() async {
+        let rig = await onRig(lid: Self.unattended)
+        var reports: [String] = []
+        rig.controller.onWakeReport = { reports.append($0) }
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        rig.lidReader.state = Self.open
+        rig.controller.systemDidWake()
+        #expect(reports.isEmpty)
+    }
+
+    /// The user saw the switch-off, worked on and closed the lid in the evening. That sleep is their own.
+    @Test func switchOffTheUserSatThroughIsNotReportedAfterAMuchLaterSleep() async {
+        let rig = await onRig(lid: Self.open)
+        var reports: [String] = []
+        rig.controller.onWakeReport = { reports.append($0) }
+        rig.monitor.current = Self.lowBattery
+        await rig.controller.handleSystemChange()
+        rig.clock.advance(by: 31 * 60)
+        rig.controller.systemWillSleep()
+        rig.controller.systemDidWake()
+        #expect(reports.isEmpty)
+    }
+
+    @Test func sleepWithinHalfAnHourOfTheSwitchOffIsReported() async {
+        let rig = await onRig(lid: Self.open)
+        var reports: [String] = []
+        rig.controller.onWakeReport = { reports.append($0) }
+        rig.monitor.current = Self.lowBattery
+        await rig.controller.handleSystemChange()
+        rig.clock.advance(by: 29 * 60)
+        rig.controller.systemWillSleep()
+        rig.controller.systemDidWake()
+        #expect(reports.count == 1)
+    }
+
+    /// Nobody was there to see the switch-off, so they are told however late the Mac fell asleep.
+    @Test func switchOffWithTheLidClosedIsReportedEvenAfterALateSleep() async {
+        let rig = await onRig(lid: Self.unattended)
+        var reports: [String] = []
+        rig.controller.onWakeReport = { reports.append($0) }
+        rig.pauser.whilePaused = { [clock = rig.clock] _ in clock.advance(by: 3600) }
+        rig.monitor.current = Self.hot
+        await rig.controller.handleSystemChange()
+        await rig.controller.sleepWatch?.value
+        rig.controller.systemWillSleep()
+        rig.lidReader.state = Self.open
+        rig.controller.systemDidWake()
+        #expect(reports.count == 1)
+    }
+
+    @Test func reportFromAnotherDayNamesTheDay() async {
+        let rig = await onRig(lid: Self.unattended)
+        var reports: [String] = []
+        rig.controller.onWakeReport = { reports.append($0) }
+        rig.monitor.current = Self.lowBattery
+        await rig.controller.handleSystemChange()
+        let switchedOff = rig.clock.now.formatted(date: .abbreviated, time: .shortened)
+        rig.controller.systemWillSleep()
+        rig.clock.advance(by: 26 * 3600)
+        rig.lidReader.state = Self.open
+        rig.controller.systemDidWake()
+        #expect(reports == ["ClamDown put the Mac to sleep on \(switchedOff): battery at 5%."])
     }
 
     /// The user was at the Mac the whole time and saw the notification when it happened.
