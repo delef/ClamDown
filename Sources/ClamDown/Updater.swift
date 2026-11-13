@@ -13,10 +13,15 @@ final class Updater: NSObject, ObservableObject {
     @Published private(set) var canCheckForUpdates = false {
         didSet { refreshStatus() }
     }
-    /// The version a scheduled check found, until the user deals with it.
-    @Published private(set) var availableVersion: String? {
-        didSet { refreshStatus() }
+    /// What Sparkle has found: the version About shows and the reminder the menu shows.
+    private var finding = UpdateFinding() {
+        didSet {
+            if availableVersion != finding.reminderVersion { availableVersion = finding.reminderVersion }
+            refreshStatus()
+        }
     }
+    /// The version a scheduled check found quietly, for the menu's "Update to X…", until the user deals with it.
+    @Published private(set) var availableVersion: String?
     /// What the About page says about updates. Sparkle's state, mapped: a version waiting, a check running, or none.
     @Published private(set) var status: UpdateStatus = .upToDate(lastCheck: nil)
     @Published var checksAutomatically = false {
@@ -32,7 +37,7 @@ final class Updater: NSObject, ObservableObject {
     /// - Parameter starts: false leaves Sparkle idle, for a debug preview that must not check for anything.
     init(starts: Bool = true) {
         super.init()
-        controller = SPUStandardUpdaterController(startingUpdater: starts, updaterDelegate: nil, userDriverDelegate: self)
+        controller = SPUStandardUpdaterController(startingUpdater: starts, updaterDelegate: self, userDriverDelegate: self)
         let updater = controller.updater
         checksAutomatically = updater.automaticallyChecksForUpdates
         updater.publisher(for: \.canCheckForUpdates)
@@ -65,7 +70,7 @@ final class Updater: NSObject, ObservableObject {
             return
         }
         #endif
-        if let version = availableVersion {
+        if let version = finding.foundVersion {
             status = .available(version)
         } else if !canCheckForUpdates {
             status = .checking
@@ -95,16 +100,27 @@ extension Updater: SPUStandardUserDriverDelegate {
     nonisolated func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState
     ) {
-        let version = update.displayVersionString
-        let remind = !handleShowingUpdate && !state.userInitiated
-        Task { @MainActor in self.availableVersion = remind ? version : nil }
+        let event = UpdateFinding.Event.found(update.displayVersionString, userInitiated: state.userInitiated,
+                                              shownBySparkle: handleShowingUpdate)
+        Task { @MainActor in self.finding.handle(event) }
     }
 
     nonisolated func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
-        Task { @MainActor in self.availableVersion = nil }
+        Task { @MainActor in self.finding.handle(.userAttention) }
     }
 
     nonisolated func standardUserDriverWillFinishUpdateSession() {
-        Task { @MainActor in self.availableVersion = nil }
+        Task { @MainActor in self.finding.handle(.sessionFinished) }
+    }
+}
+
+/// Sparkle calls these on the main thread. They tell About when a found version is no longer waiting.
+extension Updater: SPUUpdaterDelegate {
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        finding.handle(.noUpdateFound)
+    }
+
+    func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
+        finding.handle(.installing)
     }
 }
