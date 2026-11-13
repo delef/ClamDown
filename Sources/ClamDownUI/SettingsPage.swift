@@ -9,7 +9,7 @@ public enum CDTone: Sendable {
         case .secondary: AnyShapeStyle(.secondary)
         case .success: AnyShapeStyle(CDColor.successText)
         case .warning: AnyShapeStyle(CDColor.warningText)
-        case .danger: AnyShapeStyle(CDColor.danger)
+        case .danger: AnyShapeStyle(CDColor.dangerText)
         }
     }
 }

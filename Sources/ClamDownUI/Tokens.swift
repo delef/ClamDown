@@ -28,6 +28,13 @@ public enum CDColor {
             ? NSColor.systemGreen : NSColor(srgbRed: 0x15 / 255, green: 0x80 / 255, blue: 0x3D / 255, alpha: 1)
     })
 
+    /// Danger as text: a dark red (#B91C1C) in light appearance, where system red is about 3.5:1 on the setup gradient;
+    /// the system red in dark. Symbols, dots and the destructive button keep `danger`.
+    public static let dangerText = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor.systemRed : NSColor(srgbRed: 0xB9 / 255, green: 0x1C / 255, blue: 0x1C / 255, alpha: 1)
+    })
+
     /// The fill of a settings card: white in light appearance; in dark, the system's window colour with a little
     /// white on top, so a card is lighter than the window it sits on (the window colour follows the system).
     public static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
