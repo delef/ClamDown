@@ -179,7 +179,7 @@ private struct MenuBarIconSheet: View {
     }
 }
 
-private struct PreviewHelper: HelperControlling {
+struct PreviewHelper: HelperControlling {
     private static let unavailable = HelperClientError.connection("Preview: there is no helper.")
     func enable(lowPowerOnBattery: Bool) async throws { throw Self.unavailable }
     func disable() async throws { throw Self.unavailable }
@@ -190,7 +190,7 @@ private struct PreviewHelper: HelperControlling {
     func coolingStatus() async throws -> CoolingStatus { throw Self.unavailable }
 }
 
-private struct PreviewRegistrar: HelperRegistering {
+struct PreviewRegistrar: HelperRegistering {
     let state: HelperAvailability
     let registerError: NSError?
 
@@ -200,28 +200,28 @@ private struct PreviewRegistrar: HelperRegistering {
     func openApprovalSettings() {}
 }
 
-private struct PreviewNotifications: NotificationAuthorizing {
+struct PreviewNotifications: NotificationAuthorizing {
     let state: NotificationPermission
 
     func permission() async -> NotificationPermission { state }
     func requestPermission() async -> NotificationPermission { state }
 }
 
-private struct PreviewNotifier: Notifying {
+struct PreviewNotifier: Notifying {
     func post(title: String, body: String) {}
 }
 
-private final class PreviewSettingsStore: SettingsStoring {
+final class PreviewSettingsStore: SettingsStoring {
     private var settings = ClamDownAppKit.Settings()
     func load() -> ClamDownAppKit.Settings { settings }
     func save(_ settings: ClamDownAppKit.Settings) throws { self.settings = settings }
 }
 
-private final class PreviewSetupStore: SetupStoring {
+final class PreviewSetupStore: SetupStoring {
     var completed = false
 }
 
-private final class PreviewInstalledHelper: InstalledHelperStoring {
+final class PreviewInstalledHelper: InstalledHelperStoring {
     var fingerprint: String?
 }
 #endif
