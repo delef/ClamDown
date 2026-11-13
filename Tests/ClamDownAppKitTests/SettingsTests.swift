@@ -112,11 +112,12 @@ import ClamDownShared
 }
 
 @Suite struct FanSettingsTests {
+    private let standardLine = [FanPoint(temperature: 50, speed: 0), FanPoint(temperature: 75, speed: 100)]
+
     @Test func defaultsDriveTheFansOnlyWithTheLidClosed() {
         let s = Settings()
-        #expect(s.fanMode == .curve && s.fansOnlyWhenLidClosed)
-        #expect(s.fanPolicy == FanPolicy(points: [.init(temperature: 50, speed: 0), .init(temperature: 75, speed: 100)],
-                                         onlyWhenLidClosed: true))
+        #expect(s.fanControlEnabled && s.fanCurveMode == .standard && s.fanAdvancedPoints == nil && s.fansOnlyWhenLidClosed)
+        #expect(s.fanPolicy == FanPolicy(points: standardLine, onlyWhenLidClosed: true))
     }
 
     /// A Mac in a bag has little airflow, so the fans start before the CPU is hot.
@@ -142,18 +143,104 @@ import ClamDownShared
         #expect(clamped.fanStartTemperature == 70 && clamped.fanFullSpeedTemperature == 75)
     }
 
+    @Test func clampingRepairsTheAdvancedPoints() {
+        var s = Settings()
+        s.fanAdvancedPoints = [.init(temperature: 30, speed: 50), .init(temperature: 60, speed: 20)]
+        #expect(s.clamped().fanAdvancedPoints == [.init(temperature: 40, speed: 50), .init(temperature: 60, speed: 50)])
+    }
+
     @Test func settingsFromBeforeFanControlGetTheDefaults() throws {
         let old = Data(#"{"batteryCutoffPercent":20,"thermalCutoff":"fair"}"#.utf8)
         let s = try JSONDecoder().decode(Settings.self, from: old)
-        #expect(s.batteryCutoffPercent == 20 && s.fanMode == .curve && s.fanFullSpeedTemperature == 75)
+        #expect(s.batteryCutoffPercent == 20 && s.fanControlEnabled && s.fanCurveMode == .standard && s.fanFullSpeedTemperature == 75)
     }
 
     @Test func fanSettingsRoundTrip() throws {
         var s = Settings()
-        s.fanMode = .fullSpeed
+        s.fanControlEnabled = false
+        s.fanCurveMode = .advanced
+        s.fanAdvancedPoints = FanCurveEditor.defaultAdvanced
         s.fansOnlyWhenLidClosed = false
         let decoded = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
         #expect(decoded == s)
+    }
+
+    @Test func policyFollowsSettings() {
+        var s = Settings()
+        s.fanControlEnabled = false
+        #expect(s.fanPolicy.points == [])
+        s.fanControlEnabled = true
+        #expect(s.fanPolicy.points == standardLine)
+        s.fanCurveMode = .advanced
+        #expect(s.fanPolicy.points == FanCurveEditor.defaultAdvanced)
+        let own = [FanPoint(temperature: 45, speed: 10), FanPoint(temperature: 55, speed: 20), FanPoint(temperature: 65, speed: 30),
+                   FanPoint(temperature: 75, speed: 40), FanPoint(temperature: 85, speed: 80)]
+        s.fanAdvancedPoints = own
+        #expect(s.fanPolicy == FanPolicy(points: own, onlyWhenLidClosed: true))
+        s.fanCurveMode = .standard
+        #expect(s.fanPolicy.points == standardLine)
+    }
+}
+
+/// Builds up to 0.1.2 stored one `fanMode`; the switch and the two curves replace it.
+@Suite struct FanModeMigrationTests {
+    private func decode(_ json: String) throws -> Settings {
+        try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
+    }
+
+    @Test func oldCurveBecomesStandard() throws {
+        let s = try decode(#"{"fanMode":"curve","fanStartTemperature":55,"fanFullSpeedTemperature":80}"#)
+        #expect(s.fanControlEnabled && s.fanCurveMode == .standard)
+        #expect(s.fanStartTemperature == 55 && s.fanFullSpeedTemperature == 80)
+        #expect(s.fanAdvancedPoints == nil)
+    }
+
+    @Test func oldSystemTurnsFanControlOff() throws {
+        let s = try decode(#"{"fanMode":"system"}"#)
+        #expect(!s.fanControlEnabled)
+        #expect(s.fanPolicy.isOff)
+    }
+
+    @Test func oldFullSpeedBecomesAdvancedAtFull() throws {
+        let s = try decode(#"{"fanMode":"fullSpeed"}"#)
+        #expect(s.fanControlEnabled && s.fanCurveMode == .advanced)
+        #expect(s.fanAdvancedPoints == [40, 50, 60, 70, 80].map { FanPoint(temperature: $0, speed: 100) })
+    }
+
+    @Test func fileWithoutFanKeysGetsDefaults() throws {
+        let s = try decode("{}")
+        #expect(s.fanControlEnabled && s.fanCurveMode == .standard)
+        #expect(s.fanStartTemperature == 50 && s.fanFullSpeedTemperature == 75)
+    }
+
+    @Test func newerKeysWinOverOldFanMode() throws {
+        #expect(try decode(#"{"fanMode":"system","fanControlEnabled":true}"#).fanControlEnabled)
+        let s = try decode(#"{"fanMode":"fullSpeed","fanControlEnabled":true,"fanCurveMode":"standard"}"#)
+        #expect(s.fanCurveMode == .standard && s.fanAdvancedPoints == nil)
+    }
+
+    @Test func laterChangeIsKept() throws {
+        var s = try decode(#"{"fanMode":"curve"}"#)
+        s.fanCurveMode = .advanced
+        let again = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
+        #expect(again.fanCurveMode == .advanced)
+        #expect(!String(decoding: try JSONEncoder().encode(s), as: UTF8.self).contains("fanMode"))
+    }
+
+    @Test func standardOutsideNewRangesMoves() throws {
+        let s = try decode(#"{"fanMode":"curve","fanStartTemperature":85,"fanFullSpeedTemperature":100}"#).clamped()
+        #expect(s.fanStartTemperature == 70 && s.fanFullSpeedTemperature == 95)
+    }
+
+    @Test func storeMigratesAnOldFileTogetherWithTheOldDefaults() throws {
+        let suite = "clamdown.tests.settings.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let old = #"{"fanMode":"curve","fanStartTemperature":60,"fanFullSpeedTemperature":85,"batteryCutoffPercent":20}"#
+        defaults.set(Data(old.utf8), forKey: "settings.v1")
+        let loaded = UserDefaultsSettingsStore(defaults: defaults).load()
+        #expect(loaded.fanControlEnabled && loaded.fanCurveMode == .standard && loaded.batteryCutoffPercent == 20)
+        #expect(loaded.fanStartTemperature == 50 && loaded.fanFullSpeedTemperature == 75)
     }
 }
 

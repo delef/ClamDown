@@ -300,12 +300,8 @@ private struct StartupStep: View {
         if settings.thermalCutoff != .never {
             items.append(("thermometer.high", "Switches off when the Mac gets hot"))
         }
-        if hasFans {
-            switch settings.fanMode {
-            case .curve: items.append(("fan", "Drives the fans from CPU temperature"))
-            case .fullSpeed: items.append(("fan", "Runs the fans at full speed"))
-            case .system: break
-            }
+        if hasFans, settings.fanControlEnabled {
+            items.append(("fan", "Drives the fans from CPU temperature"))
         }
         return items
     }

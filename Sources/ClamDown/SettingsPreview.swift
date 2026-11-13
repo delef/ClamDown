@@ -34,8 +34,9 @@ enum SettingsPreview {
 
     private static func makeController() -> ClamDownController {
         var settings = AppSettings()
-        // The curve mode shows both temperature sliders.
-        settings.fanMode = .curve
+        // Fan control on with the Standard curve shows both temperature sliders.
+        settings.fanControlEnabled = true
+        settings.fanCurveMode = .standard
         let store = PreviewSettingsStore()
         try? store.save(settings)
         return ClamDownController(

@@ -180,16 +180,11 @@ struct CoolingPage: View {
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
             CDSection("Fans") {
-                CDRow("Fan Control",
-                      detail: "Applies only while ClamDown is on. ClamDown hands the fans back to macOS when it "
-                          + "switches off, quits or crashes.") {
-                    Picker("Fan Control", selection: controller.binding(\.fanMode)) {
-                        ForEach(FanMode.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(width: 170, alignment: .trailing)
-                }
-                if controller.settings.fanMode == .curve {
+                CDSwitchRow("Fan Control",
+                            detail: "Applies only while ClamDown is on. ClamDown hands the fans back to macOS when it "
+                                + "switches off, quits or crashes.",
+                            isOn: controller.binding(\.fanControlEnabled))
+                if controller.settings.fanControlEnabled, controller.settings.fanCurveMode == .standard {
                     SettingSlider("Speed up from", value: controller.binding(\.fanStartTemperature),
                                   range: StandardCurve.startRange, unit: " \u{00B0}C")
                     SettingSlider("Full speed at", value: controller.binding(\.fanFullSpeedTemperature),
@@ -230,14 +225,6 @@ struct CoolingPage: View {
 
     private static let fullSpeedRange =
         (StandardCurve.startRange.lowerBound + StandardCurve.minimumSpan)...StandardCurve.fullSpeedMaximum
-
-    private static func label(for mode: FanMode) -> String {
-        switch mode {
-        case .system: "macOS (no change)"
-        case .curve: "Temperature Curve"
-        case .fullSpeed: "Full Speed"
-        }
-    }
 }
 
 // MARK: - Appearance

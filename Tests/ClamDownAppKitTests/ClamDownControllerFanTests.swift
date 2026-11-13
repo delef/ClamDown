@@ -23,10 +23,19 @@ import Testing
         let rig = Rig()
         await rig.controller.toggle()
         var settings = rig.controller.settings
-        settings.fanMode = .fullSpeed
+        settings = FanCurveEditor.chooseAdvanced(settings)
         await rig.controller.updateSettings(settings)
         #expect(rig.helper.fanPolicyCalls == [Settings().fanPolicy, settings.fanPolicy])
-        #expect(rig.helper.fanPolicyCalls.last?.points.allSatisfy { $0.speed == 100 } == true)
+        #expect(rig.helper.fanPolicyCalls.last?.points == FanCurveEditor.defaultAdvanced)
+    }
+
+    @Test func switchingFanControlOffSendsNoPoints() async {
+        let rig = Rig()
+        await rig.controller.toggle()
+        var settings = rig.controller.settings
+        settings.fanControlEnabled = false
+        await rig.controller.updateSettings(settings)
+        #expect(rig.helper.fanPolicyCalls.last?.isOff == true)
     }
 
     @Test func otherSettingsDoNotResendThePolicy() async {

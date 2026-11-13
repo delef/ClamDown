@@ -71,10 +71,12 @@ public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     }
 }
 
-/// How ClamDown drives the fans while the mode is on. Temporary: replaced by the fan control switch
-/// and the Standard and Advanced curves.
-public enum FanMode: String, Codable, CaseIterable, Sendable {
-    case system, curve, fullSpeed
+/// Which fan curve the Cooling page shows and the fans follow.
+public enum FanCurveMode: String, Codable, CaseIterable, Sendable {
+    /// Two points: "speeds up from" at 0 % and "full speed at" at 100 %.
+    case standard
+    /// Five points the user places.
+    case advanced
 }
 
 public struct Settings: Codable, Equatable, Sendable {
@@ -94,10 +96,14 @@ public struct Settings: Codable, Equatable, Sendable {
     public var sleepAfterProtection = true
 
     // Cooling
-    public var fanMode: FanMode = .curve
-    // The curve starts early on purpose: a closed Mac in a bag has little airflow, and running long matters more than quiet.
-    public var fanStartTemperature = 50
-    public var fanFullSpeedTemperature = 75
+    /// Off leaves the fans to macOS.
+    public var fanControlEnabled = true
+    public var fanCurveMode: FanCurveMode = .standard
+    /// The Standard curve's two temperatures.
+    public var fanStartTemperature = StandardCurve.defaultStart
+    public var fanFullSpeedTemperature = StandardCurve.defaultFull
+    /// The Advanced curve's five points. Nil until Advanced is first chosen.
+    public var fanAdvancedPoints: [FanPoint]?
     public var fansOnlyWhenLidClosed = true
 
     // General
@@ -110,12 +116,16 @@ public struct Settings: Codable, Equatable, Sendable {
 
     public init() {}
 
-    /// What the helper gets for the fans.
+    /// What the helper gets for the fans. No points means fan control is off.
     public var fanPolicy: FanPolicy {
-        let points: [FanPoint] = switch fanMode {
-        case .system: []
-        case .curve: StandardCurve.points(start: fanStartTemperature, full: fanFullSpeedTemperature)
-        case .fullSpeed: [FanPoint(temperature: 40, speed: 100)]
+        let points: [FanPoint]
+        if !fanControlEnabled {
+            points = []
+        } else {
+            switch fanCurveMode {
+            case .standard: points = StandardCurve.points(start: fanStartTemperature, full: fanFullSpeedTemperature)
+            case .advanced: points = fanAdvancedPoints ?? FanCurveEditor.defaultAdvanced
+            }
         }
         return FanPolicy(points: points, onlyWhenLidClosed: fansOnlyWhenLidClosed)
     }
@@ -125,6 +135,7 @@ public struct Settings: Codable, Equatable, Sendable {
         copy.batteryCutoffPercent = min(max(batteryCutoffPercent, Self.batteryCutoffRange.lowerBound), Self.batteryCutoffRange.upperBound)
         (copy.fanStartTemperature, copy.fanFullSpeedTemperature) =
             StandardCurve.clamped(start: fanStartTemperature, full: fanFullSpeedTemperature)
+        copy.fanAdvancedPoints = fanAdvancedPoints.map { FanPolicy(points: $0).repaired().points }
         return copy
     }
 
@@ -133,8 +144,15 @@ public struct Settings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case autoOffTimer, lockScreenWhenLidClosed, turnOffWhenUnplugged, autoLowPowerOnBattery
         case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff, sleepAfterProtection
-        case fanMode, fanStartTemperature, fanFullSpeedTemperature, fansOnlyWhenLidClosed
+        case fanControlEnabled, fanCurveMode, fanStartTemperature, fanFullSpeedTemperature, fanAdvancedPoints
+        case fansOnlyWhenLidClosed
         case launchAtLogin, showDockIcon, notificationsEnabled, menuBarIcon
+    }
+
+    /// Keys only older builds wrote. Read once at the update, never written.
+    private enum LegacyKeys: String, CodingKey {
+        /// Up to 0.1.2: "system", "curve" or "fullSpeed".
+        case fanMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -148,7 +166,13 @@ public struct Settings: Codable, Equatable, Sendable {
         batteryCutoffPercent = (try? c.decodeIfPresent(Int.self, forKey: .batteryCutoffPercent)) ?? batteryCutoffPercent
         thermalCutoff = (try? c.decodeIfPresent(ThermalCutoff.self, forKey: .thermalCutoff)) ?? thermalCutoff
         sleepAfterProtection = (try? c.decodeIfPresent(Bool.self, forKey: .sleepAfterProtection)) ?? sleepAfterProtection
-        fanMode = (try? c.decodeIfPresent(FanMode.self, forKey: .fanMode)) ?? fanMode
+        if c.contains(.fanControlEnabled) {
+            fanControlEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .fanControlEnabled)) ?? fanControlEnabled
+        } else {
+            migrateFanMode(from: decoder)
+        }
+        fanCurveMode = (try? c.decodeIfPresent(FanCurveMode.self, forKey: .fanCurveMode)) ?? fanCurveMode
+        fanAdvancedPoints = (try? c.decodeIfPresent([FanPoint].self, forKey: .fanAdvancedPoints)) ?? fanAdvancedPoints
         fanStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanStartTemperature)) ?? fanStartTemperature
         fanFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanFullSpeedTemperature)) ?? fanFullSpeedTemperature
         fansOnlyWhenLidClosed = (try? c.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) ?? fansOnlyWhenLidClosed
@@ -156,5 +180,24 @@ public struct Settings: Codable, Equatable, Sendable {
         showDockIcon = (try? c.decodeIfPresent(Bool.self, forKey: .showDockIcon)) ?? showDockIcon
         notificationsEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled)) ?? notificationsEnabled
         menuBarIcon = (try? c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIcon)) ?? menuBarIcon
+    }
+
+    /// Turns an older build's fan mode into the switch and the two curves, so nothing changes for the user.
+    private mutating func migrateFanMode(from decoder: Decoder) {
+        guard let legacy = try? decoder.container(keyedBy: LegacyKeys.self),
+              let mode = try? legacy.decodeIfPresent(String.self, forKey: .fanMode) else { return }
+        switch mode {
+        case "system":
+            fanControlEnabled = false
+        case "curve":
+            fanControlEnabled = true
+            fanCurveMode = .standard
+        case "fullSpeed":
+            fanControlEnabled = true
+            fanCurveMode = .advanced
+            fanAdvancedPoints = [40, 50, 60, 70, 80].map { FanPoint(temperature: $0, speed: 100) }
+        default:
+            break
+        }
     }
 }
