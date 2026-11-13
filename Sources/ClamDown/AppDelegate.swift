@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// states: nothing real runs next to them, neither the menu bar switch nor the updater.
     static var isDebugPreview: Bool {
         #if DEBUG
-        SetupPreview.isRequested || HelperProbe.isRequested
+        SetupPreview.isRequested || UIGallery.isRequested || HelperProbe.isRequested
         #else
         false
         #endif
@@ -99,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         if SetupPreview.run(setupWindow: setupWindow) { return }
+        if UIGallery.run() { return }
         #endif
 
         // The published values change after this notice, so read them on the next turn of the run loop.

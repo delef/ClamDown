@@ -39,4 +39,6 @@ public enum CDMetric {
     public static let tileRadius: CGFloat = 12
     public static let pageSpacing: CGFloat = 22
     public static let rowSpacing: CGFloat = 10
+    /// The size of a switch in a settings row. macOS 14 and later draw the large switch; macOS 13 stays regular.
+    public static let switchControlSize: ControlSize = .large
 }

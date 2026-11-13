@@ -28,13 +28,13 @@ private struct CDButtonStyleModifier: ViewModifier {
             switch role {
             case .primary: content.buttonStyle(.glassProminent)
             case .secondary: content.buttonStyle(.glass)
-            case .destructive: content.buttonStyle(.glass).foregroundStyle(CDColor.danger)
+            case .destructive: content.buttonStyle(.glass).foregroundStyle(CDColor.danger).tint(CDColor.danger)
             }
         } else {
             switch role {
             case .primary: content.buttonStyle(.borderedProminent)
             case .secondary: content.buttonStyle(.bordered)
-            case .destructive: content.buttonStyle(.bordered).foregroundStyle(CDColor.danger)
+            case .destructive: content.buttonStyle(.bordered).foregroundStyle(CDColor.danger).tint(CDColor.danger)
             }
         }
     }

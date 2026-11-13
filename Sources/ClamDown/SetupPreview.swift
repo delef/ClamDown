@@ -152,7 +152,7 @@ enum SetupPreview {
 }
 
 /// Draws its controls as the frontmost window would, so buttons show their accent color in the pictures.
-private final class ActiveLookingWindow: NSWindow {
+final class ActiveLookingWindow: NSWindow {
     override var isKeyWindow: Bool { true }
     override var isMainWindow: Bool { true }
     override var canBecomeKey: Bool { true }

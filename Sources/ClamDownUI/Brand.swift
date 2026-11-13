@@ -50,11 +50,11 @@ public struct CDAppIcon: View {
             .shadow(color: CDColor.brandNavy.opacity(0.3), radius: size * 0.14, y: size * 0.08)
             .background {
                 if glow {
-                    Ellipse()
+                    // Fades to clear well inside its frame, so there is no visible edge.
+                    Rectangle()
                         .fill(RadialGradient(colors: [CDColor.brandMintGlow.opacity(0.4), .clear],
-                                             center: .center, startRadius: 0, endRadius: size * 1.3))
-                        .frame(width: size * 2.6, height: size * 1.7)
-                        .blur(radius: 10)
+                                             center: .center, startRadius: 0, endRadius: size * 1.2))
+                        .frame(width: size * 2.4, height: size * 2.4)
                         .allowsHitTesting(false)
                 }
             }

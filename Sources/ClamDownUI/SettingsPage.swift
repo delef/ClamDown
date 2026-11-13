@@ -56,12 +56,16 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
 
     public var body: some View {
         let form = Form {
+            // The header sits where a section header does, so it has no card behind it.
             Section {
+                EmptyView()
+            } header: {
                 header
-                    .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                    .textCase(nil)
+                    .foregroundStyle(.primary)
+                    .padding(.bottom, 20)
             }
+            .headerProminence(.increased)
             content
         }
         .formStyle(.grouped)
@@ -78,8 +82,8 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
     @available(macOS 26, *)
     private var aura: some View {
         let color = colorScheme == .dark ? CDColor.brandMintGlow.opacity(0.10) : CDColor.brandTeal.opacity(0.16)
-        return RadialGradient(colors: [color, .clear], center: .top, startRadius: 0, endRadius: 360)
-            .frame(height: 260)
+        return RadialGradient(colors: [color, .clear], center: .top, startRadius: 0, endRadius: 300)
+            .frame(height: 300)
             .backgroundExtensionEffect()
             .allowsHitTesting(false)
     }
@@ -104,7 +108,9 @@ public struct CDSection<Content: View>: View {
 
     public var body: some View {
         if let title {
-            Section(title) { content }
+            // The title is styled here: after the page header's empty section the system styles the first
+            // title smaller and lighter than the rest.
+            Section { content } header: { Text(title).font(.headline).foregroundStyle(.primary) }
         } else {
             Section { content }
         }
@@ -158,6 +164,7 @@ public struct CDSwitchRow: View {
             Toggle(title, isOn: isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
+                .controlSize(CDMetric.switchControlSize)
         }
     }
 }
