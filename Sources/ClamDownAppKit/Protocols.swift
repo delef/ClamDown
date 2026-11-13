@@ -45,7 +45,8 @@ public protocol HelperRegistering: Sendable {
     func availability() -> HelperAvailability
     func register() throws
     /// Stops the helper and removes its registration. Also needed before registering a new build.
-    func unregister() throws
+    /// Returns once the system has removed the helper: macOS refuses to register it again before that.
+    func unregister() async throws
     func openApprovalSettings()
 }
 

@@ -187,7 +187,7 @@ public final class ClamDownController: ObservableObject {
         }
         notice = nil
         do {
-            try reregisterHelper()
+            try await reregisterHelper()
         } catch {
             state = .failed("Could not reinstall the helper: \(Self.describe(error))")
             return
@@ -215,7 +215,7 @@ public final class ClamDownController: ObservableObject {
             guard !state.isOn else { return }
         }
         do {
-            try registrar.unregister()
+            try await registrar.unregister()
         } catch {
             state = .failed("Could not remove the helper: \(Self.describe(error))")
             return
@@ -350,7 +350,7 @@ public final class ClamDownController: ObservableObject {
             recordInstalledBuild(after: availability)
         }
         guard reportReadiness(availability) else { return false }
-        return syncHelperIfNeeded()
+        return await syncHelperIfNeeded()
     }
 
     /// Sets `state` for every availability except ready. Returns true only when the helper is ready.
@@ -373,10 +373,10 @@ public final class ClamDownController: ObservableObject {
 
     /// Reinstalls the helper when the registered one comes from another build, so launchd runs this build's binary.
     /// Returns false, with `state` set, when that fails or the helper needs approval again.
-    private func syncHelperIfNeeded() -> Bool {
+    private func syncHelperIfNeeded() async -> Bool {
         guard let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint else { return true }
         do {
-            try reregisterHelper()
+            try await reregisterHelper()
         } catch {
             state = .failed("Could not update the helper: \(Self.describe(error))")
             return false
@@ -394,9 +394,10 @@ public final class ClamDownController: ObservableObject {
     }
 
     /// Unregisters and registers the helper again. Approval still pending after registering is not an error.
-    private func reregisterHelper() throws {
+    /// Registering waits for the removal to finish: macOS refuses to start a helper it is still removing.
+    private func reregisterHelper() async throws {
         do {
-            try registrar.unregister()
+            try await registrar.unregister()
             try registrar.register()
         } catch {
             if registrar.availability() == .requiresApproval { return }

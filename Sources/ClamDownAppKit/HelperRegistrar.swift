@@ -44,8 +44,9 @@ public struct SMAppServiceRegistrar: HelperRegistering {
         try SMAppService.daemon(plistName: plistName).register()
     }
 
-    public func unregister() throws {
-        try SMAppService.daemon(plistName: plistName).unregister()
+    /// Uses the completion-handler variant: the plain `unregister()` returns while the helper is still being removed.
+    public func unregister() async throws {
+        try await SMAppService.daemon(plistName: plistName).unregister()
     }
 
     public func openApprovalSettings() {

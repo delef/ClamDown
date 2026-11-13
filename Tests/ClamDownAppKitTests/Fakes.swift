@@ -88,8 +88,13 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
     private var registers = 0
     private var unregisters = 0
     private var approvals = 0
+    /// True from the start of an unregistration until the system has removed the old helper.
+    private var removing = false
     var registerError: Error?
     var unregisterError: Error?
+
+    /// What macOS answers when asked to start a helper it is still removing.
+    static let refusedWhileRemoving = HelperClientError.helper("Operation not permitted")
 
     init(_ script: [HelperAvailability] = [.ready]) { self.script = script }
 
@@ -108,14 +113,19 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
         try lock.withLock {
             registers += 1
             if let registerError { throw registerError }
+            if removing { throw Self.refusedWhileRemoving }
         }
     }
 
-    func unregister() throws {
+    /// Like macOS, the old helper is gone only when this returns; until then `register()` is refused.
+    func unregister() async throws {
         try lock.withLock {
             unregisters += 1
             if let unregisterError { throw unregisterError }
+            removing = true
         }
+        await Task.yield()
+        lock.withLock { removing = false }
     }
 
     func openApprovalSettings() { lock.withLock { approvals += 1 } }

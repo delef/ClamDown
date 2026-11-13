@@ -11,6 +11,14 @@ import Testing
         #expect(rig.controller.state == .on)
     }
 
+    /// macOS refuses to start a helper while it is still removing the old one, and then leaves none registered.
+    @Test func updateRegistersOnlyAfterTheOldHelperIsRemoved() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
+        await rig.controller.toggle()
+        #expect(rig.controller.state == .on)
+        #expect(rig.helper.enableCalls == [true])
+    }
+
     @Test func turningOnKeepsHelperWhenBuildIsUnchanged() async {
         let rig = Rig(helperFingerprint: "same", installedFingerprint: "same")
         await rig.controller.toggle()
