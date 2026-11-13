@@ -22,16 +22,23 @@ private final class OnceResumer<Value: Sendable>: @unchecked Sendable {
 }
 
 /// Talks to the root helper over XPC. The connection is created on first use,
-/// verified against `requirement`, and recreated after it is invalidated.
+/// verified against `requirement`, and replaced by a new one after it fails.
 public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
-    private let machServiceName: String
-    private let requirement: String
+    /// Makes a new connection to the helper, not yet resumed.
+    private let connect: @Sendable () -> NSXPCConnection
     private let lock = NSLock()
     private var connection: NSXPCConnection?
 
-    public init(machServiceName: String, requirement: String) {
-        self.machServiceName = machServiceName
-        self.requirement = requirement
+    public convenience init(machServiceName: String, requirement: String) {
+        self.init(connect: {
+            let connection = NSXPCConnection(machServiceName: machServiceName, options: .privileged)
+            connection.setCodeSigningRequirement(requirement)
+            return connection
+        })
+    }
+
+    init(connect: @escaping @Sendable () -> NSXPCConnection) {
+        self.connect = connect
     }
 
     public func enable(lowPowerOnBattery: Bool) async throws {
@@ -84,13 +91,31 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
         try await send(call)
     }
 
+    /// Sends a request, once more on a new connection when the first one turned out dead.
+    ///
+    /// The connection outlives the helper it was made for: an update replaces the helper, and macOS restarts one
+    /// that quit. The first request on such a connection fails without reaching anyone, so asking again is safe.
+    /// Every request also sets or reads a state, so one the old helper did receive can be sent again.
     private func send<Value: Sendable>(
+        _ call: @escaping (ClamDownHelperXPC, @escaping @Sendable (Value) -> Void) -> Void
+    ) async throws -> Value {
+        do {
+            return try await sendOnce(call)
+        } catch HelperClientError.connection {
+            return try await sendOnce(call)
+        }
+    }
+
+    private func sendOnce<Value: Sendable>(
         _ call: @escaping (ClamDownHelperXPC, @escaping @Sendable (Value) -> Void) -> Void
     ) async throws -> Value {
         try await withCheckedThrowingContinuation { continuation in
             let once = OnceResumer<Value>(continuation)
-            let object = currentConnection().remoteObjectProxyWithErrorHandler { error in
-                once.resume(throwing: HelperClientError.connection(error.localizedDescription))
+            let connection = currentConnection()
+            let object = connection.remoteObjectProxyWithErrorHandler { [weak self, weak connection] _ in
+                // A connection that failed once is not trusted again: the next request makes a new one.
+                if let connection { self?.discard(connection) }
+                once.resume(throwing: HelperClientError.connection(Self.noAnswer))
             }
             guard let proxy = object as? ClamDownHelperXPC else {
                 once.resume(throwing: HelperClientError.connection("The helper proxy has an unexpected type."))
@@ -100,18 +125,26 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
         }
     }
 
+    /// The system's own text for this is "Couldn't communicate with a helper application", which tells the user nothing.
+    static let noAnswer = "The helper did not answer."
+
     private func currentConnection() -> NSXPCConnection {
         lock.withLock {
             if let connection { return connection }
-            let new = NSXPCConnection(machServiceName: machServiceName, options: .privileged)
+            let new = connect()
             new.remoteObjectInterface = NSXPCInterface(with: ClamDownHelperXPC.self)
-            new.setCodeSigningRequirement(requirement)
             let id = ObjectIdentifier(new)
             new.invalidationHandler = { [weak self] in self?.drop(id) }
             new.resume()
             connection = new
             return new
         }
+    }
+
+    private func discard(_ dead: NSXPCConnection) {
+        drop(ObjectIdentifier(dead))
+        // Outside the lock: invalidating calls the invalidation handler, which takes it.
+        dead.invalidate()
     }
 
     private func drop(_ id: ObjectIdentifier) {
