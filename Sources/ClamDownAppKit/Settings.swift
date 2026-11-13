@@ -118,16 +118,15 @@ public struct Settings: Codable, Equatable, Sendable {
 
     /// What the helper gets for the fans. No points means fan control is off.
     public var fanPolicy: FanPolicy {
-        let points: [FanPoint]
-        if !fanControlEnabled {
-            points = []
-        } else {
-            switch fanCurveMode {
-            case .standard: points = StandardCurve.points(start: fanStartTemperature, full: fanFullSpeedTemperature)
-            case .advanced: points = Self.validAdvanced(fanAdvancedPoints) ?? FanCurveEditor.defaultAdvanced
-            }
+        FanPolicy(points: fanControlEnabled ? fanCurvePoints : [], onlyWhenLidClosed: fansOnlyWhenLidClosed)
+    }
+
+    /// The curve of the visible mode, whether fan control is on or not: what the Cooling page's chart shows.
+    public var fanCurvePoints: [FanPoint] {
+        switch fanCurveMode {
+        case .standard: StandardCurve.points(start: fanStartTemperature, full: fanFullSpeedTemperature)
+        case .advanced: Self.validAdvanced(fanAdvancedPoints) ?? FanCurveEditor.defaultAdvanced
         }
-        return FanPolicy(points: points, onlyWhenLidClosed: fansOnlyWhenLidClosed)
     }
 
     public func clamped() -> Settings {

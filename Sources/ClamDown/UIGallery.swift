@@ -1,6 +1,8 @@
 #if DEBUG
 import AppKit
 import SwiftUI
+import ClamDownAppKit
+import ClamDownShared
 import ClamDownUI
 
 /// Debug builds only: one window showing every component of the UI kit in every state, to check the look by eye.
@@ -27,6 +29,8 @@ enum UIGallery {
         default: break
         }
         if let path = UserDefaults.standard.string(forKey: "galleryShot") {
+            // No Dock icon and no activation, whatever the stored Dock setting says: nothing shows.
+            NSApp.setActivationPolicy(.accessory)
             Task {
                 await shoot(to: URL(fileURLWithPath: path))
                 exit(0)
@@ -97,6 +101,7 @@ private struct GalleryContent: View {
         ("shell", 480, AnyView(GalleryBlock("Settings shell (sidebar, brand row, pages)") { ShellGallery().frame(height: 440) })),
         ("page", 800, AnyView(GalleryBlock("Settings page") { SettingsPageGallery().frame(height: 760) })),
         ("setup", 820, AnyView(GalleryBlock("Setup (background, step icons, header, card, status lines, dots)") { SetupGallery() })),
+        ("chart", 680, AnyView(GalleryBlock("Fan curve chart (Standard and Advanced, light and dark)") { ChartGallery() })),
     ] }
 
     var body: some View {
@@ -242,6 +247,56 @@ private struct SettingsPageGallery: View {
                 CDNote("And a plain secondary note.")
             }
         }
+    }
+}
+
+/// The Cooling page's chart in both modes and both appearances. The points can be dragged here too.
+private struct ChartGallery: View {
+    var body: some View {
+        Grid(horizontalSpacing: 16, verticalSpacing: 16) {
+            GridRow {
+                ChartSample(mode: .standard, scheme: .light)
+                ChartSample(mode: .standard, scheme: .dark)
+            }
+            GridRow {
+                ChartSample(mode: .advanced, scheme: .light)
+                ChartSample(mode: .advanced, scheme: .dark)
+            }
+        }
+    }
+}
+
+private struct ChartSample: View {
+    let mode: FanCurveMode
+    let scheme: ColorScheme
+    @State private var points: [FanPoint]
+
+    init(mode: FanCurveMode, scheme: ColorScheme) {
+        self.mode = mode
+        self.scheme = scheme
+        // Advanced ends below full speed, so the floor lifts it near the hot end and the asked-for line shows.
+        _points = State(initialValue: mode == .standard
+            ? StandardCurve.points(start: 50, full: 75)
+            : [FanPoint(temperature: 45, speed: 0), FanPoint(temperature: 55, speed: 18),
+               FanPoint(temperature: 65, speed: 40), FanPoint(temperature: 74, speed: 72),
+               FanPoint(temperature: 80, speed: 80)])
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(mode == .standard ? "Standard, Now 58 \u{00B0}C, rpm known" : "Advanced, Now 92 \u{00B0}C, no rpm"), "
+                + "\(scheme == .dark ? "dark" : "light"), point \(mode == .standard ? 2 : 3) labelled")
+                .font(.caption).foregroundStyle(.secondary)
+            FanCurveChart(points: points, mode: mode, nowTemperature: mode == .standard ? 58 : 92,
+                          firstFan: mode == .standard ? FanReading(rpm: 2310, minimum: 1200, maximum: 5800) : nil,
+                          labelledPoint: mode == .standard ? 1 : 2) { index, point in
+                points = FanCurveEditor.moved(points, mode: mode, dragging: index, to: point)
+            }
+        }
+        .padding(CDMetric.cardInset)
+        .background(RoundedRectangle(cornerRadius: CDMetric.cardRadius, style: .continuous).fill(CDColor.cardBackground))
+        .environment(\.colorScheme, scheme)
+        .frame(width: 410)
     }
 }
 

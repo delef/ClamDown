@@ -1,5 +1,6 @@
 import SwiftUI
 import ClamDownAppKit
+import ClamDownSensors
 import ClamDownShared
 import ClamDownUI
 
@@ -180,27 +181,35 @@ struct CoolingPage: View {
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
             CDSection("Fans") {
-                CDSwitchRow("Fan Control",
-                            detail: "Applies only while ClamDown is on. ClamDown hands the fans back to macOS when it "
-                                + "switches off, quits or crashes.",
-                            isOn: controller.binding(\.fanControlEnabled))
-                if controller.settings.fanControlEnabled, controller.settings.fanCurveMode == .standard {
-                    SettingSlider("Speed up from", value: controller.binding(\.fanStartTemperature),
-                                  range: StandardCurve.startRange, unit: " \u{00B0}C")
-                    SettingSlider("Full speed at", value: controller.binding(\.fanFullSpeedTemperature),
-                                  range: Self.fullSpeedRange, unit: " \u{00B0}C")
-                    CDNote("Fans stay at their lowest speed up to the first point and reach full speed at the "
-                        + "second, following the average CPU temperature.")
+                if let reason = unsupportedReason {
+                    // The stored choice stays as it is; on this Mac it cannot do anything.
+                    CDSwitchRow("Fan Control", detail: reason, isOn: .constant(false))
+                        .disabled(true)
+                    CDNote(Self.offNote)
+                } else {
+                    CDSwitchRow("Fan Control",
+                                detail: "Off: macOS keeps the fans. ClamDown hands them back when it switches off, "
+                                    + "quits or crashes.",
+                                isOn: controller.binding(\.fanControlEnabled))
+                    if controller.settings.fanControlEnabled {
+                        CDRow("Curve") { modePicker }
+                        curve
+                        if let note = controlNote {
+                            CDNote(note, tone: .warning)
+                        }
+                        CDSwitchRow("Only With Lid Closed",
+                                    detail: "Leaves the fans to macOS while the lid is open, so they stay quiet while you work.",
+                                    isOn: controller.binding(\.fansOnlyWhenLidClosed))
+                    } else {
+                        CDNote(Self.offNote)
+                    }
                 }
-                CDSwitchRow("Only With Lid Closed",
-                            detail: "Leaves the fans to macOS while the lid is open, so they stay quiet while you work.",
-                            isOn: controller.binding(\.fansOnlyWhenLidClosed))
             }
             CDSection("Now") {
-                CDValueRow("CPU Temperature",
-                           value: status?.cpuTemperature.map { "\(Int($0.rounded())) \u{00B0}C" } ?? "\u{2014}")
+                CDValueRow("CPU Temperature", value: Self.temperatureText(status?.cpuTemperature))
+                CDValueRow("Hottest Core", value: Self.temperatureText(status?.hottestCPUTemperature))
                 ForEach(Array((status?.fans ?? []).enumerated()), id: \.offset) { index, fan in
-                    CDValueRow("Fan \(index + 1)", value: "\(Int(fan.rpm)) rpm")
+                    CDValueRow("Fan \(index + 1)", value: "\(Int(fan.rpm.rounded()).formatted()) rpm")
                 }
                 CDValueRow("Controlled By", value: status?.isControlling == true ? "ClamDown" : "macOS")
                 if let problem = statusProblem {
@@ -217,14 +226,123 @@ struct CoolingPage: View {
         }
     }
 
-    private var statusProblem: String? {
-        if let problem = status?.problem { return problem }
-        if statusLoaded, status == nil { return "Cannot read the temperature sensors." }
-        return nil
+    private static let offNote = "macOS controls the fans. ClamDown does not touch them."
+
+    private var modePicker: some View {
+        Picker("Curve", selection: Binding(
+            get: { controller.settings.fanCurveMode },
+            set: { mode in
+                var updated = controller.settings
+                if mode == .advanced {
+                    updated = FanCurveEditor.chooseAdvanced(updated)
+                } else {
+                    updated.fanCurveMode = .standard
+                }
+                save(updated)
+            })) {
+            Text("Standard").tag(FanCurveMode.standard)
+            Text("Advanced").tag(FanCurveMode.advanced)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
     }
 
-    private static let fullSpeedRange =
-        (StandardCurve.startRange.lowerBound + StandardCurve.minimumSpan)...StandardCurve.fullSpeedMaximum
+    /// The chart, the override in force, the values with Reset, and what the mode does.
+    private var curve: some View {
+        let settings = controller.settings
+        let points = settings.fanCurvePoints
+        return VStack(alignment: .leading, spacing: 10) {
+            FanCurveChart(points: points, mode: settings.fanCurveMode,
+                          nowTemperature: status?.cpuTemperature, firstFan: status?.fans.first) { index, point in
+                save(FanCurveEditor.moved(controller.settings, dragging: index, to: point))
+            }
+            if let line = overrideLine {
+                CDNote(line, tone: .warning)
+            }
+            HStack(alignment: .center, spacing: CDMetric.rowSpacing) {
+                values(points, mode: settings.fanCurveMode)
+                Spacer(minLength: CDMetric.rowSpacing)
+                Button("Reset") { save(FanCurveEditor.reset(controller.settings)) }
+                    .cdButtonStyle(.secondary)
+                    .help("Puts this mode's curve back to its defaults.")
+            }
+            CDNote(settings.fanCurveMode == .standard
+                ? "Fans stay at their lowest speed up to the first point and reach full speed at the second, "
+                    + "following the average CPU temperature."
+                : "Five points, each at or above the one before it, on the average CPU temperature; the fans never "
+                    + "run under the safety floor.")
+        }
+    }
+
+    @ViewBuilder private func values(_ points: [FanPoint], mode: FanCurveMode) -> some View {
+        switch mode {
+        case .standard where points.count == 2:
+            HStack(spacing: 16) {
+                Text("Speeds up from ") + Text("\(points[0].temperature) \u{00B0}C").fontWeight(.semibold)
+                Text("Full speed at ") + Text("\(points[1].temperature) \u{00B0}C").fontWeight(.semibold)
+            }
+            .monospacedDigit()
+        default:
+            HStack(spacing: 14) {
+                ForEach(points.indices, id: \.self) { index in
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(points[index].temperature) \u{00B0}C").fontWeight(.semibold)
+                        Text("\(points[index].speed) %").font(.callout).foregroundStyle(.secondary)
+                    }
+                    .monospacedDigit()
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Point \(index + 1): \(points[index].temperature) degrees, "
+                        + "\(points[index].speed) percent")
+                }
+            }
+        }
+    }
+
+    private func save(_ settings: AppSettings) {
+        Task { await controller.updateSettings(settings) }
+    }
+
+    /// Why the fans cannot be driven on this Mac at all, as the helper reports it.
+    private var unsupportedReason: String? {
+        guard let problem = status?.problem, problem == FanHardwareError.unsupported.description else { return nil }
+        return problem
+    }
+
+    private var overrideLine: String? {
+        switch status?.override {
+        case .hotCore: "Full speed: a CPU core is at its limit."
+        case .system: "Full speed: macOS reports the Mac as hot."
+        case nil: nil
+        }
+    }
+
+    /// A fault on the way: retrying shows only here; stopped also shows in the menu, with the same words.
+    private var controlNote: String? {
+        guard let status else { return nil }
+        switch status.control {
+        case .retrying:
+            let clause = FanAlert.clause(from: status.problem).map { ": \($0)" } ?? ""
+            return "Fan control paused\(clause). ClamDown takes the fans again in a moment; macOS has them until then."
+        case .stopped:
+            return FanAlert.line(reason: status.problem)
+        case .idle, .controlling:
+            return nil
+        }
+    }
+
+    private var statusProblem: String? {
+        if let status {
+            // These have their own lines in the Fans section.
+            if status.control == .retrying || status.control == .stopped || unsupportedReason != nil { return nil }
+            return status.problem
+        }
+        return statusLoaded ? "Cannot read the temperature sensors." : nil
+    }
+
+    private static func temperatureText(_ temperature: Double?) -> String {
+        temperature.map { "\(Int($0.rounded())) \u{00B0}C" } ?? "\u{2014}"
+    }
 }
 
 // MARK: - Appearance

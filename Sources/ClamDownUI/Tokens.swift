@@ -59,12 +59,59 @@ public enum CDColor {
         LinearGradient(colors: [brandNavy, brandTeal], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
+    // MARK: Charts
+
+    /// The cool end of the heat scale: #2F7CF6 in light appearance, #4C93FF in dark.
+    public static let chartCool = dynamic(light: heatLight[0], dark: heatDark[0])
+    /// The middle of the heat scale: #F0A020 in light appearance, #F5B03A in dark.
+    public static let chartWarm = dynamic(light: heatLight[1], dark: heatDark[1])
+    /// The hot end of the heat scale: #E5484D in light appearance, #FF6166 in dark.
+    public static let chartHot = dynamic(light: heatLight[2], dark: heatDark[2])
+    /// Where amber sits on the heat scale, as a fraction from the cool end.
+    public static let chartWarmLocation = 0.55
+
+    /// Blue through amber to red, from the cool end of a chart to the hot one.
+    public static var chartHeatStops: [Gradient.Stop] {
+        [.init(color: chartCool, location: 0), .init(color: chartWarm, location: chartWarmLocation),
+         .init(color: chartHot, location: 1)]
+    }
+
+    /// The heat scale at one place, 0 at the cool end and 1 at the hot one, for marks that need a single colour.
+    public static func chartHeat(at fraction: Double) -> Color {
+        let fraction = min(max(fraction, 0), 1)
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            let stops = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? heatDark : heatLight
+            let lowerHalf = fraction < chartWarmLocation
+            let (from, to) = lowerHalf ? (stops[0], stops[1]) : (stops[1], stops[2])
+            let k = lowerHalf ? fraction / chartWarmLocation : (fraction - chartWarmLocation) / (1 - chartWarmLocation)
+            func mix(_ a: Int, _ b: Int) -> CGFloat { (CGFloat(a) + CGFloat(b - a) * k) / 255 }
+            return NSColor(srgbRed: mix(from.0, to.0), green: mix(from.1, to.1), blue: mix(from.2, to.2), alpha: 1)
+        })
+    }
+
+    /// A zone of a chart that is out of bounds, such as the fans' safety floor: grey at 16 %.
+    public static let chartZone = dynamic(light: (120, 120, 128), dark: (160, 160, 170), alpha: 0.16)
+    /// The hatching and the label of such a zone: #8A8A90 in light appearance, #8E8E93 in dark.
+    public static let chartZoneInk = dynamic(light: (0x8A, 0x8A, 0x90), dark: (0x8E, 0x8E, 0x93))
+    /// The grid lines of a chart: black at 9 % in light appearance, white at 10 % in dark.
+    public static let chartGrid = dynamic(light: (0, 0, 0), dark: (255, 255, 255), alpha: (0.09, 0.10))
+    /// The fill of a draggable point on a chart: white in light appearance, #1F1F21 in dark.
+    public static let chartHandle = dynamic(light: (0xFF, 0xFF, 0xFF), dark: (0x1F, 0x1F, 0x21))
+
+    private static let heatLight = [(0x2F, 0x7C, 0xF6), (0xF0, 0xA0, 0x20), (0xE5, 0x48, 0x4D)]
+    private static let heatDark = [(0x4C, 0x93, 0xFF), (0xF5, 0xB0, 0x3A), (0xFF, 0x61, 0x66)]
+
     /// A colour that follows the appearance of the view it is drawn in.
-    static func dynamic(light: (Int, Int, Int), dark: (Int, Int, Int)) -> Color {
+    static func dynamic(light: (Int, Int, Int), dark: (Int, Int, Int), alpha: Double = 1) -> Color {
+        dynamic(light: light, dark: dark, alpha: (alpha, alpha))
+    }
+
+    static func dynamic(light: (Int, Int, Int), dark: (Int, Int, Int), alpha: (light: Double, dark: Double)) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             let (r, g, b) = isDark ? dark : light
-            return NSColor(srgbRed: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: 1)
+            return NSColor(srgbRed: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255,
+                           alpha: isDark ? alpha.dark : alpha.light)
         })
     }
 }
@@ -81,4 +128,14 @@ public enum CDMetric {
     public static let pageInset: CGFloat = 20
     public static let pageSpacing: CGFloat = 22
     public static let rowSpacing: CGFloat = 10
+
+    /// The plot of a chart, without its axis labels.
+    public static let chartHeight: CGFloat = 196
+    /// A chart's main line.
+    public static let chartLineWidth: CGFloat = 3
+    /// The round handle of a point that can be dragged, and the area that picks it up.
+    public static let chartHandleRadius: CGFloat = 7.5
+    public static let chartHandleHitSize: CGFloat = 26
+    /// The small label over a point while it is dragged.
+    public static let chartLabelRadius: CGFloat = 6
 }

@@ -102,4 +102,47 @@ import ClamDownShared
         #expect(advanced.fanAdvancedPoints == FanCurveEditor.defaultAdvanced)
         #expect(advanced.fanStartTemperature == 60 && advanced.fanFullSpeedTemperature == 80 && advanced.fanCurveMode == .advanced)
     }
+
+    // MARK: - Moves from the chart
+
+    @Test func chartMovesStandardSidewaysOnly() {
+        let line = StandardCurve.points(start: 50, full: 75)
+        #expect(FanCurveEditor.moved(line, mode: .standard, dragging: 0, to: point(58, 80)) == [point(58, 0), point(75, 100)])
+        #expect(FanCurveEditor.moved(line, mode: .standard, dragging: 1, to: point(99, 3)) == [point(50, 0), point(95, 100)])
+        #expect(FanCurveEditor.moved(line, mode: .standard, dragging: 0, to: point(90, 0)) == [point(70, 0), point(75, 100)])
+    }
+
+    @Test func chartMovesAdvancedByItsRules() {
+        let points = FanCurveEditor.defaultAdvanced
+        #expect(FanCurveEditor.moved(points, mode: .advanced, dragging: 2, to: point(60, 40))
+            == FanCurveEditor.movedAdvanced(points, dragging: 2, to: point(60, 40)))
+    }
+
+    @Test func chartIgnoresAPointThatDoesNotExist() {
+        let line = StandardCurve.points(start: 50, full: 75)
+        #expect(FanCurveEditor.moved(line, mode: .standard, dragging: 2, to: point(60, 0)) == line)
+        #expect(FanCurveEditor.moved(FanCurveEditor.defaultAdvanced, mode: .advanced, dragging: 5, to: point(60, 0))
+            == FanCurveEditor.defaultAdvanced)
+    }
+
+    @Test func chartMoveChangesOnlyTheVisibleModeInTheSettings() {
+        var s = Settings()
+        let moved = FanCurveEditor.moved(s, dragging: 1, to: point(80, 10))
+        #expect(moved.fanStartTemperature == 50 && moved.fanFullSpeedTemperature == 80)
+        #expect(moved.fanAdvancedPoints == nil)
+
+        s = FanCurveEditor.chooseAdvanced(s)
+        let advanced = FanCurveEditor.moved(s, dragging: 4, to: point(90, 100))
+        #expect(advanced.fanAdvancedPoints?[4] == point(90, 100))
+        #expect(advanced.fanStartTemperature == 50 && advanced.fanFullSpeedTemperature == 75)
+    }
+
+    @Test func chartShowsTheVisibleCurveEvenWithFanControlOff() {
+        var s = Settings()
+        s.fanControlEnabled = false
+        #expect(s.fanCurvePoints == StandardCurve.points(start: 50, full: 75))
+        #expect(s.fanPolicy.isOff)
+        s.fanCurveMode = .advanced
+        #expect(s.fanCurvePoints == FanCurveEditor.defaultAdvanced)
+    }
 }

@@ -57,6 +57,36 @@ public enum FanCurveEditor {
         return moved
     }
 
+    /// Moves one point of the curve a chart shows, by the rules of its mode: Standard's two points move sideways
+    /// only (`target`'s speed is ignored), Advanced's five move as `movedAdvanced` allows.
+    public static func moved(_ points: [FanPoint], mode: FanCurveMode, dragging index: Int, to target: FanPoint)
+        -> [FanPoint] {
+        switch mode {
+        case .standard:
+            guard points.count == 2, points.indices.contains(index) else { return points }
+            let line = movedStandard(start: points[0].temperature, full: points[1].temperature,
+                                     dragging: index, to: target.temperature)
+            return StandardCurve.points(start: line.start, full: line.full)
+        case .advanced:
+            return movedAdvanced(points, dragging: index, to: target)
+        }
+    }
+
+    /// Moves one point of the visible mode's curve in the settings, as a drag or an arrow key on the chart does.
+    public static func moved(_ settings: Settings, dragging index: Int, to target: FanPoint) -> Settings {
+        var copy = settings
+        let points = moved(settings.fanCurvePoints, mode: settings.fanCurveMode, dragging: index, to: target)
+        switch settings.fanCurveMode {
+        case .standard:
+            guard points.count == 2 else { return settings }
+            copy.fanStartTemperature = points[0].temperature
+            copy.fanFullSpeedTemperature = points[1].temperature
+        case .advanced:
+            copy.fanAdvancedPoints = points
+        }
+        return copy
+    }
+
     /// Switches to Advanced. The first time, its points are placed on the current Standard line; later times
     /// keep the points the user left.
     public static func chooseAdvanced(_ settings: Settings) -> Settings {

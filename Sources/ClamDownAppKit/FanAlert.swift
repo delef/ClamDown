@@ -49,7 +49,7 @@ public struct FanAlert: Equatable, Sendable {
     }
 
     /// The reason on one line, without its closing full stop, starting in lower case unless it starts with a name.
-    static func clause(from reason: String?) -> String? {
+    public static func clause(from reason: String?) -> String? {
         guard let reason else { return nil }
         var text = reason.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         while let last = text.last, last == "." || last == "…" || last == " " {

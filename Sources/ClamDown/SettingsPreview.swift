@@ -34,7 +34,7 @@ enum SettingsPreview {
 
     private static func makeController() -> ClamDownController {
         var settings = AppSettings()
-        // Fan control on with the Standard curve shows both temperature sliders.
+        // Fan control on with the Standard curve; the Cooling page is also drawn in Advanced and switched off.
         settings.fanControlEnabled = true
         settings.fanCurveMode = .standard
         let store = PreviewSettingsStore()
@@ -69,9 +69,21 @@ enum SettingsPreview {
         let looks: [(String, CDLook)] = [("glass", .glass), ("classic", .classic)]
         let only = UserDefaults.standard.string(forKey: "settingsShotPanes")?.split(separator: ",").map(String.init)
         let panes = SettingsPane.allCases.filter { only?.contains($0.rawValue) ?? true }
+        // The Cooling page in each of its forms; the other pages have one.
+        let base = controller.settings
+        var advanced = base
+        advanced.fanCurveMode = .advanced
+        advanced.fanAdvancedPoints = [FanPoint(temperature: 45, speed: 0), FanPoint(temperature: 55, speed: 18),
+                                      FanPoint(temperature: 65, speed: 40), FanPoint(temperature: 74, speed: 72),
+                                      FanPoint(temperature: 82, speed: 100)]
+        var off = base
+        off.fanControlEnabled = false
+        let coolingForms: [(String, AppSettings)] = [("", base), ("-advanced", advanced), ("-off", off)]
         for (appearanceName, appearance) in appearances {
             for (lookName, look) in looks {
                 for pane in panes {
+                    for (form, settings) in (pane == .cooling ? coolingForms : [("", base)]) {
+                    if controller.settings != settings { await controller.updateSettings(settings) }
                     for (state, status) in updateStates where pane == .about || state.isEmpty {
                     updater.previewStatus = status
                     for (suffix, frame) in (noTall ? [("", size)] : [("", size), ("-tall", tall)]) {
@@ -83,8 +95,9 @@ enum SettingsPreview {
                             .environment(\.cdLook, look)
                             // The window's own background is not part of the picture.
                             .background(Color(nsColor: .windowBackgroundColor))
-                        await draw(view, size: frame, appearance: appearance,
-                                   to: directory.appendingPathComponent("\(lookName)-\(appearanceName)-\(pane.rawValue)\(state)\(suffix).png"))
+                        let name = "\(lookName)-\(appearanceName)-\(pane.rawValue)\(form)\(state)\(suffix).png"
+                        await draw(view, size: frame, appearance: appearance, to: directory.appendingPathComponent(name))
+                    }
                     }
                     }
                 }
