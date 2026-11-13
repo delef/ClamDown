@@ -55,15 +55,75 @@ import Testing
         #expect(rig.controller.notice == nil)
     }
 
-    @Test func helperThatNeverAnswersIsReportedAfterTheWait() async {
+    /// Seen on a real Mac: after the user allowed the helper again, macOS kept the old job, which could no longer
+    /// start. The registration read "allowed" and the helper stayed silent until it was registered afresh.
+    @Test func helperThatStaysSilentIsRegisteredAfreshOnce() async {
+        let rig = Rig(helperFingerprint: "this build", installedFingerprint: "this build")
+        rig.helper.with { $0.enableError = Self.noAnswer }
+        rig.pauser.whilePaused = { [registrar = rig.registrar, helper = rig.helper] _ in
+            if registrar.unregisterCount == 1 { helper.with { $0.enableError = nil } }
+        }
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .on)
+        #expect(rig.registrar.unregisterCount == 1)
+        #expect(rig.registrar.registerCount == 1)
+        // Two quick looks, then the pause macOS needs between removing and registering.
+        #expect(rig.pauser.waits == [.seconds(2), .seconds(2), .seconds(1)])
+    }
+
+    /// The fresh registration is the one macOS refuses to start, and it asks for approval some seconds later.
+    @Test func approvalAskedAfterTheFreshRegistrationIsFollowed() async {
+        let rig = Rig(availability: [.ready, .ready, .ready, .ready, .ready, .requiresApproval])
+        var approvalRequests = 0
+        rig.controller.onHelperNeedsApproval = { approvalRequests += 1 }
+        rig.helper.with { $0.enableError = Self.noAnswer }
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .needsApproval)
+        #expect(approvalRequests == 1)
+        #expect(rig.registrar.unregisterCount == 1)
+        #expect(rig.pauser.waits == [.seconds(2), .seconds(2), .seconds(1), .seconds(2), .seconds(2)])
+    }
+
+    @Test func helperThatNeverAnswersIsReportedAfterOneFreshRegistration() async {
         let rig = Rig()
         rig.helper.with { $0.enableError = Self.noAnswer }
 
         await rig.controller.toggle()
 
         #expect(rig.controller.state == .failed("The helper did not answer."))
-        #expect(rig.pauser.waits.count == 8)
+        #expect(rig.registrar.unregisterCount == 1)
+        // Two quick looks, the registration pause, eight looks.
+        #expect(rig.pauser.waits.count == 11)
         #expect(rig.controller.notice == nil)
+    }
+
+    @Test func freshRegistrationThatFailsIsReported() async {
+        let rig = Rig()
+        rig.helper.with { $0.enableError = Self.noAnswer }
+        rig.registrar.unregisterError = HelperClientError.helper("busy")
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .failed("The helper did not answer, and registering it again failed: busy"))
+    }
+
+    /// The helper comes up and answers with a failure of its own: that is the answer.
+    @Test func failureReportedWhileWaitingEndsTheWait() async {
+        let rig = Rig()
+        rig.helper.with { $0.enableError = Self.noAnswer }
+        rig.pauser.whilePaused = { [helper = rig.helper] _ in
+            helper.with { $0.enableError = HelperClientError.helper("pmset failed") }
+        }
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .failed("pmset failed"))
+        #expect(rig.pauser.waits == [.seconds(2)])
+        #expect(rig.registrar.unregisterCount == 0)
     }
 
     /// The helper answered, with a failure of its own. Waiting would change nothing.

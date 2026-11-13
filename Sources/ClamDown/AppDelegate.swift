@@ -104,16 +104,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The published values change after this notice, so read them on the next turn of the run loop.
         controller.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self] in self?.applyDockBadge() }
+            .sink { [weak self] in
+                self?.applyDockBadge()
+                self?.scheduleHelperRefresh()
+            }
             .store(in: &observers)
         controller.onHelperNeedsApproval = { [weak self] in self?.showSetup(.turnOnNeedsApproval) }
         controller.onWakeReport = { [weak self] text in self?.deliverWakeReport(text) }
         observeSleepAndWake()
         controller.refreshHelperAvailability()
-        // macOS sends no notice when the helper's approval changes in System Settings.
-        helperTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.controller.refreshHelperAvailability() }
-        }
+        scheduleHelperRefresh()
         Task { await controller.start() }
 
         if SetupFlow.completesSilently(completed: setupStore.completed, helper: controller.helperAvailability) {
@@ -121,6 +121,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         showSetup(.launch)
         applyDockBadge()
+    }
+
+    /// macOS sends no notice when the helper's approval changes in System Settings, so the app asks on a timer:
+    /// every few seconds while something waits on the user, rarely otherwise.
+    private func scheduleHelperRefresh() {
+        let interval = HelperRefreshPace.interval(needsAttention: controller.needsAttention)
+        guard helperTimer?.timeInterval != interval else { return }
+        helperTimer?.invalidate()
+        helperTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.controller.refreshHelperAvailability() }
+        }
     }
 
     /// Opens the setup assistant for an entry point, when the rules say it has something to show.

@@ -92,3 +92,14 @@ import Testing
         #expect(rig.store.saved.count == 1)
     }
 }
+
+@Suite struct HelperRefreshPaceTests {
+    /// The user is in System Settings allowing the helper: the menu must catch up within seconds, not half a minute.
+    @Test func looksOftenWhileSomethingNeedsTheUser() {
+        #expect(HelperRefreshPace.interval(needsAttention: true) == 2)
+    }
+
+    @Test func looksRarelyWhenAllIsWell() {
+        #expect(HelperRefreshPace.interval(needsAttention: false) == 30)
+    }
+}

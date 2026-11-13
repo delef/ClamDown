@@ -438,30 +438,54 @@ public final class ClamDownController: ObservableObject {
         case stopped(HelperPreparation)
     }
 
-    /// How long a registered helper that does not answer is waited for: eight looks, two seconds apart.
+    /// A healthy helper answers at once, so two looks tell a slow start from a silent helper.
+    static let helperQuickLooks = 2
+    /// After a fresh registration macOS can take about ten seconds to say that it wants the helper allowed again.
     static let helperStartLooks = 8
     static let helperStartPause: Duration = .seconds(2)
 
-    /// Asks the helper to switch the mode on, and waits for a helper that macOS has registered but not started.
+    /// Asks the helper to switch the mode on, and deals with a helper that is registered and allowed but silent.
     ///
-    /// macOS can refuse to launch a helper it has just registered and only then, about ten seconds later, ask the
-    /// user to allow it again. Until it does, the registration still reads "allowed" and every request fails.
-    /// So a helper that does not answer is looked at again for a while: it may start late, or macOS may ask
-    /// for approval, and then the user is led to that instead of being left with "the helper did not answer".
+    /// Two things were seen on a real Mac. macOS can refuse to launch a helper it has just registered and only
+    /// then, about ten seconds later, ask the user to allow it again. And after the user has allowed it, macOS
+    /// can keep the old job, which can no longer start. In both the registration reads "allowed" and every
+    /// request fails. So a silent helper is looked at again, registered afresh once, and looked at for longer:
+    /// it may start late, or macOS may ask for approval, and then the user is led to that.
     private func startMode() async -> ModeStart {
-        var failure: Error
         do {
             try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
             return .started
         } catch {
-            failure = error
+            // The helper answered with a failure of its own: waiting changes nothing.
+            guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
         }
-        // The helper answered with a failure of its own: waiting changes nothing.
-        guard case .connection? = failure as? HelperClientError else { return .stopped(.failed(Self.describe(failure))) }
-
         notice = "Waiting for the helper to start…"
         defer { notice = nil }
-        for _ in 0..<Self.helperStartLooks {
+        if let outcome = await lookForHelper(Self.helperQuickLooks) { return outcome }
+
+        do {
+            try await reregisterHelper()
+        } catch {
+            refreshHelperAvailability()
+            return .stopped(.failed("The helper did not answer, and registering it again failed: \(Self.describe(error))"))
+        }
+        let availability = registrar.availability()
+        helperAvailability = availability
+        recordInstalledBuild(after: availability)
+        guard availability == .ready else { return .stopped(Self.preparation(for: availability)) }
+        do {
+            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+            return .started
+        } catch {
+            guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
+        }
+        if let outcome = await lookForHelper(Self.helperStartLooks) { return outcome }
+        return .stopped(.failed(XPCHelperClient.noAnswer))
+    }
+
+    /// Looks at the helper every two seconds. Nil when it stayed allowed and silent to the end.
+    private func lookForHelper(_ looks: Int) async -> ModeStart? {
+        for _ in 0..<looks {
             await pause(Self.helperStartPause)
             let availability = registrar.availability()
             guard availability == .ready else {
@@ -472,10 +496,16 @@ public final class ClamDownController: ObservableObject {
                 try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
                 return .started
             } catch {
-                failure = error
+                guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
             }
         }
-        return .stopped(.failed(Self.describe(failure)))
+        return nil
+    }
+
+    /// True when the request never reached a helper, as opposed to a helper that answered with a failure.
+    private static func isSilence(_ error: Error) -> Bool {
+        if case .connection? = error as? HelperClientError { return true }
+        return false
     }
 
     private func turnOff() async {

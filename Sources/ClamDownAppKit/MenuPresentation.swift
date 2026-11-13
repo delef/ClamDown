@@ -46,3 +46,12 @@ public struct MenuPresentation: Equatable {
         }
     }
 }
+
+/// How often the app asks macOS whether the helper is still allowed. macOS sends no notice when that changes.
+public enum HelperRefreshPace {
+    /// Seconds between looks. While something waits on the user, they are probably in System Settings right now,
+    /// and the menu and the icon should follow within seconds of their click.
+    public static func interval(needsAttention: Bool) -> Double {
+        needsAttention ? 2 : 30
+    }
+}
