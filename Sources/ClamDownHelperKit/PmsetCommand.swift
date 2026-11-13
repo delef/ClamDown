@@ -5,6 +5,8 @@ public enum PmsetCommand: Equatable, Sendable {
     case setBatteryLowPowerMode(Bool)
     case readGlobal
     case readCustom
+    /// Puts the Mac to sleep at once.
+    case sleepNow
 
     public var arguments: [String] {
         switch self {
@@ -12,6 +14,7 @@ public enum PmsetCommand: Equatable, Sendable {
         case .setBatteryLowPowerMode(let on): ["-b", "lowpowermode", on ? "1" : "0"]
         case .readGlobal: ["-g"]
         case .readCustom: ["-g", "custom"]
+        case .sleepNow: ["sleepnow"]
         }
     }
 }

@@ -183,6 +183,12 @@ struct ProtectionPage: View {
                     Text("Now: \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized)")
                 }
             }
+            SettingsSection(title: "After Switching Off", icon: "moon.zzz") {
+                SettingRow(icon: "powersleep", title: "Put the Mac to Sleep",
+                           help: "When low battery or heat switches ClamDown off with the lid closed, the Mac goes to sleep at once, even if an app is keeping it awake. With the lid open, or in front of an external display, nothing happens.") {
+                    StatusToggle(isOn: controller.binding(\.sleepAfterProtection))
+                }
+            }
         }
     }
 

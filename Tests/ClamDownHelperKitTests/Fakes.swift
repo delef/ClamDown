@@ -51,6 +51,12 @@ final class FakeRunner: PmsetRunning, @unchecked Sendable {
     }
 }
 
+struct FakeLid: LidReading {
+    let state: LidState?
+
+    func lid() -> LidState? { state }
+}
+
 final class FakeStore: SavedStateStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var state: SavedState?

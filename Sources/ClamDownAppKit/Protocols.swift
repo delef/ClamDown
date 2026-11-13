@@ -56,6 +56,11 @@ public protocol LidMonitoring: AnyObject {
     func stop()
 }
 
+/// Puts the Mac to sleep at once.
+public protocol SystemSleeping: Sendable {
+    func sleepNow()
+}
+
 /// Locks the screen so a Mac that stays awake with the lid closed asks for a password when it opens.
 public protocol ScreenLocking: Sendable {
     func lock()

@@ -101,7 +101,22 @@ import ClamDownShared
     @Test func defaultsDriveTheFansOnlyWithTheLidClosed() {
         let s = Settings()
         #expect(s.fanMode == .curve && s.fansOnlyWhenLidClosed)
-        #expect(s.fanPolicy == FanPolicy(mode: .curve, startTemperature: 60, fullSpeedTemperature: 85, onlyWhenLidClosed: true))
+        #expect(s.fanPolicy == FanPolicy(mode: .curve, startTemperature: 50, fullSpeedTemperature: 75, onlyWhenLidClosed: true))
+    }
+
+    /// A Mac in a bag has little airflow, so the fans start before the CPU is hot.
+    @Test func fanCurveStartsEarlierByDefault() {
+        #expect(Settings().fanStartTemperature == 50)
+        #expect(Settings().fanFullSpeedTemperature == 75)
+    }
+
+    @Test func sleepAfterProtectionDefaultsOnAlsoForOldSettings() throws {
+        #expect(Settings().sleepAfterProtection)
+        let old = Data(#"{"batteryCutoffPercent":20}"#.utf8)
+        #expect(try JSONDecoder().decode(Settings.self, from: old).sleepAfterProtection)
+        var off = Settings()
+        off.sleepAfterProtection = false
+        #expect(try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(off)).sleepAfterProtection == false)
     }
 
     @Test func clampingKeepsTheCurveValid() {
@@ -115,7 +130,7 @@ import ClamDownShared
     @Test func settingsFromBeforeFanControlGetTheDefaults() throws {
         let old = Data(#"{"batteryCutoffPercent":20,"thermalCutoff":"fair"}"#.utf8)
         let s = try JSONDecoder().decode(Settings.self, from: old)
-        #expect(s.batteryCutoffPercent == 20 && s.fanMode == .curve && s.fanFullSpeedTemperature == 85)
+        #expect(s.batteryCutoffPercent == 20 && s.fanMode == .curve && s.fanFullSpeedTemperature == 75)
     }
 
     @Test func fanSettingsRoundTrip() throws {
@@ -124,5 +139,50 @@ import ClamDownShared
         s.fansOnlyWhenLidClosed = false
         let decoded = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
         #expect(decoded == s)
+    }
+}
+
+@Suite struct FanDefaultsMigrationTests {
+    private func withDefaults(_ body: (UserDefaults) throws -> Void) throws {
+        let suite = "clamdown.tests.settings.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        try body(defaults)
+    }
+
+    private func stored(start: Int, full: Int) -> Settings {
+        var settings = Settings()
+        settings.fanStartTemperature = start
+        settings.fanFullSpeedTemperature = full
+        return settings
+    }
+
+    /// Settings saved by 0.1.0 and 0.1.1 hold every value, so the old defaults would otherwise stay forever.
+    @Test func oldFanDefaultsMoveOnce() throws {
+        try withDefaults { defaults in
+            defaults.set(try JSONEncoder().encode(stored(start: 60, full: 85)), forKey: "settings.v1")
+            let loaded = UserDefaultsSettingsStore(defaults: defaults).load()
+            #expect(loaded.fanStartTemperature == 50 && loaded.fanFullSpeedTemperature == 75)
+            // Saved, not only returned: the next launch reads the new values without the migration.
+            #expect(UserDefaultsSettingsStore(defaults: defaults).load().fanStartTemperature == 50)
+        }
+    }
+
+    @Test func otherFanValuesStay() throws {
+        try withDefaults { defaults in
+            defaults.set(try JSONEncoder().encode(stored(start: 65, full: 85)), forKey: "settings.v1")
+            let loaded = UserDefaultsSettingsStore(defaults: defaults).load()
+            #expect(loaded.fanStartTemperature == 65 && loaded.fanFullSpeedTemperature == 85)
+        }
+    }
+
+    @Test func deliberateOldValuesStayAfterMigration() throws {
+        try withDefaults { defaults in
+            let store = UserDefaultsSettingsStore(defaults: defaults)
+            _ = store.load()
+            try store.save(stored(start: 60, full: 85))
+            let loaded = UserDefaultsSettingsStore(defaults: defaults).load()
+            #expect(loaded.fanStartTemperature == 60 && loaded.fanFullSpeedTemperature == 85)
+        }
     }
 }

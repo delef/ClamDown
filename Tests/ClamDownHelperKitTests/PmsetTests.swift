@@ -22,6 +22,7 @@ AC Power:
         #expect(PmsetCommand.setBatteryLowPowerMode(true).arguments == ["-b", "lowpowermode", "1"])
         #expect(PmsetCommand.setBatteryLowPowerMode(false).arguments == ["-b", "lowpowermode", "0"])
         #expect(PmsetCommand.readGlobal.arguments == ["-g"])
+        #expect(PmsetCommand.sleepNow.arguments == ["sleepnow"])
         #expect(PmsetCommand.readCustom.arguments == ["-g", "custom"])
     }
 

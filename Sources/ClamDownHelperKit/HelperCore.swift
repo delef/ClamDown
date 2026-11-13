@@ -12,6 +12,7 @@ public enum HelperError: Error, Equatable {
 public actor HelperCore {
     private let runner: PmsetRunning
     private let store: SavedStateStoring
+    private let lid: LidReading?
     private let watchdogTimeout: Duration
     private let hardware: FanHardware?
     /// How far a fan's target may fall per `updateFans` call, in rpm.
@@ -40,12 +41,14 @@ public actor HelperCore {
         runner: PmsetRunning,
         store: SavedStateStoring,
         fans: FanHardware? = nil,
+        lid: LidReading? = nil,
         watchdogTimeout: Duration = .seconds(90),
         fanStepDown: Double = 150
     ) {
         self.runner = runner
         self.store = store
         self.hardware = fans
+        self.lid = lid
         self.watchdogTimeout = watchdogTimeout
         self.fanStepDown = fanStepDown
     }
@@ -121,10 +124,19 @@ public actor HelperCore {
         guard enabled, lastHeartbeat.duration(to: now) > watchdogTimeout else { return false }
         do {
             try disable()
-            return true
         } catch {
             return false
         }
+        sleepIfUnattended()
+        return true
+    }
+
+    /// The app is gone, so nothing asks for this Mac to stay awake any more. With the lid closed and macOS ready
+    /// to sleep it, it may be heating up or running flat in a bag: sleep now rather than when macOS gets to it.
+    /// A failure changes nothing, because the sleep setting is already back.
+    private func sleepIfUnattended() {
+        guard lid?.lid()?.isUnattended == true else { return }
+        _ = try? runner.run(.sleepNow)
     }
 
     public func setLowPowerOnBattery(_ on: Bool) throws {

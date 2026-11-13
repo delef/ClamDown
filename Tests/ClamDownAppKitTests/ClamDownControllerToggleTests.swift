@@ -15,6 +15,8 @@ struct Rig {
     let installed: FakeInstalledHelper
     let lid = FakeLidMonitor()
     let locker = FakeScreenLocker()
+    let lidReader: FakeLidReader
+    let sleeper = FakeSleeper()
     let clock = FakeClock()
 
     init(
@@ -24,9 +26,11 @@ struct Rig {
         helperFingerprint: String? = nil,
         installedFingerprint: String? = nil,
         heartbeatInterval: Duration = .seconds(3600),
-        sensors: SensorReading? = nil
+        sensors: SensorReading? = nil,
+        lidState: LidState? = nil
     ) {
         registrar = FakeRegistrar(availability)
+        lidReader = FakeLidReader(lidState)
         monitor = FakeMonitor(snapshot)
         store = FakeSettingsStore(settings)
         installed = FakeInstalledHelper(installedFingerprint)
@@ -43,6 +47,8 @@ struct Rig {
             lidMonitor: lid,
             screenLocker: locker,
             sensors: sensors,
+            lid: lidReader,
+            sleeper: sleeper,
             now: { [clock] in clock.now }
         )
     }

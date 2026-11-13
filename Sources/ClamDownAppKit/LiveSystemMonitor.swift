@@ -22,8 +22,20 @@ public final class LiveSystemMonitor: SystemMonitoring {
         return SystemSnapshot(
             batteryPercent: power.batteryPercent,
             isOnBattery: power.isOnBattery,
-            thermal: ThermalLevel(ProcessInfo.processInfo.thermalState)
+            thermal: Self.thermalLevel()
         )
+    }
+
+    private static func thermalLevel() -> ThermalLevel {
+        #if DEBUG
+        // Debug builds only: a Mac cannot be made hot on demand, so the heat cut-off is tested with
+        //     defaults write <bundle id> debugThermalLevel serious
+        // and `defaults delete` afterwards. Release builds do not contain this.
+        if let name = UserDefaults.standard.string(forKey: "debugThermalLevel"), let level = ThermalLevel(name: name) {
+            return level
+        }
+        #endif
+        return ThermalLevel(ProcessInfo.processInfo.thermalState)
     }
 
     public func start(onChange: @escaping @Sendable () -> Void) {

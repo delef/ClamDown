@@ -47,6 +47,8 @@ public final class ClamDownController: ObservableObject {
     /// Called on every Turn On or reinstall that stops because the helper needs approval.
     /// The app answers by opening the setup assistant; System Settings no longer opens by itself.
     public var onHelperNeedsApproval: (@MainActor () -> Void)?
+    /// Called with one sentence when the user opens the lid after ClamDown let the Mac sleep.
+    public var onWakeReport: (@MainActor (String) -> Void)?
 
     private let helper: HelperControlling
     private let registrar: HelperRegistering
@@ -62,9 +64,19 @@ public final class ClamDownController: ObservableObject {
     private let screenLocker: ScreenLocking?
     /// Reads temperatures and fans directly when the helper cannot answer, for example before it is installed.
     private let sensors: SensorReading?
+    private let lid: LidReading?
+    private let sleeper: SystemSleeping?
+    /// What to tell the user when they open the lid after ClamDown let the Mac sleep.
+    private var pendingWakeReport: WakeReport?
     /// True while a Turn On or a helper install, update or removal runs. These wait on macOS, so a second button
     /// press can arrive in the middle; it is turned away instead of racing the first.
     private var helperBusy = false
+
+    private struct WakeReport {
+        let text: String
+        /// True once the Mac went to sleep after the switch-off. A switch-off the user sat through needs no second telling.
+        var slept: Bool
+    }
     private let now: @Sendable () -> Date
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
@@ -82,6 +94,8 @@ public final class ClamDownController: ObservableObject {
         lidMonitor: LidMonitoring? = nil,
         screenLocker: ScreenLocking? = nil,
         sensors: SensorReading? = nil,
+        lid: LidReading? = nil,
+        sleeper: SystemSleeping? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.helper = helper
@@ -96,6 +110,8 @@ public final class ClamDownController: ObservableObject {
         self.lidMonitor = lidMonitor
         self.screenLocker = screenLocker
         self.sensors = sensors
+        self.lid = lid
+        self.sleeper = sleeper
         self.now = now
         self.settings = settingsStore.load()
     }
@@ -171,7 +187,24 @@ public final class ClamDownController: ObservableObject {
         finishOff()
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
-        announce(helperAvailability == .ready ? "Turned off: the helper stopped the mode." : Self.helperLost)
+        let helperStillAllowed = helperAvailability == .ready
+        announce(helperStillAllowed ? "Turned off: the helper stopped the mode." : Self.helperLost)
+        leaveWakeReport(forcedSleep: false,
+                        why: helperStillAllowed ? "the helper stopped the mode" : "macOS no longer allows the helper")
+    }
+
+    /// Call when the Mac is about to sleep.
+    public func systemWillSleep() {
+        pendingWakeReport?.slept = true
+    }
+
+    /// Call when the Mac or its screens wake. Tells the user why ClamDown let the Mac sleep, once, when the lid is open.
+    public func systemDidWake() {
+        guard let report = pendingWakeReport, report.slept else { return }
+        // A power event can wake a Mac that is still closed in a bag. Keep the report for the person who opens it.
+        if lid?.lid()?.closed == true { return }
+        pendingWakeReport = nil
+        onWakeReport?(report.text)
     }
 
     static let helperLost = "Turned off: macOS no longer allows the helper. Open Setup to allow it again."
@@ -313,6 +346,8 @@ public final class ClamDownController: ObservableObject {
         helperBusy = true
         defer { helperBusy = false }
         notice = nil
+        // The user is back and acting, so an undelivered "why the Mac slept" is old news.
+        pendingWakeReport = nil
         let preparation = await prepareHelperExclusively()
         pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
         guard show(preparation) else { return }
@@ -366,10 +401,28 @@ public final class ClamDownController: ObservableObject {
             // Stop the heartbeat on purpose: the helper's own watchdog then resets the Mac within about 90 seconds.
             finishOff()
             announce("Turned off: \(reason.summary). The helper did not confirm, so it will reset by itself within 90 seconds.")
+            leaveWakeReport(forcedSleep: false, why: reason.summary)
             return
         }
         finishOff()
-        announce("Turned off: \(reason.summary). The Mac can sleep now.")
+        let sleeps = shouldSleep(after: reason)
+        announce("Turned off: \(reason.summary). " + (sleeps ? "The Mac is going to sleep." : "The Mac can sleep now."))
+        leaveWakeReport(forcedSleep: sleeps, why: reason.summary)
+        if sleeps { sleeper?.sleepNow() }
+    }
+
+    /// Protection fired and nobody is at the Mac: the lid is closed and macOS itself would have it asleep.
+    /// Then waiting for macOS is a risk, because an app can keep an idle Mac awake in a bag. With the lid open,
+    /// or closed in front of an external display, someone is using the Mac and it is left alone.
+    private func shouldSleep(after reason: AutoOffReason) -> Bool {
+        guard reason.isProtective, settings.sleepAfterProtection, sleeper != nil else { return false }
+        return lid?.lid()?.isUnattended == true
+    }
+
+    private func leaveWakeReport(forcedSleep: Bool, why: String) {
+        let time = now().formatted(date: .omitted, time: .shortened)
+        let action = forcedSleep ? "put the Mac to sleep" : "let the Mac sleep"
+        pendingWakeReport = WakeReport(text: "ClamDown \(action) at \(time): \(why).", slept: forcedSleep)
     }
 
     private func announce(_ text: String) {

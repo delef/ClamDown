@@ -63,13 +63,15 @@ ClamDown uses that same `pmset disablesleep` switch and adds the safety rules ab
 - One switch in the menu bar. Filled icon: on. Outline icon: off. "Turn On For" starts a timed session. The icon style is a setting.
 - While on, closing the lid does not sleep the Mac. Running processes and network connections carry on.
 - While on, closing the lid locks the screen (setting, on by default), so the Mac does not open without a password.
-- While on with the lid closed, it drives the fans from the CPU temperature (setting, on by default). macOS keeps a closed MacBook's fans near their lowest speed even when the chip is hot; ClamDown raises them along a curve: lowest speed up to 60 °C, full speed at 85 °C (both settings). The other choices are full speed, or leaving the fans to macOS. "Only With Lid Closed" (on by default) hands the fans back to macOS while the lid is open. Fan control needs Apple Silicon; on an Intel Mac the Cooling page only shows the readings.
+- While on with the lid closed, it drives the fans from the CPU temperature (setting, on by default). macOS keeps a closed MacBook's fans near their lowest speed even when the chip is hot; ClamDown raises them along a curve: lowest speed up to 50 °C, full speed at 75 °C (both settings). The other choices are full speed, or leaving the fans to macOS. "Only With Lid Closed" (on by default) hands the fans back to macOS while the lid is open. Fan control needs Apple Silicon; on an Intel Mac the Cooling page only shows the readings.
 - On battery, it switches on Low Power Mode for the battery profile (setting, on by default) and puts your previous value back when it switches off.
 - It switches itself off and lets the Mac sleep when:
   - the battery falls to the cut-off (default 10%, setting: 5–50% or off), or
   - the system thermal state reaches the cut-off (default `serious`, setting: `fair`, `serious`, `critical`, or never), or
   - the power adapter is unplugged (setting, off by default), or
   - the timer ends (setting: never, or 30 minutes to 8 hours).
+- After a battery or heat switch-off with the lid closed, it puts the Mac to sleep at once (setting, on by default), so an app that keeps the Mac awake cannot leave it running in a bag. It leaves the Mac alone when the lid is open or the Mac sits closed in front of an external display.
+- When you open the lid after ClamDown let the Mac sleep, it tells you why.
 - It posts a notification that names the reason whenever it switches itself off (setting, on by default).
 
 Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. The Cooling page also shows the CPU temperature, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
@@ -106,7 +108,7 @@ When ClamDown cannot work until you do something, for example after macOS took t
 ## Safety behavior
 
 - **Cut-offs.** Battery and thermal cut-offs switch ClamDown off and let the Mac sleep. The battery rule applies only while running on battery, so a charging Mac at 5% stays awake. Macs without a battery have no battery rule.
-- **Watchdog.** While on, the app sends the helper a heartbeat about every 30 seconds. If the heartbeat stops for about 90 seconds, or the app quits or crashes, the helper puts sleep, Low Power Mode and the fans back as they were, by itself.
+- **Watchdog.** While on, the app sends the helper a heartbeat about every 30 seconds. If the heartbeat stops for about 90 seconds, or the app quits or crashes, the helper puts sleep, Low Power Mode and the fans back as they were, by itself. If the lid is closed at that moment and nothing but ClamDown kept the Mac awake, the helper also puts it to sleep.
 - **Fans.** The helper hands the fans back to macOS whenever the mode switches off for any reason, the lid opens (with "Only With Lid Closed"), or the CPU temperature cannot be read. It records that it holds the fans before it touches them, so a helper restart after a crash hands them back too. It never sets a fan outside that fan's own minimum and maximum speed. Fan speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load do not make the fans hunt.
 - **Reboots.** The helper runs at load and resets any leftover state every time it starts.
 - **Narrow helper.** The helper can only turn `disablesleep` on or off, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode is on. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).

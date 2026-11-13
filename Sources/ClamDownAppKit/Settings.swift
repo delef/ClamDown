@@ -78,11 +78,14 @@ public struct Settings: Codable, Equatable, Sendable {
     public var batteryCutoffEnabled = true
     public var batteryCutoffPercent = 10
     public var thermalCutoff: ThermalCutoff = .serious
+    /// After a battery or heat switch-off with the lid closed, put the Mac to sleep at once.
+    public var sleepAfterProtection = true
 
     // Cooling
     public var fanMode: FanMode = .curve
-    public var fanStartTemperature = 60
-    public var fanFullSpeedTemperature = 85
+    // The curve starts early on purpose: a closed Mac in a bag has little airflow, and running long matters more than quiet.
+    public var fanStartTemperature = 50
+    public var fanFullSpeedTemperature = 75
     public var fansOnlyWhenLidClosed = true
 
     // General
@@ -114,7 +117,7 @@ public struct Settings: Codable, Equatable, Sendable {
     // so settings saved by an older build, or with an unknown value, still load.
     private enum CodingKeys: String, CodingKey {
         case autoOffTimer, lockScreenWhenLidClosed, turnOffWhenUnplugged, autoLowPowerOnBattery
-        case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff
+        case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff, sleepAfterProtection
         case fanMode, fanStartTemperature, fanFullSpeedTemperature, fansOnlyWhenLidClosed
         case launchAtLogin, showDockIcon, notificationsEnabled, menuBarIcon
     }
@@ -129,6 +132,7 @@ public struct Settings: Codable, Equatable, Sendable {
         batteryCutoffEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .batteryCutoffEnabled)) ?? batteryCutoffEnabled
         batteryCutoffPercent = (try? c.decodeIfPresent(Int.self, forKey: .batteryCutoffPercent)) ?? batteryCutoffPercent
         thermalCutoff = (try? c.decodeIfPresent(ThermalCutoff.self, forKey: .thermalCutoff)) ?? thermalCutoff
+        sleepAfterProtection = (try? c.decodeIfPresent(Bool.self, forKey: .sleepAfterProtection)) ?? sleepAfterProtection
         fanMode = (try? c.decodeIfPresent(FanMode.self, forKey: .fanMode)) ?? fanMode
         fanStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanStartTemperature)) ?? fanStartTemperature
         fanFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanFullSpeedTemperature)) ?? fanFullSpeedTemperature

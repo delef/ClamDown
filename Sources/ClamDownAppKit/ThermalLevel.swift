@@ -13,6 +13,12 @@ public enum ThermalLevel: Int, Comparable, Sendable {
         }
     }
 
+    /// The level with this `name`, or nil.
+    public init?(name: String) {
+        guard let level = [ThermalLevel.nominal, .fair, .serious, .critical].first(where: { $0.name == name }) else { return nil }
+        self = level
+    }
+
     public var name: String {
         switch self {
         case .nominal: "nominal"

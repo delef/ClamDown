@@ -4,6 +4,14 @@ public enum AutoOffReason: Equatable, Sendable {
     case unplugged
     case timerEnded
 
+    /// True for the reasons that protect the Mac itself. Only these may put it to sleep.
+    public var isProtective: Bool {
+        switch self {
+        case .batteryLow, .thermal: true
+        case .unplugged, .timerEnded: false
+        }
+    }
+
     /// Short phrase used in notifications and status lines.
     public var summary: String {
         switch self {

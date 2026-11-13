@@ -83,3 +83,11 @@ import Testing
         #expect(AutoOffPolicy.reason(for: snapshot, settings: settings) == .thermal(.critical))
     }
 }
+
+@Suite struct ThermalLevelNameTests {
+    @Test func levelFromItsName() {
+        #expect(ThermalLevel(name: "serious") == .serious)
+        #expect(ThermalLevel(name: "nominal") == .nominal)
+        #expect(ThermalLevel(name: "hot") == nil)
+    }
+}

@@ -21,7 +21,8 @@ private func runHelper() async -> Never {
     let core = HelperCore(
         runner: SystemPmsetRunner(),
         store: FileSavedStateStore(url: URL(fileURLWithPath: "/var/db/clamdown/state.json")),
-        fans: SMCFanHardware()
+        fans: SMCFanHardware(),
+        lid: SystemLid()
     )
     // A failure here must not stop the helper from serving.
     do { try await core.recoverOnStart() } catch { log("recovery on start failed: \(error)") }

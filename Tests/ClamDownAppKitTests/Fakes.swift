@@ -205,6 +205,30 @@ final class FakeSetupStore: SetupStoring {
     init(_ completed: Bool = false) { self.completed = completed }
 }
 
+/// The lid as a test sets it. Nil stands for a Mac whose lid cannot be read.
+final class FakeLidReader: LidReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: LidState?
+
+    init(_ state: LidState? = nil) { current = state }
+
+    var state: LidState? {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+
+    func lid() -> LidState? { state }
+}
+
+final class FakeSleeper: SystemSleeping, @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var sleepCount: Int { lock.withLock { count } }
+
+    func sleepNow() { lock.withLock { count += 1 } }
+}
+
 final class FakeActivity: ProcessActivityHolding {
     private(set) var beginCount = 0
     private(set) var endCount = 0

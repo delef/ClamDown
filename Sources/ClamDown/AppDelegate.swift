@@ -52,7 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             helperFingerprint: Self.helperFingerprint(),
             lidMonitor: LiveLidMonitor(),
             screenLocker: LiveScreenLocker(),
-            sensors: SMCFanHardware()
+            sensors: SMCFanHardware(),
+            lid: SystemLid(),
+            sleeper: LiveSystemSleeper()
         )
         super.init()
     }
@@ -85,6 +87,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] in self?.applyDockBadge() }
             .store(in: &observers)
         controller.onHelperNeedsApproval = { [weak self] in self?.showSetup(.turnOnNeedsApproval) }
+        controller.onWakeReport = { [weak self] text in self?.deliverWakeReport(text) }
+        observeSleepAndWake()
         controller.refreshHelperAvailability()
         // macOS sends no notice when the helper's approval changes in System Settings.
         helperTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -104,6 +108,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let presentation = SetupFlow.presentation(for: entry, completed: setupStore.completed,
                                                         helper: controller.helperAvailability) else { return }
         setupWindow.show(presentation)
+    }
+
+    /// The controller needs to know when the Mac sleeps and when someone is back at it.
+    /// The screens waking covers a lid that opens after the Mac itself was already awake.
+    private func observeSleepAndWake() {
+        let center = NSWorkspace.shared.notificationCenter
+        center.publisher(for: NSWorkspace.willSleepNotification)
+            .sink { [weak self] _ in self?.controller.systemWillSleep() }
+            .store(in: &observers)
+        center.publisher(for: NSWorkspace.didWakeNotification)
+            .merge(with: center.publisher(for: NSWorkspace.screensDidWakeNotification))
+            .sink { [weak self] _ in self?.controller.systemDidWake() }
+            .store(in: &observers)
+    }
+
+    /// Tells the returning user why ClamDown let the Mac sleep. A notification when macOS shows ours;
+    /// a plain window when the user wants to be told but macOS does not show them. Nothing when they switched this off.
+    private func deliverWakeReport(_ text: String) {
+        guard controller.settings.notificationsEnabled else { return }
+        Task {
+            if await notifier.permission() == .allowed {
+                notifier.post(title: "ClamDown", body: text)
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "ClamDown switched off while you were away"
+                alert.informativeText = text
+                alert.addButton(withTitle: "OK")
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
     }
 
     /// The Dock icon follows the setting, and is always there while the setup assistant is open.
