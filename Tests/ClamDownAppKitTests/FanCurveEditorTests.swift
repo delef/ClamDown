@@ -10,6 +10,18 @@ import ClamDownShared
         #expect(FanCurveEditor.defaultAdvanced == FanCurveEditor.advanced(fromStart: 50, full: 75))
     }
 
+    @Test func advancedFromEdgeStandardStaysOnOrAboveFloor() {
+        for (start, full) in [(70, 95), (69, 95)] {
+            let points = FanCurveEditor.advanced(fromStart: start, full: full)
+            #expect(points.count == 5)
+            for point in points {
+                #expect(Double(point.speed) >= SafetyFloor.speed(at: Double(point.temperature)), "\(start)/\(full): \(point)")
+            }
+            #expect(zip(points, points.dropFirst()).allSatisfy { $0.temperature <= $1.temperature && $0.speed <= $1.speed })
+        }
+        #expect(FanCurveEditor.advanced(fromStart: 70, full: 95) == [point(70, 0), point(76, 25), point(83, 52), point(89, 76), point(95, 100)])
+    }
+
     @Test func standardStopsAtGap() {
         #expect(FanCurveEditor.movedStandard(start: 50, full: 75, dragging: 0, to: 74) == (70, 75))
         #expect(FanCurveEditor.movedStandard(start: 50, full: 75, dragging: 1, to: 52) == (50, 55))

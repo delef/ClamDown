@@ -145,8 +145,40 @@ import ClamDownShared
 
     @Test func clampingRepairsTheAdvancedPoints() {
         var s = Settings()
-        s.fanAdvancedPoints = [.init(temperature: 30, speed: 50), .init(temperature: 60, speed: 20)]
-        #expect(s.clamped().fanAdvancedPoints == [.init(temperature: 40, speed: 50), .init(temperature: 60, speed: 50)])
+        s.fanAdvancedPoints = [.init(temperature: 30, speed: 50), .init(temperature: 60, speed: 20), .init(temperature: 65, speed: 60),
+                               .init(temperature: 70, speed: 70), .init(temperature: 80, speed: 100)]
+        #expect(s.clamped().fanAdvancedPoints == [.init(temperature: 40, speed: 50), .init(temperature: 60, speed: 50),
+                                                  .init(temperature: 65, speed: 60), .init(temperature: 70, speed: 70),
+                                                  .init(temperature: 80, speed: 100)])
+    }
+
+    /// Corrupt or hand-edited points must never switch the fans off while the switch shows On.
+    @Test func emptyAdvancedPointsFallBackToDefault() throws {
+        let json = #"{"fanControlEnabled":true,"fanCurveMode":"advanced","fanAdvancedPoints":[]}"#
+        let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
+        #expect(s.fanAdvancedPoints == nil)
+        #expect(s.fanPolicy.points == FanCurveEditor.defaultAdvanced)
+        var direct = Settings()
+        direct.fanCurveMode = .advanced
+        direct.fanAdvancedPoints = []
+        #expect(!direct.fanPolicy.isOff && direct.fanPolicy.points == FanCurveEditor.defaultAdvanced)
+        #expect(direct.clamped().fanAdvancedPoints == nil)
+    }
+
+    @Test func wrongCountAdvancedPointsFallBackToDefault() throws {
+        let json = #"{"fanControlEnabled":true,"fanCurveMode":"advanced","fanAdvancedPoints":[{"temperature":60,"speed":10},{"temperature":70,"speed":20},{"temperature":80,"speed":90}]}"#
+        let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
+        #expect(s.fanAdvancedPoints == nil)
+        #expect(!s.fanPolicy.isOff && s.fanPolicy.points == FanCurveEditor.defaultAdvanced)
+        var six = Settings()
+        six.fanCurveMode = .advanced
+        six.fanAdvancedPoints = FanCurveEditor.defaultAdvanced + [FanPoint(temperature: 90, speed: 100)]
+        #expect(six.fanPolicy.points == FanCurveEditor.defaultAdvanced)
+        // Choosing Advanced again copies the Standard line instead of keeping the broken list.
+        six.fanCurveMode = .standard
+        six.fanStartTemperature = 60
+        six.fanFullSpeedTemperature = 80
+        #expect(FanCurveEditor.chooseAdvanced(six).fanAdvancedPoints == FanCurveEditor.advanced(fromStart: 60, full: 80))
     }
 
     @Test func settingsFromBeforeFanControlGetTheDefaults() throws {

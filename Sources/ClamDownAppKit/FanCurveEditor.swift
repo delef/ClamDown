@@ -4,12 +4,18 @@ import ClamDownShared
 public enum FanCurveEditor {
     /// Five points on the Standard line from `start` to `full`, evenly spaced by temperature, at 0, 25, 50, 75
     /// and 100 %. Choosing Advanced with these points changes nothing until a point is dragged.
+    /// Rounding the temperatures can put a point a little inside the safety floor near its edge (70/95), so each
+    /// speed is raised to the floor at its temperature; the floor rises with temperature, so the speeds stay in order.
     public static func advanced(fromStart start: Int, full: Int) -> [FanPoint] {
-        (0...4).map { step in
-            let temperature = Double(start) + Double(full - start) * Double(step) / 4
-            return FanPoint(temperature: Int(temperature.rounded(.toNearestOrAwayFromZero)), speed: step * 25)
+        (0..<advancedPointCount).map { step in
+            let fraction = Double(step) / Double(advancedPointCount - 1)
+            let temperature = Int((Double(start) + Double(full - start) * fraction).rounded(.toNearestOrAwayFromZero))
+            return FanPoint(temperature: temperature, speed: max(step * 25, floorSpeed(at: temperature)))
         }
     }
+
+    /// Advanced always has exactly this many points; a stored list of another length counts as absent.
+    public static let advancedPointCount = 5
 
     public static let defaultAdvanced = advanced(fromStart: StandardCurve.defaultStart, full: StandardCurve.defaultFull)
 
@@ -56,7 +62,7 @@ public enum FanCurveEditor {
     public static func chooseAdvanced(_ settings: Settings) -> Settings {
         var copy = settings
         copy.fanCurveMode = .advanced
-        if copy.fanAdvancedPoints == nil {
+        if copy.fanAdvancedPoints?.count != advancedPointCount {
             let line = StandardCurve.clamped(start: settings.fanStartTemperature, full: settings.fanFullSpeedTemperature)
             copy.fanAdvancedPoints = advanced(fromStart: line.start, full: line.full)
         }

@@ -124,7 +124,7 @@ public struct Settings: Codable, Equatable, Sendable {
         } else {
             switch fanCurveMode {
             case .standard: points = StandardCurve.points(start: fanStartTemperature, full: fanFullSpeedTemperature)
-            case .advanced: points = fanAdvancedPoints ?? FanCurveEditor.defaultAdvanced
+            case .advanced: points = Self.validAdvanced(fanAdvancedPoints) ?? FanCurveEditor.defaultAdvanced
             }
         }
         return FanPolicy(points: points, onlyWhenLidClosed: fansOnlyWhenLidClosed)
@@ -135,8 +135,15 @@ public struct Settings: Codable, Equatable, Sendable {
         copy.batteryCutoffPercent = min(max(batteryCutoffPercent, Self.batteryCutoffRange.lowerBound), Self.batteryCutoffRange.upperBound)
         (copy.fanStartTemperature, copy.fanFullSpeedTemperature) =
             StandardCurve.clamped(start: fanStartTemperature, full: fanFullSpeedTemperature)
-        copy.fanAdvancedPoints = fanAdvancedPoints.map { FanPolicy(points: $0).repaired().points }
+        copy.fanAdvancedPoints = Self.validAdvanced(fanAdvancedPoints).map { FanPolicy(points: $0).repaired().points }
         return copy
+    }
+
+    /// A stored Advanced list that is not exactly five points (corrupt or hand-edited) counts as absent, so it can
+    /// never turn into an empty policy that switches the fans off while the switch shows On.
+    private static func validAdvanced(_ points: [FanPoint]?) -> [FanPoint]? {
+        guard let points, points.count == FanCurveEditor.advancedPointCount else { return nil }
+        return points
     }
 
     // Decoding keeps every setting that is present and falls back to the default for the rest,
@@ -172,7 +179,7 @@ public struct Settings: Codable, Equatable, Sendable {
             migrateFanMode(from: decoder)
         }
         fanCurveMode = (try? c.decodeIfPresent(FanCurveMode.self, forKey: .fanCurveMode)) ?? fanCurveMode
-        fanAdvancedPoints = (try? c.decodeIfPresent([FanPoint].self, forKey: .fanAdvancedPoints)) ?? fanAdvancedPoints
+        fanAdvancedPoints = Self.validAdvanced((try? c.decodeIfPresent([FanPoint].self, forKey: .fanAdvancedPoints)) ?? fanAdvancedPoints)
         fanStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanStartTemperature)) ?? fanStartTemperature
         fanFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanFullSpeedTemperature)) ?? fanFullSpeedTemperature
         fansOnlyWhenLidClosed = (try? c.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) ?? fansOnlyWhenLidClosed
