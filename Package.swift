@@ -21,7 +21,8 @@ let package = Package(
         .target(name: "ClamDownAppKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
         .testTarget(name: "ClamDownAppKitTests", dependencies: ["ClamDownAppKit", "ClamDownSensors"]),
         .target(name: "ClamDownHelperKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
-        .testTarget(name: "ClamDownHelperKitTests", dependencies: ["ClamDownHelperKit", "ClamDownSensors"]),
+        .testTarget(name: "ClamDownHelperKitTests", dependencies: ["ClamDownHelperKit", "ClamDownSensors"],
+                    resources: [.copy("Fixtures")]),
         .executableTarget(name: "ClamDownHelper", dependencies: ["ClamDownHelperKit", "ClamDownShared", "ClamDownSensors"]),
         // A root-only debug tool for device checks (fan spin-up, hottest core, thermal level). Never bundled:
         // scripts/build-app.sh builds and copies only ClamDown and ClamDownHelper.
