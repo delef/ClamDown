@@ -8,8 +8,10 @@ public protocol SettingsStoring: AnyObject {
 
 public final class UserDefaultsSettingsStore: SettingsStoring {
     private static let key = "settings.v1"
-    /// Set once the fan curve's old defaults were looked at, so a later deliberate 60/85 is left alone.
+    /// Set once the fan curve's 0.1.0 and 0.1.1 defaults were looked at, so a later deliberate 60/85 is left alone.
     private static let fanDefaultsMigratedKey = "settings.fanCurveDefaults.v2"
+    /// Set once 0.1.2's defaults were looked at, so a later deliberate 50/75 is left alone.
+    private static let fanDefaultsV3MigratedKey = "settings.fanCurveDefaults.v3"
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) {
@@ -17,15 +19,21 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
     }
 
     public func load() -> Settings {
-        defer { defaults.set(true, forKey: Self.fanDefaultsMigratedKey) }
+        defer {
+            defaults.set(true, forKey: Self.fanDefaultsMigratedKey)
+            defaults.set(true, forKey: Self.fanDefaultsV3MigratedKey)
+        }
         guard let data = defaults.data(forKey: Self.key),
               var settings = try? JSONDecoder().decode(Settings.self, from: data) else {
             return Settings()
         }
-        // Stored settings carry every value, so builds up to 0.1.1 pinned their defaults of 60 and 85 °C.
-        // The curve now starts earlier; untouched old defaults follow it, once.
-        if !defaults.bool(forKey: Self.fanDefaultsMigratedKey),
-           settings.fanStartTemperature == 60, settings.fanFullSpeedTemperature == 85 {
+        // Stored settings carry every value, so older builds pinned their defaults: 60 and 85 °C up to 0.1.1,
+        // 50 and 75 °C in 0.1.2. The curve now starts earlier; untouched old defaults follow it, once each.
+        // Only the Standard numbers move; Advanced points are the user's own.
+        let start = settings.fanStartTemperature, full = settings.fanFullSpeedTemperature
+        let first = !defaults.bool(forKey: Self.fanDefaultsMigratedKey) && start == 60 && full == 85
+        let second = !defaults.bool(forKey: Self.fanDefaultsV3MigratedKey) && start == 50 && full == 75
+        if first || second {
             let current = Settings()
             settings.fanStartTemperature = current.fanStartTemperature
             settings.fanFullSpeedTemperature = current.fanFullSpeedTemperature

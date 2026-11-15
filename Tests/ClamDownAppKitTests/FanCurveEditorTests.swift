@@ -7,7 +7,7 @@ import ClamDownShared
 
     @Test func advancedFromStandardLine() {
         #expect(FanCurveEditor.advanced(fromStart: 50, full: 75) == [point(50, 0), point(56, 25), point(63, 50), point(69, 75), point(75, 100)])
-        #expect(FanCurveEditor.defaultAdvanced == FanCurveEditor.advanced(fromStart: 50, full: 75))
+        #expect(FanCurveEditor.defaultAdvanced == FanCurveEditor.advanced(fromStart: 40, full: 70))
     }
 
     @Test func advancedFromEdgeStandardStaysOnOrAboveFloor() {
@@ -35,7 +35,7 @@ import ClamDownShared
     }
 
     @Test func advancedStopsAtNeighbours() {
-        let points = FanCurveEditor.defaultAdvanced  // 50/0, 56/25, 63/50, 69/75, 75/100
+        let points = FanCurveEditor.advanced(fromStart: 50, full: 75)  // 50/0, 56/25, 63/50, 69/75, 75/100
         // First point: past the next one, right and up.
         #expect(FanCurveEditor.movedAdvanced(points, dragging: 0, to: point(60, 40))[0] == point(56, 25))
         // Middle point: past the next one, then past the previous one.
@@ -94,7 +94,7 @@ import ClamDownShared
         s.fanAdvancedPoints = own
 
         let standard = FanCurveEditor.reset(s)
-        #expect(standard.fanStartTemperature == 50 && standard.fanFullSpeedTemperature == 75)
+        #expect(standard.fanStartTemperature == 40 && standard.fanFullSpeedTemperature == 70)
         #expect(standard.fanAdvancedPoints == own && standard.fanCurveMode == .standard)
 
         s.fanCurveMode = .advanced
@@ -128,19 +128,19 @@ import ClamDownShared
     @Test func chartMoveChangesOnlyTheVisibleModeInTheSettings() {
         var s = Settings()
         let moved = FanCurveEditor.moved(s, dragging: 1, to: point(80, 10))
-        #expect(moved.fanStartTemperature == 50 && moved.fanFullSpeedTemperature == 80)
+        #expect(moved.fanStartTemperature == 40 && moved.fanFullSpeedTemperature == 80)
         #expect(moved.fanAdvancedPoints == nil)
 
         s = FanCurveEditor.chooseAdvanced(s)
         let advanced = FanCurveEditor.moved(s, dragging: 4, to: point(90, 100))
         #expect(advanced.fanAdvancedPoints?[4] == point(90, 100))
-        #expect(advanced.fanStartTemperature == 50 && advanced.fanFullSpeedTemperature == 75)
+        #expect(advanced.fanStartTemperature == 40 && advanced.fanFullSpeedTemperature == 70)
     }
 
     @Test func chartShowsTheVisibleCurveEvenWithFanControlOff() {
         var s = Settings()
         s.fanControlEnabled = false
-        #expect(s.fanCurvePoints == StandardCurve.points(start: 50, full: 75))
+        #expect(s.fanCurvePoints == StandardCurve.points(start: 40, full: 70))
         #expect(s.fanPolicy.isOff)
         s.fanCurveMode = .advanced
         #expect(s.fanCurvePoints == FanCurveEditor.defaultAdvanced)

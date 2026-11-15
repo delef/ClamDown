@@ -99,9 +99,10 @@ public enum StandardCurve {
     public static let fullSpeedMaximum = 95
     /// The full-speed point stays at least this many degrees above the start point.
     public static let minimumSpan = 5
-    // The curve starts early on purpose: a closed Mac in a bag has little airflow, and running long matters more than quiet.
-    public static let defaultStart = 50
-    public static let defaultFull = 75
+    // The curve starts early on purpose: a closed Mac in a bag has little airflow, and staying cool matters more than
+    // quiet. At idle the hottest sensor sits a little above 40 °C, so the fans run a little above their minimum.
+    public static let defaultStart = 40
+    public static let defaultFull = 70
 
     public static func points(start: Int, full: Int) -> [FanPoint] {
         [FanPoint(temperature: start, speed: 0), FanPoint(temperature: full, speed: 100)]
