@@ -7,12 +7,16 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
+    # Pinned to the image with macOS 27 and Xcode 27, the system ClamDown is built and checked on.
+    # `macos-latest` moves to a new macOS by itself; change this label on purpose instead.
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: swift --version
+        run: |
+          sw_vers
+          swift --version
       - name: Build
         run: swift build
-      - name: Test
-        run: swift test
+      - name: Test with coverage limits
+        run: scripts/coverage.sh

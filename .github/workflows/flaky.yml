@@ -1,0 +1,24 @@
+name: flaky
+
+# Runs every test many times to find one that fails only now and then. A test that fails once fails the run.
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      repetitions:
+        description: How many times to run each test
+        default: "100"
+
+jobs:
+  repeat:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repeat the tests
+        # Repetition covers Swift Testing tests, which all of ClamDown's tests are.
+        env:
+          REPETITIONS: ${{ inputs.repetitions || '100' }}
+        run: |
+          [[ "$REPETITIONS" =~ ^[0-9]+$ ]] || { echo "repetitions must be a number" >&2; exit 1; }
+          swift test --repeat-until fail --maximum-repetitions "$REPETITIONS"
