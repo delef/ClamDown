@@ -186,6 +186,8 @@ final class FakeFans: FanHardware, @unchecked Sendable {
 
     func set(temperature: Double?) { lock.withLock { reading.cpuTemperature = temperature } }
     func set(hottest: Double?) { lock.withLock { reading.hottestCPUTemperature = hottest } }
+    /// Sets one sensor group's hottest value; nil removes the group, as a sensor that cannot be read.
+    func set(group: SensorGroup, _ celsius: Double?) { lock.withLock { reading.groupTemperatures[group] = celsius } }
     func set(lidClosed: Bool?) { lock.withLock { reading.lidClosed = lidClosed } }
     func set(fans: [FanReading]) { lock.withLock { reading.fans = fans } }
     func failSet(_ fails: Bool = true) { lock.withLock { setFails = fails } }

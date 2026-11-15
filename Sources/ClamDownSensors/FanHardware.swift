@@ -11,13 +11,22 @@ public struct HardwareReading: Equatable, Sendable {
     public var fans: [FanReading]
     /// Nil when the lid state cannot be read.
     public var lidClosed: Bool?
+    /// The hottest plausible value of each sensor group that could be read. Groups without one are absent.
+    public var groupTemperatures: [SensorGroup: Double]
 
-    public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], lidClosed: Bool?) {
+    public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], lidClosed: Bool?,
+                groupTemperatures: [SensorGroup: Double] = [:]) {
         self.cpuTemperature = cpuTemperature
         self.hottestCPUTemperature = hottestCPUTemperature
         self.fans = fans
         self.lidClosed = lidClosed
+        self.groupTemperatures = groupTemperatures
     }
+
+    /// The hottest reading over all groups, in °C: what the curve follows. Nil when no group could be read.
+    public var hottestTemperature: Double? { SensorGroup.hottest(in: groupTemperatures)?.celsius }
+    /// The group of `hottestTemperature`.
+    public var hottestGroup: SensorGroup? { SensorGroup.hottest(in: groupTemperatures)?.group }
 }
 
 public enum FanHardwareError: Error, Equatable, CustomStringConvertible {
@@ -63,7 +72,10 @@ public protocol FanHardware: SensorReading {
 public final class SMCFanHardware: FanHardware, @unchecked Sendable {
     private let lock = NSLock()
     private let smc: SMC
+    /// The CPU keys, for the average and the hottest core.
     private let temperatureKeys: [String]
+    /// Every key of every group this Mac has, in group order. CPU uses `temperatureKeys`.
+    private let groupKeys: [(group: SensorGroup, keys: [String])]
     public let fanCount: Int
     public let supportsControl: Bool
     /// How long to wait for macOS to hand over a fan after `Ftst` = 1.
@@ -75,7 +87,9 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         self.smc = smc
         self.takeoverTimeout = takeoverTimeout
         fanCount = Int(smc.read("FNum")?.number ?? 0)
-        temperatureKeys = Self.findCPUTemperatureKeys(smc)
+        let allKeys = (0..<smc.keyCount()).compactMap { smc.key(at: $0) }
+        temperatureKeys = Self.findCPUTemperatureKeys(smc, allKeys: allKeys)
+        groupKeys = Self.findGroupKeys(smc, allKeys: allKeys, cpu: temperatureKeys)
         supportsControl = fanCount > 0 && smc.has("Ftst") && smc.read("F0Tg")?.type == "flt "
     }
 
@@ -89,10 +103,24 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
                       let maximum = smc.read("F\(index)Mx")?.number else { return nil }
                 return FanReading(rpm: rpm, minimum: minimum, maximum: maximum, index: index)
             }
-            let temperatures = CPUTemperatures.summary(temperatureKeys.compactMap { smc.read($0)?.number })
+            let cpuValues = temperatureKeys.compactMap { smc.read($0)?.number }
+            let temperatures = CPUTemperatures.summary(cpuValues)
+            var byGroup: [SensorGroup: [Double]] = [.cpu: cpuValues]
+            for (group, keys) in groupKeys where group != .cpu {
+                byGroup[group] = keys.compactMap { smc.read($0)?.number }
+            }
             return HardwareReading(cpuTemperature: temperatures.average, hottestCPUTemperature: temperatures.hottest,
-                                   fans: fans, lidClosed: Self.lidClosed())
+                                   fans: fans, lidClosed: Self.lidClosed(),
+                                   groupTemperatures: SensorKeys.hottestByGroup(byGroup))
         }
+    }
+
+    /// Every temperature key this Mac has in the known groups, in group order. For device checks.
+    public var sensorKeys: [(group: SensorGroup, keys: [String])] { groupKeys }
+
+    /// The raw value of each key, unfiltered; nil where a key cannot be read. For device checks; changes nothing.
+    public func readKeys(_ keys: [String]) -> [Double?] {
+        lock.withLock { keys.map { smc.read($0)?.number } }
     }
 
     public func setTargets(_ rpms: [Double]) throws {
@@ -161,13 +189,21 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
 
     /// Apple Silicon reports CPU core temperatures under `Tp*` (performance) and `Te*` (efficiency) as floats.
     /// Intel Macs use a few fixed `TC0*` keys instead.
-    private static func findCPUTemperatureKeys(_ smc: SMC) -> [String] {
-        let appleSilicon = (0..<smc.keyCount()).compactMap { smc.key(at: $0) }.filter { key in
+    private static func findCPUTemperatureKeys(_ smc: SMC, allKeys: [String]) -> [String] {
+        let appleSilicon = allKeys.filter { key in
             (key.hasPrefix("Tp") || key.hasPrefix("Te"))
                 && smc.read(key).map { $0.type == "flt " && ($0.number.map(isPlausible) ?? false) } == true
         }
         if !appleSilicon.isEmpty { return appleSilicon }
         return ["TC0P", "TC0D", "TC0E", "TC0F"].filter { smc.read($0)?.number.map(isPlausible) == true }
+    }
+
+    /// CPU as found above; GPU is every `Tg*` key with a number (a value that is implausible now may be fine later,
+    /// so plausibility is checked on each reading); the fixed keys where this Mac has them.
+    private static func findGroupKeys(_ smc: SMC, allKeys: [String], cpu: [String]) -> [(group: SensorGroup, keys: [String])] {
+        let gpu = allKeys.filter { SensorKeys.group(of: $0) == .gpu && smc.read($0)?.number != nil }
+        let fixed = SensorKeys.fixed.map { group, keys in (group, keys.filter { smc.read($0)?.number != nil }) }
+        return ([(SensorGroup.cpu, cpu), (.gpu, gpu)] + fixed).filter { !$0.1.isEmpty }
     }
 
     private static func isPlausible(_ celsius: Double) -> Bool { CPUTemperatures.isPlausible(celsius) }

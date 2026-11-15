@@ -115,6 +115,33 @@ public enum StandardCurve {
     }
 }
 
+/// A family of temperature sensors the curve follows. Listed in the order the Cooling page shows them;
+/// when two groups are equally hot, the earlier one is named.
+public enum SensorGroup: String, Codable, CaseIterable, Sendable {
+    case cpu, gpu, battery, ssd, wifi, airflow
+
+    public var title: String {
+        switch self {
+        case .cpu: "CPU"
+        case .gpu: "GPU"
+        case .battery: "Battery"
+        case .ssd: "SSD"
+        case .wifi: "Wi-Fi"
+        case .airflow: "Airflow"
+        }
+    }
+
+    /// The hottest of these group values and its group. Nil when there is none.
+    public static func hottest(in values: [SensorGroup: Double]) -> (group: SensorGroup, celsius: Double)? {
+        var best: (group: SensorGroup, celsius: Double)?
+        for group in allCases {
+            guard let celsius = values[group] else { continue }
+            if best.map({ celsius > $0.celsius }) ?? true { best = (group, celsius) }
+        }
+        return best
+    }
+}
+
 /// One fan as the SMC reports it. Speeds are in rpm.
 public struct FanReading: Codable, Equatable, Sendable {
     public var rpm: Double

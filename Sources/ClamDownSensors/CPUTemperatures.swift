@@ -7,6 +7,6 @@ public enum CPUTemperatures {
         return (plausible.reduce(0, +) / Double(plausible.count), hottest)
     }
 
-    /// Unused sensors read 0 or nonsense; real CPU temperatures fall in this range.
-    static func isPlausible(_ celsius: Double) -> Bool { celsius > 10 && celsius < 130 }
+    /// Unused sensors read 0 or nonsense; real temperatures fall in this range.
+    public static func isPlausible(_ celsius: Double) -> Bool { celsius > 10 && celsius < 130 }
 }
