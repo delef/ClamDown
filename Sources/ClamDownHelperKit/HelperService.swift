@@ -3,6 +3,8 @@ import ClamDownShared
 
 public final class HelperService: NSObject, ClamDownHelperXPC {
     private let core: HelperCore
+    /// This connection, as the owner of a mode it switches on.
+    public let connection = UUID()
 
     public init(core: HelperCore) {
         self.core = core
@@ -10,7 +12,8 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
 
     public func enable(lowPowerOnBattery: Bool, reply: @escaping @Sendable (String?) -> Void) {
         let core = core
-        Self.run(reply) { try await core.enable(lowPowerOnBattery: lowPowerOnBattery) }
+        let connection = connection
+        Self.run(reply) { try await core.enable(lowPowerOnBattery: lowPowerOnBattery, owner: connection) }
     }
 
     public func disable(reply: @escaping @Sendable (String?) -> Void) {

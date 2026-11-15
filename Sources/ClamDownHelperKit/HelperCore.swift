@@ -37,6 +37,12 @@ public actor HelperCore {
     private let fanStepInterval: Duration
 
     private var enabled = false
+    /// The app connection that switched the mode on, while it is on.
+    private var owner: UUID?
+    /// True once launchd is stopping the helper: the fans are never taken again.
+    private var terminating = false
+    /// True once a reading had a CPU temperature. Losing it later is a fault: the other groups run far cooler.
+    private var cpuSeen = false
     /// Battery-profile Low Power Mode before we touched it. Nil means unreadable, so we never change it.
     private var priorBatteryLowPower: Bool?
     /// The user's own `SleepDisabled` value before we turned it on. Put back on every switch-off.
@@ -98,44 +104,84 @@ public actor HelperCore {
 
     public var isEnabled: Bool { enabled }
 
-    public func enable(lowPowerOnBattery: Bool, now: SuspendingClock.Instant = .now) throws {
+    /// `owner` is the app connection that asked; see `connectionClosed`. Nil for callers without one.
+    public func enable(lowPowerOnBattery: Bool, owner: UUID? = nil, now: SuspendingClock.Instant = .now) throws {
         // The app is back, so the sleep an earlier watchdog switch-off owed is off.
         owedSleep = nil
         // A new Turn On: fan control starts afresh.
         health.restart()
         if enabled {
             lastHeartbeat = now
+            self.owner = owner
             try applyLowPower(lowPowerOnBattery)
             return
         }
-        let priorSleep = try readSleepDisabled()
-        let prior = PmsetParser.batteryLowPowerMode(fromCustom: try runner.run(.readCustom))
+        // A session that was never undone (its recovery on start failed) left the user's values on disk; the current
+        // ones may still be ClamDown's, so they must not become the values to put back.
+        let pending = (try? store.load()) ?? nil
+        let priorSleep: Bool
+        let prior: Bool?
+        if let pending, let pendingSleep = pending.sleepDisabled {
+            priorSleep = pendingSleep
+            prior = pending.batteryLowPowerMode
+        } else {
+            priorSleep = try readSleepDisabled()
+            prior = PmsetParser.batteryLowPowerMode(fromCustom: try runner.run(.readCustom))
+        }
+        let clean = pending?.sleepDisabled == nil
         do {
             // Persist what to restore before anything changes, so a crash cannot lose it.
             let state = SavedState(batteryLowPowerMode: prior, sleepDisabled: priorSleep, fansManual: fansHeld ? true : nil)
             try store.save(state)
             saved = state
-            try recordOriginalSettings(sleepDisabled: priorSleep, batteryLowPowerMode: prior)
+            try recordOriginalSettings(sleepDisabled: priorSleep, batteryLowPowerMode: prior, replacing: clean)
             try exec(.setSleepDisabled(true))
             if lowPowerOnBattery, prior != nil { try exec(.setBatteryLowPowerMode(true)) }
         } catch {
             try? exec(.setSleepDisabled(priorSleep))
             if let prior { try? exec(.setBatteryLowPowerMode(prior)) }
-            try? store.clear()
-            saved = nil
+            // Fans whose hand-back failed earlier are still held, and the next start must know that.
+            if fansHeld {
+                let state = SavedState(fansManual: true)
+                try? store.save(state)
+                saved = state
+            } else {
+                try? store.clear()
+                saved = nil
+            }
             throw error
         }
         priorSleepDisabled = priorSleep
         priorBatteryLowPower = prior
         enabled = true
+        self.owner = owner
         lastHeartbeat = now
+    }
+
+    /// An app connection closed (the app quit, crashed or dropped it). Switches off unless the mode belongs to a
+    /// newer connection: an app that reconnected and switched on again must not lose the mode to its old connection.
+    public func connectionClosed(_ connection: UUID) throws {
+        if enabled, let owner, owner != connection { return }
+        try disable()
+    }
+
+    /// launchd is stopping the helper. Nothing may take the fans again after this, whatever the switch-off does.
+    public func shutdown() throws {
+        terminating = true
+        try disable()
     }
 
     /// Always tries every step. On any sleep or Low Power Mode failure the state is kept, so a retry can finish the job.
     /// Fans that cannot be handed back do not block the switch-off: `updateFans` keeps retrying,
     /// and the saved state makes the next helper start retry too.
+    /// While the mode is off the sleep setting and Low Power Mode are the user's own and stay untouched; only a
+    /// session left on disk by a failed recovery is put back, which makes this a retry of that recovery.
     public func disable() throws {
         releaseFansIfHeld()
+        guard enabled else {
+            try recoverOnStart()
+            return
+        }
         var firstError: Error?
         do { try exec(.setSleepDisabled(priorSleepDisabled ?? false)) } catch { firstError = error }
         if let prior = priorBatteryLowPower {
@@ -186,6 +232,7 @@ public actor HelperCore {
         hotBattery = .hotBattery()
         fanOverride = nil
         enabled = false
+        owner = nil
     }
 
     /// True while the mode is on; also pushes the watchdog deadline out.
@@ -257,18 +304,32 @@ public actor HelperCore {
     }
 
     /// Runs when the helper starts: puts back whatever a previous run left behind.
+    /// Without a saved state nothing was left behind, and the user's own settings stay as they are.
     public func recoverOnStart() throws {
-        let saved = (try? store.load()) ?? nil
+        let saved: SavedState?
+        let unreadable: Bool
+        do {
+            saved = try store.load()
+            unreadable = false
+        } catch {
+            saved = nil
+            unreadable = true
+        }
         var firstError: Error?
         var fansStillHeld = false
-        if saved?.fansManual == true, let hardware {
+        // A damaged file may hide a take-over, and handing back fans that macOS already has does no harm.
+        if saved?.fansManual == true || unreadable || fansHeld, let hardware {
             do { try hardware.releaseFans() } catch { firstError = error; fansStillHeld = true }
         }
         if let lowPower = saved?.batteryLowPowerMode {
-            do { try exec(.setBatteryLowPowerMode(lowPower)) } catch { firstError = error }
+            do { try exec(.setBatteryLowPowerMode(lowPower)) } catch { firstError = firstError ?? error }
         }
-        // Without a recorded value, fall back to the old behaviour: sleep allowed.
-        do { try exec(.setSleepDisabled(saved?.sleepDisabled ?? false)) } catch { firstError = firstError ?? error }
+        // A saved session (more than a fan take-over) holds the user's value. Without one the sleep setting is the
+        // user's own already. A damaged file falls back to the old behaviour: sleep allowed.
+        let session = saved.map { $0.sleepDisabled != nil || $0.batteryLowPowerMode != nil } ?? false
+        if session || unreadable {
+            do { try exec(.setSleepDisabled(saved?.sleepDisabled ?? false)) } catch { firstError = firstError ?? error }
+        }
         enabled = false
         priorSleepDisabled = nil
         priorBatteryLowPower = nil
@@ -298,6 +359,7 @@ public actor HelperCore {
     /// Any fault (a failed read or write, a lost temperature, a fan that drops out of the reading or does not
     /// follow its target) hands the fans back to macOS; `FanHealth` says when to take them again.
     public func updateFans(now: SuspendingClock.Instant = .now) {
+        guard !terminating else { return }
         guard enabled, let policy = fanPolicy, !policy.isOff else {
             hotCore = .hotCore()
             hotBattery = .hotBattery()
@@ -344,6 +406,13 @@ public actor HelperCore {
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
         guard let temperature = reading.hottestTemperature ?? reading.cpuTemperature else {
             fault("Cannot read the temperature sensors.", now: now)
+            return
+        }
+        // A CPU that stops reading would leave the curve on the cooler groups and the hot-core watch blind.
+        if reading.cpuTemperature != nil {
+            cpuSeen = true
+        } else if cpuSeen {
+            fault("Cannot read the CPU temperature.", now: now)
             return
         }
         if fansHeld, let previous = fanTargets,
@@ -502,10 +571,12 @@ public actor HelperCore {
         try exec(.setBatteryLowPowerMode(on ? true : prior))
     }
 
-    /// The values from before ClamDown first switched on. Written once: a later switch-on never replaces them.
-    /// An unreadable record (a damaged file) is replaced by the values read now, so it can never stop the switch-on.
-    private func recordOriginalSettings(sleepDisabled: Bool, batteryLowPowerMode: Bool?) throws {
-        if let existing = try? originals.load(), existing != nil { return }
+    /// The values from before ClamDown switched on, for Remove Helper. A clean switch-on (`replacing`) records them
+    /// afresh: while the mode was off they were the user's own, so a change made since, or a record left by an earlier
+    /// install, must not win. After a session that was never undone the record stays, because the current values may
+    /// be ClamDown's. An unreadable record (a damaged file) is always replaced, so it can never stop the switch-on.
+    private func recordOriginalSettings(sleepDisabled: Bool, batteryLowPowerMode: Bool?, replacing: Bool) throws {
+        if !replacing, let existing = try? originals.load(), existing != nil { return }
         try originals.save(OriginalSettings(
             sleepDisabled: sleepDisabled,
             batteryLowPowerMode: batteryLowPowerMode,

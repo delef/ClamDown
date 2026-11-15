@@ -94,10 +94,34 @@ import Testing
         #expect(store.saved == nil)
     }
 
-    @Test func disableWhenNotEnabledStillClearsSleepDisabled() async throws {
-        let (core, runner, _) = make()
+    /// While off, the sleep setting is the user's own: an app quit, a reinstall or launchd's stop leaves it alone.
+    @Test func disableWhenNotEnabledLeavesTheUsersSettings() async throws {
+        let (core, runner, _) = make(sleep: true)
         try await core.disable()
-        #expect(runner.commands == [.setSleepDisabled(false)])
+        try await core.shutdown()
+        #expect(runner.commands.isEmpty)
+    }
+
+    /// A recovery that failed on start leaves the session on disk; the next switch-off finishes it.
+    @Test func disableWhenNotEnabledFinishesAFailedRecovery() async throws {
+        let (core, runner, store) = make(saved: SavedState(batteryLowPowerMode: false, sleepDisabled: false))
+        runner.fail(.setSleepDisabled(false), times: 1)
+        await #expect(throws: FakeFailure.self) { try await core.recoverOnStart() }
+        #expect(store.saved != nil)
+        try await core.disable()
+        #expect(runner.commands.last == .setSleepDisabled(false))
+        #expect(store.saved == nil)
+    }
+
+    @Test func aClosedConnectionSwitchesOffOnlyTheModeItOwns() async throws {
+        let (core, _, _) = make()
+        let old = UUID(), new = UUID()
+        try await core.enable(lowPowerOnBattery: false, owner: old)
+        try await core.enable(lowPowerOnBattery: false, owner: new)
+        try await core.connectionClosed(old)
+        #expect(await core.isEnabled)
+        try await core.connectionClosed(new)
+        #expect(await core.isEnabled == false)
     }
 
     @Test func setLowPowerFalseRestoresPrior() async throws {
@@ -133,10 +157,17 @@ import Testing
         #expect(store.saved == nil)
     }
 
-    @Test func recoverOnStartWithoutSavedStateOnlyResetsSleep() async throws {
-        let (core, runner, _) = make()
+    @Test func recoverOnStartWithoutSavedStateChangesNothing() async throws {
+        let (core, runner, _) = make(sleep: true)
         try await core.recoverOnStart()
-        #expect(runner.commands == [.setSleepDisabled(false)])
+        #expect(runner.commands.isEmpty)
+    }
+
+    @Test func recoverOnStartAfterAFanTakeOverAloneLeavesSleepAlone() async throws {
+        let (core, runner, store) = make(saved: SavedState(fansManual: true), sleep: true)
+        try await core.recoverOnStart()
+        #expect(runner.commands.isEmpty)
+        #expect(store.saved == nil)
     }
 
     @Test func recoverOnStartIgnoresUnreadableStateAndStillResetsSleep() async throws {

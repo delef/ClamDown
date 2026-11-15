@@ -51,7 +51,7 @@ private func runHelper() async -> Never {
         let source = DispatchSource.makeSignalSource(signal: sig, queue: .global(qos: .utility))
         source.setEventHandler {
             Task {
-                do { try await core.disable() } catch { log("disable on signal failed: \(error)") }
+                do { try await core.shutdown() } catch { log("switch-off on signal failed: \(error)") }
                 exit(0)
             }
         }

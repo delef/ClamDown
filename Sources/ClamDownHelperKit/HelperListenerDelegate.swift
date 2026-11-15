@@ -12,10 +12,13 @@ public final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
 
     public func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         connection.exportedInterface = NSXPCInterface(with: ClamDownHelperXPC.self)
-        connection.exportedObject = HelperService(core: core)
-        // The app is gone (quit, crash, kill): put everything back right away.
+        let service = HelperService(core: core)
+        connection.exportedObject = service
+        // The app is gone (quit, crash, kill): put everything back right away, unless it has switched on again
+        // through a newer connection.
         let core = core
-        let reset: @Sendable () -> Void = { Task { try? await core.disable() } }
+        let id = service.connection
+        let reset: @Sendable () -> Void = { Task { try? await core.connectionClosed(id) } }
         connection.invalidationHandler = reset
         connection.interruptionHandler = reset
         connection.resume()

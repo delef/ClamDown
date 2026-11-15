@@ -145,6 +145,34 @@ import ClamDownShared
         #expect(await core.coolingStatus().problem == "Cannot read the temperature sensors.")
     }
 
+    /// The other groups run far cooler than the chip, so the curve must not fall back to them.
+    @Test func losingTheCPUWhileOtherGroupsReadIsAFault() async throws {
+        let (core, fans, _) = try await enabled()
+        fans.set(group: .airflow, 40)
+        try await core.setFanPolicy(curve)
+        #expect(fans.isHeld)
+        fans.set(temperature: nil)
+        await core.updateFans()
+        #expect(!fans.isHeld)
+        #expect(await core.coolingStatus().problem == "Cannot read the CPU temperature.")
+    }
+
+    /// A failed pmset step keeps the mode on, so without the stop a tick before exit would take the fans again.
+    @Test func afterShutdownTheFansAreNeverTakenAgain() async throws {
+        let runner = FakeRunner()
+        let fans = FakeFans()
+        let core = HelperCore(runner: runner, store: FakeStore(), originals: FakeOriginalStore(), fans: fans)
+        try await core.enable(lowPowerOnBattery: false)
+        try await core.setFanPolicy(curve)
+        runner.fail(.setSleepDisabled(false))
+        await #expect(throws: FakeFailure.self) { try await core.shutdown() }
+        #expect(!fans.isHeld)
+        #expect(await core.isEnabled)
+        await core.updateFans()
+        #expect(!fans.isHeld)
+        #expect(fans.targets.count == 1)
+    }
+
     @Test func failedTakeOverHandsTheFansBackAndIsReported() async throws {
         let fans = FakeFans()
         fans.failSet()

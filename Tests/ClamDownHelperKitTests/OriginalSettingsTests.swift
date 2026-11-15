@@ -11,10 +11,11 @@ import ClamDownShared
         prior: Bool? = false,
         sleep: Bool? = false,
         original: OriginalSettings? = nil,
+        saved: SavedState? = nil,
         fans: FakeFans? = nil
     ) -> (HelperCore, FakeRunner, FakeStore, FakeOriginalStore) {
         let runner = FakeRunner(batteryLowPower: prior, sleepDisabled: sleep)
-        let store = FakeStore()
+        let store = FakeStore(initial: saved)
         let originals = FakeOriginalStore(initial: original, runner: runner)
         let core = HelperCore(runner: runner, store: store, originals: originals, fans: fans)
         return (core, runner, store, originals)
@@ -38,20 +39,46 @@ import ClamDownShared
         #expect(runner.commands == [.readGlobal, .readCustom, .setSleepDisabled(true), .setBatteryLowPowerMode(true)])
     }
 
-    @Test func laterEnablesNeverReplaceTheRecord() async throws {
+    /// While the mode is off the values are the user's own, so every clean switch-on records them afresh.
+    @Test func everyCleanEnableRecordsAfresh() async throws {
         let (core, _, _, originals) = make()
         try await core.enable(lowPowerOnBattery: false)
         try await core.disable()
         try await core.enable(lowPowerOnBattery: true)
-        #expect(originals.saveCount == 1)
+        #expect(originals.saveCount == 2)
     }
 
-    @Test func anExistingRecordIsKeptEvenWhenTheCurrentValuesDiffer() async throws {
-        let earlier = recorded(sleep: true, lowPower: true)
-        let (core, _, _, originals) = make(prior: false, sleep: false, original: earlier)
+    /// A setting changed since an earlier switch-on, or a record left by an earlier install, must not come back.
+    @Test func anOlderRecordIsReplacedByTheCurrentValues() async throws {
+        let (core, _, _, originals) = make(prior: false, sleep: false, original: recorded(sleep: true, lowPower: true))
+        try await core.enable(lowPowerOnBattery: true)
+        #expect(originals.saved?.sleepDisabled == false)
+        #expect(originals.saved?.batteryLowPowerMode == false)
+    }
+
+    /// After a session that was never undone the current values may be ClamDown's own: the record and the
+    /// session's saved values win over them.
+    @Test func aSessionLeftOnDiskKeepsTheRecordAndItsValues() async throws {
+        let earlier = recorded(sleep: false, lowPower: false)
+        let (core, runner, store, originals) = make(prior: true, sleep: true, original: earlier,
+                                                    saved: SavedState(batteryLowPowerMode: false, sleepDisabled: false))
         try await core.enable(lowPowerOnBattery: true)
         #expect(originals.saved == earlier)
-        #expect(originals.saveCount == 0)
+        #expect(!runner.commands.contains(.readGlobal))
+        #expect(store.saved == SavedState(batteryLowPowerMode: false, sleepDisabled: false))
+        try await core.disable()
+        #expect(Array(runner.commands.suffix(2)) == [.setSleepDisabled(false), .setBatteryLowPowerMode(false)])
+    }
+
+    /// The whole Remove Helper path: a user's own `disablesleep 1` survives the restore and the helper's exit.
+    @Test func theUsersOwnSleepDisabledSurvivesRemoval() async throws {
+        let (core, runner, _, originals) = make(prior: nil, sleep: true)
+        try await core.enable(lowPowerOnBattery: false)
+        try await core.disable()
+        try await core.restoreOriginalSettings()
+        try await core.shutdown()
+        #expect(runner.commands.last == .setSleepDisabled(true))
+        #expect(originals.saved == nil)
     }
 
     @Test func failingToRecordRollsBackLikeAFailedSave() async {
@@ -77,9 +104,10 @@ import ClamDownShared
 
     @Test func unreadableRecordAtRestoreActsLikeSwitchOffAndIsDeleted() async throws {
         let (core, runner, _, originals) = make(original: recorded(sleep: true, lowPower: true))
+        try await core.enable(lowPowerOnBattery: false)
         originals.failLoad()
         try await core.restoreOriginalSettings()
-        #expect(runner.commands.contains(.setSleepDisabled(false)))
+        #expect(Array(runner.commands.suffix(2)) == [.setSleepDisabled(false), .setBatteryLowPowerMode(false)])
         #expect(!runner.commands.contains(.setBatteryLowPowerMode(true)))
         #expect(originals.saved == nil)
     }
@@ -128,10 +156,10 @@ import ClamDownShared
         #expect(await core.isEnabled == false)
     }
 
-    @Test func restoreWithoutARecordWhenOffOnlyResetsSleep() async throws {
-        let (core, runner, _, _) = make()
+    @Test func restoreWithoutARecordWhenOffChangesNothing() async throws {
+        let (core, runner, _, _) = make(sleep: true)
         try await core.restoreOriginalSettings()
-        #expect(runner.commands == [.setSleepDisabled(false)])
+        #expect(runner.commands.isEmpty)
     }
 
     @Test func restoreReleasesHeldFans() async throws {
