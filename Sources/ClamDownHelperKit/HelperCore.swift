@@ -1,10 +1,22 @@
+import Foundation
 import ClamDownSensors
 import ClamDownShared
 
-public enum HelperError: Error, Equatable {
+public enum HelperError: Error, Equatable, CustomStringConvertible {
     case notEnabled
     /// `pmset -g` did not show a `SleepDisabled` value, so the user's setting cannot be restored later.
     case unreadableSleepSetting
+    /// The fans could not be handed back to macOS, so the original settings are not put back yet.
+    case fansStillHeld
+
+    /// The text the app shows. No final period: the app adds its own.
+    public var description: String {
+        switch self {
+        case .notEnabled: "The mode is not on"
+        case .unreadableSleepSetting: "pmset did not report the sleep setting"
+        case .fansStillHeld: "ClamDown could not hand the fans back to macOS"
+        }
+    }
 }
 
 /// The helper's whole job: switch `disablesleep` and the battery profile's Low Power Mode,
@@ -12,6 +24,7 @@ public enum HelperError: Error, Equatable {
 public actor HelperCore {
     private let runner: PmsetRunning
     private let store: SavedStateStoring
+    private let originals: OriginalSettingsStoring
     private let lid: LidReading?
     private let idle: IdleReading?
     private let watchdogTimeout: Duration
@@ -62,6 +75,7 @@ public actor HelperCore {
     public init(
         runner: PmsetRunning,
         store: SavedStateStoring,
+        originals: OriginalSettingsStoring,
         fans: FanHardware? = nil,
         lid: LidReading? = nil,
         idle: IdleReading? = nil,
@@ -72,6 +86,7 @@ public actor HelperCore {
     ) {
         self.runner = runner
         self.store = store
+        self.originals = originals
         self.hardware = fans
         self.lid = lid
         self.idle = idle
@@ -100,6 +115,7 @@ public actor HelperCore {
             let state = SavedState(batteryLowPowerMode: prior, sleepDisabled: priorSleep, fansManual: fansHeld ? true : nil)
             try store.save(state)
             saved = state
+            try recordOriginalSettings(sleepDisabled: priorSleep, batteryLowPowerMode: prior)
             try exec(.setSleepDisabled(true))
             if lowPowerOnBattery, prior != nil { try exec(.setBatteryLowPowerMode(true)) }
         } catch {
@@ -126,6 +142,33 @@ public actor HelperCore {
             do { try exec(.setBatteryLowPowerMode(prior)) } catch { firstError = firstError ?? error }
         }
         if let firstError { throw firstError }
+        markSwitchedOff()
+    }
+
+    /// Puts back the values recorded before ClamDown first switched on, then deletes that record. Used before the helper
+    /// is removed. The record stays when a step fails, so a retry can finish the job. Without a record this is `disable()`.
+    /// An unreadable record counts as none and is deleted with the switch-off: it can never be put back.
+    public func restoreOriginalSettings() throws {
+        guard let original = (try? originals.load()) ?? nil else {
+            try disable()
+            try? originals.delete()
+            return
+        }
+        releaseFansIfHeld()
+        // Every step is tried. If the fans stay with ClamDown, the record and the saved state stay too, so a retry hands them back.
+        var firstError: Error?
+        if fansHeld { firstError = HelperError.fansStillHeld }
+        do { try exec(.setSleepDisabled(original.sleepDisabled ?? false)) } catch { firstError = firstError ?? error }
+        if let lowPower = original.batteryLowPowerMode {
+            do { try exec(.setBatteryLowPowerMode(lowPower)) } catch { firstError = firstError ?? error }
+        }
+        if let firstError { throw firstError }
+        markSwitchedOff()
+        try originals.delete()
+    }
+
+    /// The state once the mode is off: the session's values are forgotten, and the saved state is kept only while fans are held.
+    private func markSwitchedOff() {
         if fansHeld {
             let state = SavedState(fansManual: true)
             try? store.save(state)
@@ -457,6 +500,17 @@ public actor HelperCore {
     private func applyLowPower(_ on: Bool) throws {
         guard let prior = priorBatteryLowPower else { return }
         try exec(.setBatteryLowPowerMode(on ? true : prior))
+    }
+
+    /// The values from before ClamDown first switched on. Written once: a later switch-on never replaces them.
+    /// An unreadable record (a damaged file) is replaced by the values read now, so it can never stop the switch-on.
+    private func recordOriginalSettings(sleepDisabled: Bool, batteryLowPowerMode: Bool?) throws {
+        if let existing = try? originals.load(), existing != nil { return }
+        try originals.save(OriginalSettings(
+            sleepDisabled: sleepDisabled,
+            batteryLowPowerMode: batteryLowPowerMode,
+            recordedAt: Date()
+        ))
     }
 
     private func readSleepDisabled() throws -> Bool {

@@ -389,7 +389,8 @@ public final class ClamDownController: ObservableObject {
         await updateSettings(updated)
     }
 
-    /// Removes the helper. Turn On sets it up again.
+    /// Puts the original power settings back, then removes the helper. Turn On sets it up again.
+    /// If the settings cannot be put back, the helper stays, because only it can still change them.
     public func removeHelper() async {
         guard !helperBusy else { return }
         helperBusy = true
@@ -397,6 +398,19 @@ public final class ClamDownController: ObservableObject {
         if state.isOn {
             await turnOff()
             guard !state.isOn else { return }
+        }
+        // A helper that answers with a failure stays, so the user can try again. One that cannot be reached
+        // (not approved, or an older build without this call) is removed anyway: the mode is off, so its own
+        // switch-off already put sleep and Low Power Mode back, and it could never restore anything later.
+        var unreached = false
+        do {
+            try await helper.restoreOriginalSettings()
+        } catch HelperClientError.connection, HelperClientError.unsigned {
+            unreached = true
+        } catch {
+            let reason = Self.describe(error).trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            notice = "Could not put the original power settings back: \(reason). The helper stays installed."
+            return
         }
         do {
             try await registrar.unregister()
@@ -406,7 +420,9 @@ public final class ClamDownController: ObservableObject {
         }
         installedHelper.fingerprint = nil
         state = .off
-        notice = "Helper removed. Turn On sets it up again."
+        notice = unreached
+            ? "Helper removed. It did not answer, so the original power settings were not checked. Turn On sets it up again."
+            : "Helper removed. Turn On sets it up again."
         refreshHelperAvailability()
     }
 

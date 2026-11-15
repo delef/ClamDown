@@ -21,6 +21,7 @@ private func runHelper() async -> Never {
     let core = HelperCore(
         runner: SystemPmsetRunner(),
         store: FileSavedStateStore(url: URL(fileURLWithPath: "/var/db/clamdown/state.json")),
+        originals: FileOriginalSettingsStore(url: URL(fileURLWithPath: "/var/db/clamdown/original.json")),
         fans: SMCFanHardware(),
         lid: SystemLid(),
         idle: SystemIdle(),

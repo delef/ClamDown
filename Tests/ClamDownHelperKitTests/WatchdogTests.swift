@@ -11,7 +11,7 @@ import Testing
     private func make(prior: Bool? = false, lid: LidState? = nil) -> (HelperCore, FakeRunner, FakeStore) {
         let runner = FakeRunner(batteryLowPower: prior)
         let store = FakeStore()
-        let core = HelperCore(runner: runner, store: store, lid: FakeLid(state: lid), idle: FakeIdle(),
+        let core = HelperCore(runner: runner, store: store, originals: FakeOriginalStore(), lid: FakeLid(state: lid), idle: FakeIdle(),
                               watchdogTimeout: .seconds(90))
         return (core, runner, store)
     }
@@ -21,7 +21,7 @@ import Testing
         let runner = FakeRunner(batteryLowPower: nil)
         let lid = FakeLid(state: Self.unattended)
         let idleReader = FakeIdle(idle)
-        let core = HelperCore(runner: runner, store: FakeStore(), lid: lid, idle: idleReader, watchdogTimeout: .seconds(90))
+        let core = HelperCore(runner: runner, store: FakeStore(), originals: FakeOriginalStore(), lid: lid, idle: idleReader, watchdogTimeout: .seconds(90))
         try await core.enable(lowPowerOnBattery: false, now: t0)
         return (core, runner, lid, idleReader)
     }

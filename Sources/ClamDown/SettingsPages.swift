@@ -452,7 +452,8 @@ struct HelperPage: View {
                     Button("Open\u{2026}") { controller.openHelperApproval() }
                         .cdButtonStyle(.secondary)
                 }
-                CDRow("Remove Helper", detail: "Removes the helper. Turn On sets it up again.") {
+                CDRow("Remove Helper",
+                      detail: "Puts back your original power settings and removes the helper. Turn On sets it up again.") {
                     Button("Remove") { run { await controller.removeHelper() } }
                         .cdButtonStyle(.destructive)
                 }

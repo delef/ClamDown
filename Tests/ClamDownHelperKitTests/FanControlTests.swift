@@ -44,7 +44,7 @@ import ClamDownShared
 
     private func make(fans: FakeFans = FakeFans(), saved: SavedState? = nil) -> (HelperCore, FakeFans, FakeStore) {
         let store = FakeStore(initial: saved)
-        let core = HelperCore(runner: FakeRunner(), store: store, fans: fans, fanStepDown: 150)
+        let core = HelperCore(runner: FakeRunner(), store: store, originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
         return (core, fans, store)
     }
 
@@ -192,7 +192,7 @@ import ClamDownShared
     @Test func watchdogHandsTheFansBack() async throws {
         let t0 = SuspendingClock.now
         let fans = FakeFans()
-        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), fans: fans, watchdogTimeout: .seconds(90))
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, watchdogTimeout: .seconds(90))
         try await core.enable(lowPowerOnBattery: false, now: t0)
         try await core.setFanPolicy(curve)
         #expect(await core.checkWatchdog(now: t0.advanced(by: .seconds(91))))
@@ -241,7 +241,7 @@ import ClamDownShared
 
     private func enabled(fans: FakeFans = FakeFans(), thermal: FakeThermal? = nil) async throws -> (HelperCore, FakeFans) {
         fans.followsTargets = true
-        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), fans: fans, thermal: thermal, fanStepDown: 150)
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, thermal: thermal, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         return (core, fans)
     }
@@ -543,7 +543,7 @@ import ClamDownShared
     private func enabled(_ fans: FakeFans = FakeFans(), follows: Bool = true) async throws -> (HelperCore, FakeFans, FakeStore) {
         fans.followsTargets = follows
         let store = FakeStore()
-        let core = HelperCore(runner: FakeRunner(), store: store, fans: fans, fanStepDown: 150)
+        let core = HelperCore(runner: FakeRunner(), store: store, originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         return (core, fans, store)
     }
@@ -951,7 +951,7 @@ import ClamDownShared
         let log = EventLog()
         let fans = FakeFans(log: log)
         fans.followsTargets = true
-        let core = HelperCore(runner: FakeRunner(), store: FakeStore(log: log), fans: fans, fanStepDown: 150)
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(log: log), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         fans.failSet()
         try await core.setFanPolicy(curve, now: at(0))

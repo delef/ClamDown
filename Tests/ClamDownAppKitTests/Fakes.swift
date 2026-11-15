@@ -15,10 +15,12 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         var enableCalls: [Bool] = []
         var lowPowerCalls: [Bool] = []
         var disableCount = 0
+        var restoreCount = 0
         var heartbeatCount = 0
         var enabled = false
         var enableError: Error?
         var disableError: Error?
+        var restoreError: Error?
         var lowPowerError: Error?
         var heartbeatResult: Result<Bool, Error> = .success(true)
         var fanPolicyCalls: [FanPolicy] = []
@@ -30,14 +32,25 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
 
     private let lock = NSLock()
     private var state = State()
+    /// Set by a test that checks the order of calls across fakes.
+    var order: CallOrder?
 
     func with<T>(_ body: (inout State) throws -> T) rethrows -> T { try lock.withLock { try body(&state) } }
 
     var enableCalls: [Bool] { with { $0.enableCalls } }
     var lowPowerCalls: [Bool] { with { $0.lowPowerCalls } }
     var disableCount: Int { with { $0.disableCount } }
+    var restoreCount: Int { with { $0.restoreCount } }
     var heartbeatCount: Int { with { $0.heartbeatCount } }
     var fanPolicyCalls: [FanPolicy] { with { $0.fanPolicyCalls } }
+
+    func restoreOriginalSettings() async throws {
+        order?.note("restoreOriginalSettings")
+        try with { state in
+            state.restoreCount += 1
+            if let error = state.restoreError { throw error }
+        }
+    }
 
     func enable(lowPowerOnBattery: Bool) async throws {
         try with { state in
@@ -102,6 +115,8 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
     private var answer: HelperAvailability?
     var registerError: Error?
     var unregisterError: Error?
+    /// Set by a test that checks the order of calls across fakes.
+    var order: CallOrder?
     /// How many quiet pauses a removal costs. On a real Mac it is one, unless something keeps asking in between.
     var pausesARemovalCosts = 1
 
@@ -142,6 +157,7 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
     /// Like macOS, this returns as soon as the old helper is gone, and a registration is still refused then:
     /// the system first needs a moment in which nobody asks it to register anything.
     func unregister() async throws {
+        order?.note("unregister")
         try lock.withLock {
             unregisters += 1
             if let unregisterError { throw unregisterError }
@@ -159,6 +175,15 @@ final class FakeRegistrar: HelperRegistering, @unchecked Sendable {
     }
 
     func openApprovalSettings() { lock.withLock { approvals += 1 } }
+}
+
+/// Notes the order in which fakes were called, so a test can check that one call came before another.
+final class CallOrder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var notes: [String] = []
+
+    func note(_ call: String) { lock.withLock { notes.append(call) } }
+    var calls: [String] { lock.withLock { notes } }
 }
 
 final class FakeInstalledHelper: InstalledHelperStoring {

@@ -8,7 +8,7 @@ import Testing
     private func make(prior: Bool? = false, saved: SavedState? = nil, loadFails: Bool = false, sleep: Bool? = false) -> (HelperCore, FakeRunner, FakeStore) {
         let runner = FakeRunner(batteryLowPower: prior, sleepDisabled: sleep)
         let store = FakeStore(initial: saved, loadFails: loadFails)
-        return (HelperCore(runner: runner, store: store), runner, store)
+        return (HelperCore(runner: runner, store: store, originals: FakeOriginalStore()), runner, store)
     }
 
     @Test func enableSavesPriorThenDisablesSleepThenSetsLowPower() async throws {

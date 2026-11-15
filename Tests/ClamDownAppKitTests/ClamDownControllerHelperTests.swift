@@ -127,4 +127,35 @@ import Testing
         #expect(rig.registrar.unregisterCount == 1)
         #expect(rig.controller.state == .off)
     }
+
+    @Test func removeHelperPutsOriginalSettingsBackBeforeUnregistering() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "new")
+        let order = CallOrder()
+        rig.helper.order = order
+        rig.registrar.order = order
+        await rig.controller.removeHelper()
+        #expect(rig.helper.restoreCount == 1)
+        #expect(order.calls == ["restoreOriginalSettings", "unregister"])
+        #expect(rig.controller.notice == "Helper removed. Turn On sets it up again.")
+    }
+
+    @Test func removeHelperKeepsTheHelperWhenOriginalSettingsCannotBeRestored() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "new")
+        rig.helper.with { $0.restoreError = HelperClientError.helper("pmset failed.") }
+        await rig.controller.removeHelper()
+        #expect(rig.registrar.unregisterCount == 0)
+        #expect(rig.installed.fingerprint == "new")
+        #expect(rig.controller.notice
+            == "Could not put the original power settings back: pmset failed. The helper stays installed.")
+    }
+
+    /// An older helper does not know the call, and an unapproved one does not answer: neither may block removal.
+    @Test func helperThatCannotBeReachedIsRemovedAnyway() async {
+        let rig = Rig(installedFingerprint: "new")
+        rig.helper.with { $0.restoreError = HelperClientError.connection("The helper did not answer.") }
+        await rig.controller.removeHelper()
+        #expect(rig.registrar.unregisterCount == 1)
+        #expect(rig.installed.fingerprint == nil)
+        #expect(rig.controller.notice?.contains("did not answer") == true)
+    }
 }

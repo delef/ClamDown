@@ -199,6 +199,7 @@ struct PreviewHelper: HelperControlling {
     private static let unavailable = HelperClientError.connection("Preview: there is no helper.")
     func enable(lowPowerOnBattery: Bool) async throws { throw Self.unavailable }
     func disable() async throws { throw Self.unavailable }
+    func restoreOriginalSettings() async throws { throw Self.unavailable }
     func setLowPowerOnBattery(_ on: Bool) async throws { throw Self.unavailable }
     func heartbeat() async throws -> Bool { throw Self.unavailable }
     func isEnabled() async throws -> Bool { throw Self.unavailable }

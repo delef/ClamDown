@@ -33,6 +33,7 @@ final class StubHelper: NSObject, ClamDownHelperXPC, NSXPCListenerDelegate, @unc
         reply(nil)
     }
     func disable(reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
+    func restoreOriginalSettings(reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
     func setLowPowerOnBattery(_ on: Bool, reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
     func heartbeat(reply: @escaping @Sendable (Bool) -> Void) { reply(true) }
     func status(reply: @escaping @Sendable (Bool) -> Void) { reply(false) }
@@ -125,6 +126,7 @@ final class Connections: @unchecked Sendable {
                 reply("pmset failed")
             }
             func disable(reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
+            func restoreOriginalSettings(reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
             func setLowPowerOnBattery(_ on: Bool, reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
             func heartbeat(reply: @escaping @Sendable (Bool) -> Void) { reply(true) }
             func status(reply: @escaping @Sendable (Bool) -> Void) { reply(true) }

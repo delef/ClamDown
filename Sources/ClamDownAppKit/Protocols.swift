@@ -13,6 +13,8 @@ public enum HelperClientError: Error, Equatable {
 public protocol HelperControlling: Sendable {
     func enable(lowPowerOnBattery: Bool) async throws
     func disable() async throws
+    /// Puts back the settings recorded before ClamDown first switched on, and forgets that record. Run before removing the helper.
+    func restoreOriginalSettings() async throws
     func setLowPowerOnBattery(_ on: Bool) async throws
     /// True while the helper still considers the mode on.
     func heartbeat() async throws -> Bool

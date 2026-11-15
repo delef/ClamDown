@@ -10,6 +10,7 @@ import CryptoKit
 private struct UnsignedHelper: HelperControlling {
     func enable(lowPowerOnBattery: Bool) async throws { throw HelperClientError.unsigned }
     func disable() async throws { throw HelperClientError.unsigned }
+    func restoreOriginalSettings() async throws { throw HelperClientError.unsigned }
     func setLowPowerOnBattery(_ on: Bool) async throws { throw HelperClientError.unsigned }
     func heartbeat() async throws -> Bool { throw HelperClientError.unsigned }
     func isEnabled() async throws -> Bool { throw HelperClientError.unsigned }

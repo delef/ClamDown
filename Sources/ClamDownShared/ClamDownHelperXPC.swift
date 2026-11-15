@@ -5,6 +5,9 @@ import Foundation
 @objc public protocol ClamDownHelperXPC {
     func enable(lowPowerOnBattery: Bool, reply: @escaping @Sendable (String?) -> Void)
     func disable(reply: @escaping @Sendable (String?) -> Void)
+    /// Puts back the settings recorded before ClamDown first switched on, then forgets that record.
+    /// Without a record it switches the mode off, as `disable` does.
+    func restoreOriginalSettings(reply: @escaping @Sendable (String?) -> Void)
     func setLowPowerOnBattery(_ on: Bool, reply: @escaping @Sendable (String?) -> Void)
     /// Replies true while the mode is on. Must arrive about every 30 seconds.
     func heartbeat(reply: @escaping @Sendable (Bool) -> Void)

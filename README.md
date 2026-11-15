@@ -116,6 +116,7 @@ When ClamDown cannot work until you do something, for example after macOS took t
 - **Watchdog.** While on, the app sends the helper a heartbeat about every 30 seconds. If the heartbeat stops for about 90 seconds, or the app quits or crashes, the helper puts sleep, Low Power Mode and the fans back as they were, by itself. If the lid is then closed for sleep and the keyboard and pointer have been still for a minute, the helper also puts the Mac to sleep; it stops trying when someone opens the lid, and after five minutes.
 - **Fans.** The helper hands the fans back to macOS whenever the mode switches off for any reason, you switch Fan Control off, the lid opens (with "Only With Lid Closed"), no temperature can be read, or it cannot set a fan; after an error it tries again by itself. It records that it holds the fans before it touches them, so a helper restart after a crash hands them back too. It applies the safety floor itself, so a wrong curve from the app cannot take the fans below it, and it never sets a fan outside that fan's own minimum and maximum speed. Fan speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load do not make the fans hunt.
 - **Reboots.** The helper runs at load and resets any leftover state every time it starts.
+- **Original settings.** The first time ClamDown switches on, the helper records your sleep and Low Power Mode settings and never replaces that record. Remove Helper in Settings > Helper puts them back first; if they cannot be put back, the helper stays installed.
 - **Narrow helper.** The helper can only keep the Mac from sleeping or let it sleep again, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode and Fan Control are on. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
 
 ## Security note
@@ -124,7 +125,7 @@ With the mode on, closing the lid locks the screen by default. If you turn off "
 
 ## Uninstall
 
-Switch ClamDown off, quit it, then delete the app. If the fans stay at a fixed speed afterwards, restart the Mac: the fans go back to macOS control on restart. If the Mac refuses to sleep afterwards, or Low Power Mode is wrong, put them back by hand:
+Switch ClamDown off, use Remove Helper in Settings > Helper (it puts back the sleep and Low Power Mode settings you had before ClamDown first switched on), quit it, then delete the app. If the fans stay at a fixed speed afterwards, restart the Mac: the fans go back to macOS control on restart. If the Mac refuses to sleep afterwards, or Low Power Mode is wrong, put them back by hand:
 
 ```
 sudo pmset disablesleep 0

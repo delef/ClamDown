@@ -18,6 +18,11 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
         Self.run(reply) { try await core.disable() }
     }
 
+    public func restoreOriginalSettings(reply: @escaping @Sendable (String?) -> Void) {
+        let core = core
+        Self.run(reply) { try await core.restoreOriginalSettings() }
+    }
+
     public func setLowPowerOnBattery(_ on: Bool, reply: @escaping @Sendable (String?) -> Void) {
         let core = core
         Self.run(reply) { try await core.setLowPowerOnBattery(on) }

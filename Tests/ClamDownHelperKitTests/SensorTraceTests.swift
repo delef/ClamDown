@@ -39,7 +39,7 @@ import ClamDownShared
         })
         fans.followsTargets = true
         let t0 = SuspendingClock.now
-        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), fans: fans, fanStepDown: 150)
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         let policy = FanPolicy(points: StandardCurve.points(start: StandardCurve.defaultStart, full: StandardCurve.defaultFull),
                                onlyWhenLidClosed: true, caseRamp: .standard)

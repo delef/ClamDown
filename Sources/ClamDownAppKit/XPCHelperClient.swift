@@ -49,6 +49,10 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
         try await sendForError { proxy, reply in proxy.disable(reply: reply) }
     }
 
+    public func restoreOriginalSettings() async throws {
+        try await sendForError { proxy, reply in proxy.restoreOriginalSettings(reply: reply) }
+    }
+
     public func setLowPowerOnBattery(_ on: Bool) async throws {
         try await sendForError { proxy, reply in proxy.setLowPowerOnBattery(on, reply: reply) }
     }

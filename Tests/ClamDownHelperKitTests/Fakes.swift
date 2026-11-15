@@ -137,6 +137,56 @@ final class FakeThermal: ThermalStateReading, @unchecked Sendable {
     func thermalLevel() -> ThermalLevel { level }
 }
 
+/// Holds the original-settings record in memory and counts writes. Each failure can be switched on by the test.
+/// Given a runner, it notes the commands already run at every save, so a test can see what came before the write.
+final class FakeOriginalStore: OriginalSettingsStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private let runner: FakeRunner?
+    private var record: OriginalSettings?
+    private var saves = 0
+    private var noted: [[PmsetCommand]] = []
+    private var saveFails = false
+    private var loadFails = false
+    private var deleteFails = false
+
+    init(initial: OriginalSettings? = nil, runner: FakeRunner? = nil) {
+        self.record = initial
+        self.runner = runner
+    }
+
+    var saved: OriginalSettings? { lock.withLock { record } }
+    var saveCount: Int { lock.withLock { saves } }
+    /// One entry per save: the commands the runner had already run when the record was written.
+    var commandsAtSave: [[PmsetCommand]] { lock.withLock { noted } }
+
+    func failSave(_ fails: Bool = true) { lock.withLock { saveFails = fails } }
+    func failLoad(_ fails: Bool = true) { lock.withLock { loadFails = fails } }
+    func failDelete(_ fails: Bool = true) { lock.withLock { deleteFails = fails } }
+
+    func load() throws -> OriginalSettings? {
+        try lock.withLock {
+            if loadFails { throw FakeFailure() }
+            return record
+        }
+    }
+
+    func save(_ settings: OriginalSettings) throws {
+        try lock.withLock {
+            if saveFails { throw FakeFailure() }
+            record = settings
+            saves += 1
+            noted.append(runner?.commands ?? [])
+        }
+    }
+
+    func delete() throws {
+        try lock.withLock {
+            if deleteFails { throw FakeFailure() }
+            record = nil
+        }
+    }
+}
+
 /// Fans and sensors the test sets by hand. Records every target it was given.
 final class FakeFans: FanHardware, @unchecked Sendable {
     private let lock = NSLock()

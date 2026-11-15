@@ -5,7 +5,7 @@ import Testing
 @Suite struct HelperServiceTests {
     private func make() -> (HelperService, FakeRunner) {
         let runner = FakeRunner(batteryLowPower: false)
-        let core = HelperCore(runner: runner, store: FakeStore())
+        let core = HelperCore(runner: runner, store: FakeStore(), originals: FakeOriginalStore())
         return (HelperService(core: core), runner)
     }
 
@@ -35,6 +35,14 @@ import Testing
         let (service, _) = make()
         _ = await errorReply { service.enable(lowPowerOnBattery: false, reply: $0) }
         let reply = await errorReply { service.disable(reply: $0) }
+        #expect(reply == nil)
+        #expect(await flagReply { service.status(reply: $0) } == false)
+    }
+
+    @Test func restoreRepliesNilAndTurnsStatusOff() async {
+        let (service, _) = make()
+        _ = await errorReply { service.enable(lowPowerOnBattery: false, reply: $0) }
+        let reply = await errorReply { service.restoreOriginalSettings(reply: $0) }
         #expect(reply == nil)
         #expect(await flagReply { service.status(reply: $0) } == false)
     }
