@@ -300,7 +300,7 @@ public actor HelperCore {
         knownFanMaxima = reading.fans.map(\.maximum)
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
         guard let temperature = reading.hottestTemperature ?? reading.cpuTemperature else {
-            fault("Cannot read the CPU temperature.", now: now)
+            fault("Cannot read the temperature sensors.", now: now)
             return
         }
         if fansHeld, let previous = fanTargets,

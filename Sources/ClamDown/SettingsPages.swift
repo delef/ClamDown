@@ -149,6 +149,21 @@ struct ProtectionPage: View {
                     .labelsHidden()
                     .frame(width: 150, alignment: .trailing)
                 }
+                CDSwitchRow("Switch Off When the Battery Is Hot",
+                            detail: "Lets the Mac sleep when the battery stays this hot, as it can in a bag. "
+                                + "Now: \(batteryNow).",
+                            isOn: controller.binding(\.batteryHeatCutoffEnabled))
+                if controller.settings.batteryHeatCutoffEnabled {
+                    SettingSlider("Limit", value: controller.binding(\.batteryHeatLimit),
+                                  range: AppSettings.batteryHeatLimitRange, unit: " \u{00B0}C")
+                    CDRow("For At Least") {
+                        Picker("For At Least", selection: controller.binding(\.batteryHeatHold)) {
+                            ForEach(BatteryHeatHold.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 150, alignment: .trailing)
+                    }
+                }
             }
             CDSection("After Switching Off") {
                 CDSwitchRow("Put the Mac to Sleep",
@@ -157,6 +172,10 @@ struct ProtectionPage: View {
                             isOn: controller.binding(\.sleepAfterProtection))
             }
         }
+    }
+
+    private var batteryNow: String {
+        controller.batteryTemperature().map { "\(Int($0.rounded())) \u{00B0}C" } ?? "unknown"
     }
 
     private static func label(for cutoff: ThermalCutoff) -> String {
@@ -206,8 +225,14 @@ struct CoolingPage: View {
                 }
             }
             CDSection("Now") {
-                CDValueRow("CPU Temperature", value: Self.temperatureText(status?.cpuTemperature))
-                CDValueRow("Hottest Core", value: Self.temperatureText(status?.hottestCPUTemperature))
+                CDValueRow("Hottest", value: hottestText)
+                ForEach(groupsShown, id: \.self) { group in
+                    CDValueRow(group.title, value: Self.temperatureText(status?.groupTemperatures[group]))
+                }
+                if groupsShown.isEmpty, let average = status?.cpuTemperature {
+                    // Without the groups the helper follows the average CPU temperature, so that is what is shown.
+                    CDValueRow("CPU Temperature", value: Self.temperatureText(average))
+                }
                 ForEach(Array((status?.fans ?? []).enumerated()), id: \.offset) { index, fan in
                     CDValueRow("Fan \(index + 1)", value: "\(Int(fan.rpm.rounded()).formatted()) rpm")
                 }
@@ -254,7 +279,8 @@ struct CoolingPage: View {
         let points = settings.fanCurvePoints
         return VStack(alignment: .leading, spacing: 10) {
             FanCurveChart(points: points, mode: settings.fanCurveMode,
-                          nowTemperature: status?.cpuTemperature, firstFan: status?.fans.first) { index, point in
+                          nowTemperature: status?.hottestTemperature ?? status?.cpuTemperature,
+                          firstFan: status?.fans.first) { index, point in
                 save(FanCurveEditor.moved(controller.settings, dragging: index, to: point))
             }
             if let line = overrideLine {
@@ -269,8 +295,8 @@ struct CoolingPage: View {
             }
             CDNote(settings.fanCurveMode == .standard
                 ? "Fans stay at their lowest speed up to the first point and reach full speed at the second, "
-                    + "following the average CPU temperature."
-                : "Five points, each at or above the one before it, on the average CPU temperature; the fans never "
+                    + "following the hottest of the CPU, GPU, battery, SSD, Wi-Fi and airflow sensors."
+                : "Five points, each at or above the one before it, on the hottest sensor; the fans never "
                     + "run under the safety floor.")
         }
     }
@@ -339,6 +365,18 @@ struct CoolingPage: View {
             return status.problem
         }
         return statusLoaded ? "Cannot read the temperature sensors." : nil
+    }
+
+    /// "52 °C (Battery)": what the curve follows now.
+    private var hottestText: String {
+        guard let celsius = status?.hottestTemperature else { return "\u{2014}" }
+        let group = status?.hottestGroup.map { " (\($0.title))" } ?? ""
+        return Self.temperatureText(celsius) + group
+    }
+
+    /// The groups this Mac reports a value for, in their usual order.
+    private var groupsShown: [SensorGroup] {
+        SensorGroup.allCases.filter { status?.groupTemperatures[$0] != nil }
     }
 
     private static func temperatureText(_ temperature: Double?) -> String {

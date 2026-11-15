@@ -142,7 +142,7 @@ import ClamDownShared
         fans.set(temperature: nil)
         await core.updateFans()
         #expect(!fans.isHeld)
-        #expect(await core.coolingStatus().problem == "Cannot read the CPU temperature.")
+        #expect(await core.coolingStatus().problem == "Cannot read the temperature sensors.")
     }
 
     @Test func failedTakeOverHandsTheFansBackAndIsReported() async throws {
@@ -775,7 +775,7 @@ import ClamDownShared
         #expect(!fans.isHeld)
         let status = await core.coolingStatus()
         #expect(status.control == .retrying)
-        #expect(status.problem == "Cannot read the CPU temperature.")
+        #expect(status.problem == "Cannot read the temperature sensors.")
         fans.set(temperature: 70)
         await core.updateFans(now: at(6))
         #expect(!fans.isHeld)  // waits for the retry
@@ -882,7 +882,7 @@ import ClamDownShared
         #expect(fans.heldWrites.count == 3)
         #expect(fans.targets.count == 1)  // the full-speed path never took the fans over
         #expect(fans.takeOverCount == 2)
-        #expect(await core.coolingStatus().problem == "Cannot read the CPU temperature.")
+        #expect(await core.coolingStatus().problem == "Cannot read the temperature sensors.")
     }
 
     /// A hand-back that failed halfway leaves one fan with macOS. The full-speed path leaves that fan to macOS

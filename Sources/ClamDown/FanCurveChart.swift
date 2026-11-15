@@ -3,7 +3,7 @@ import ClamDownAppKit
 import ClamDownShared
 import ClamDownUI
 
-/// The fan curve on the Cooling page: fan speed against CPU temperature, with the safety floor, the speed the
+/// The fan curve on the Cooling page: fan speed against the hottest temperature, with the safety floor, the speed the
 /// fans run at now, and points that can be dragged or moved with the arrow keys.
 ///
 /// The chart only draws and reports. Every move goes through `FanCurveEditor`, so a point stops at the same
@@ -12,7 +12,7 @@ import ClamDownUI
 struct FanCurveChart: View {
     let points: [FanPoint]
     let mode: FanCurveMode
-    /// The average CPU temperature now. Nil hides the "Now" mark.
+    /// The temperature the curve follows now: the hottest sensor. Nil hides the "Now" mark.
     let nowTemperature: Double?
     /// Gives the right-hand rpm scale and the rpm in the drag label. Nil leaves them out.
     let firstFan: FanReading?
@@ -47,8 +47,8 @@ struct FanCurveChart: View {
 
     private static let space = "fanCurveChart"
     private static let topMargin: CGFloat = 24
-    private static let bottomMargin: CGFloat = 22
-    private static let leftMargin: CGFloat = 40
+    private static let bottomMargin: CGFloat = 38
+    private static let leftMargin: CGFloat = 46
     private static let hatchSpacing: CGFloat = 7
 
     private var shown: [FanPoint] { draft ?? points }
@@ -71,7 +71,7 @@ struct FanCurveChart: View {
         }
         .frame(height: Self.topMargin + CDMetric.chartHeight + Self.bottomMargin)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Fan curve")
+        .accessibilityLabel("Fan curve over the hottest temperature")
         // A waiting key move keeps its draft: the settings have not caught up with it yet.
         .onChange(of: points) { _ in if dragging == nil, keyMoves.pending == nil { draft = nil } }
         .onChange(of: mode) { _ in
@@ -136,11 +136,14 @@ struct FanCurveChart: View {
             context.draw(axisText("\(Int(temperature)) \u{00B0}C"),
                          at: CGPoint(x: plot.x(temperature), y: plot.rect.maxY + 12), anchor: .center)
         }
+        context.draw(axisText("Hottest temperature"),
+                     at: CGPoint(x: plot.rect.midX, y: plot.rect.maxY + 29), anchor: .center)
         for speed in [0.0, 25, 50, 75, 100] {
             grid.move(to: plot.point(Plot.coolest, speed))
             grid.addLine(to: plot.point(Plot.hottest, speed))
             let label = speed == 0 ? "min" : speed == 100 ? "max" : "\(Int(speed)) %"
-            context.draw(axisText(label), at: CGPoint(x: plot.rect.minX - 6, y: plot.y(speed)), anchor: .trailing)
+            // Clear of a handle at the left edge, where the Standard curve's first point sits by default.
+            context.draw(axisText(label), at: CGPoint(x: plot.rect.minX - 12, y: plot.y(speed)), anchor: .trailing)
         }
         context.stroke(grid, with: .color(CDColor.chartGrid), lineWidth: 1)
 

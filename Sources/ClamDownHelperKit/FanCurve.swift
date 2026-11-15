@@ -1,7 +1,7 @@
 import ClamDownShared
 
 public enum FanCurve {
-    /// The speed (rpm) the policy wants for one fan at this CPU temperature: the policy's percent
+    /// The speed (rpm) the policy wants for one fan at this temperature: the policy's percent
     /// (curve or safety floor, whichever is higher) scaled to the fan's own minimum and maximum.
     public static func speed(at temperature: Double, policy: FanPolicy, fan: FanReading) -> Double {
         speed(percent: policy.speed(at: temperature), fan: fan)

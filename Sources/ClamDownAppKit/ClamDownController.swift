@@ -310,6 +310,11 @@ public final class ClamDownController: ObservableObject {
         )
     }
 
+    /// The battery's temperature now, as the hot-battery rule sees it. Nil when the Mac does not say.
+    public func batteryTemperature() -> Double? {
+        monitor.snapshot().batteryTemperature
+    }
+
     static let noHelperForFans = "The helper is not running, so ClamDown cannot drive the fans yet. Turn ClamDown on once to set it up."
 
     /// Call when the app quits.

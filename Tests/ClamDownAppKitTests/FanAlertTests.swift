@@ -107,7 +107,7 @@ import Testing
          "could not read the sensors: SMC call for F0Tg failed (kern 5, result 132)"),
         ("Could not set the fan speed: Expected targets for 2 fans, got 1.",
          "could not set the fan speed: Expected targets for 2 fans, got 1"),
-        ("Cannot read the CPU temperature.", "cannot read the CPU temperature"),
+        ("Cannot read the temperature sensors.", "cannot read the temperature sensors"),
         ("Could not read every fan.", "could not read every fan"),
         ("Could not hand the fans back to macOS: SMC key F0Md does not exist",
          "could not hand the fans back to macOS: SMC key F0Md does not exist"),

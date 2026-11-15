@@ -39,7 +39,7 @@
   }
 
   /* ---------- Fan curve (shared by the demo and the chart) ---------- */
-  const CURVE = { low: 50, high: 75 };
+  const CURVE = { low: 40, high: 70 };
   const fanShare = (t) => Math.min(1, Math.max(0, (t - CURVE.low) / (CURVE.high - CURVE.low)));
 
   /* ---------- The lid demo ---------- */
@@ -240,7 +240,7 @@
     if (!plot) return;
     const svg = $("svg", plot);
     const X0 = 56, X1 = 540, Y_LOW = 240, Y_FULL = 40;
-    const T0 = 40, T1 = 95;
+    const T0 = 30, T1 = 95;
     const x = (t) => X0 + ((t - T0) / (T1 - T0)) * (X1 - X0);
     const y = (share) => Y_LOW - share * (Y_LOW - Y_FULL);
     const ns = "http://www.w3.org/2000/svg";
@@ -257,13 +257,14 @@
     $(".chart__area", svg).setAttribute("d", `${d} L${x(T1)},${Y_LOW} L${x(T0)},${Y_LOW} Z`);
 
     const xl = $(".chart__xlabels", svg);
-    for (let t = 40; t <= 90; t += 10) make("text", { x: x(t), y: 266 }, xl).textContent = `${t} °C`;
+    for (let t = 30; t <= 90; t += 10) make("text", { x: x(t), y: 266 }, xl).textContent = `${t} °C`;
 
     const knees = $(".chart__knees", svg);
     make("circle", { cx: x(CURVE.low), cy: y(0), r: 5 }, knees);
     make("circle", { cx: x(CURVE.high), cy: y(1), r: 5 }, knees);
-    make("text", { x: x(CURVE.low) - 8, y: y(0) - 14, "text-anchor": "end" }, knees).textContent = "50 °C: starts rising";
-    make("text", { x: x(CURVE.high) - 10, y: y(1) - 14, "text-anchor": "end" }, knees).textContent = "75 °C: full speed";
+    // The low knee sits near the left edge, so its label goes to the right, under the rising line.
+    make("text", { x: x(CURVE.low) + 40, y: y(0) - 6, "text-anchor": "start" }, knees).textContent = `${CURVE.low} °C: starts rising`;
+    make("text", { x: x(CURVE.high) - 10, y: y(1) - 14, "text-anchor": "end" }, knees).textContent = `${CURVE.high} °C: full speed`;
 
     const cursor = $(".chart__cursor", svg);
     const cross = $(".chart__crosshair", svg);

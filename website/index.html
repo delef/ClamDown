@@ -48,7 +48,7 @@
           <p class="lead">Everything your agents need to keep working with the lid closed, in one free, open-source menu bar app.</p>
           <ul class="features">
             <li>Stays awake with the lid shut: agents, terminals, browsers, SSH and downloads keep running</li>
-            <li>Watches the CPU temperature and drives the fans along a curve you choose while the lid is closed</li>
+            <li>Watches the hottest temperature sensor and drives the fans along a curve you choose while the lid is closed</li>
             <li>Locks the screen the moment the lid closes</li>
             <li>Switches itself off before a low battery or high heat becomes a problem</li>
             <li>A watchdog puts everything back if the app ever stops</li>
@@ -244,6 +244,11 @@
             <span role="cell" class="rule__value">Serious<small>Fair, Serious, Critical or never</small></span>
           </div>
           <div class="rule" role="row">
+            <span role="cell" class="rule__when">The battery stays hot</span>
+            <span role="cell">Switches off and lets the Mac sleep when the battery stays at the limit for the hold time.</span>
+            <span role="cell" class="rule__value">55 °C, 1 min<small>50–60 °C, 30 s to 5 min, or off</small></span>
+          </div>
+          <div class="rule" role="row">
             <span role="cell" class="rule__when">The lid closes</span>
             <span role="cell">Locks the screen, so opening the lid asks for your password.</span>
             <span role="cell" class="rule__value">On</span>
@@ -278,14 +283,14 @@
         <div class="fans">
           <div class="fans__text">
             <h3>Fans that answer the heat, even with the lid shut</h3>
-            <p>macOS keeps a closed MacBook’s fans near their lowest speed, even when the chip is hot. With Fan Control on, ClamDown drives them from the CPU temperature while the lid is closed. With it off, macOS keeps the fans.</p>
-            <p>Pick Standard: two points, by default the fans speed up from 50 °C and reach full speed at 75 °C. Or pick Advanced and drag five points on a chart. Under both sits a safety floor ClamDown never goes under: it starts at 70 °C and reaches full speed at 95 °C. A CPU core at its limit, or a Mac that macOS reports as hot, gets full speed.</p>
+            <p>macOS keeps a closed MacBook’s fans near their lowest speed, even when the chip is hot. With Fan Control on, ClamDown drives them from the hottest sensor (CPU, GPU, battery, SSD, Wi-Fi or airflow) while the lid is closed. With it off, macOS keeps the fans.</p>
+            <p>Pick Standard: two points, by default the fans speed up from 40 °C and reach full speed at 70 °C. Or pick Advanced and drag five points on a chart. Under both sits a safety floor ClamDown never goes under: it starts at 70 °C and reaches full speed at 95 °C. A CPU core at its limit, a battery at 45 °C, or a Mac that macOS reports as hot, gets full speed.</p>
             <p>Speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load don’t make the fans hunt. If ClamDown cannot control the fans, it hands them to macOS, tries again by itself and tells you once when it has stopped. Switching Fan Control off, quitting the app or opening the lid hands them back too. Fan control needs Apple Silicon; Intel Macs show the readings.</p>
           </div>
           <figure class="chart" aria-labelledby="chart-title chart-desc">
             <figcaption>
-              <span id="chart-title" class="chart__title">Fan speed by CPU temperature</span>
-              <span id="chart-desc" class="chart__desc">The Standard curve with its default points: lowest speed up to 50 °C, rising evenly to full speed at 75 °C. Both points are settings.</span>
+              <span id="chart-title" class="chart__title">Fan speed by hottest temperature</span>
+              <span id="chart-desc" class="chart__desc">The Standard curve with its default points: lowest speed up to 40 °C, rising evenly to full speed at 70 °C. Both points are settings.</span>
             </figcaption>
             <div class="chart__plot" data-chart>
               <svg viewBox="0 0 560 300" aria-hidden="true" focusable="false">
@@ -313,14 +318,14 @@
             <details class="chart__table">
               <summary>Show the default curve as a table</summary>
               <table>
-                <thead><tr><th scope="col">CPU temperature</th><th scope="col">Fan speed</th></tr></thead>
+                <thead><tr><th scope="col">Hottest temperature</th><th scope="col">Fan speed</th></tr></thead>
                 <tbody>
-                  <tr><td>Up to 50 °C</td><td>Lowest</td></tr>
-                  <tr><td>55 °C</td><td>20% of the fan’s range</td></tr>
-                  <tr><td>60 °C</td><td>40% of the fan’s range</td></tr>
-                  <tr><td>65 °C</td><td>60% of the fan’s range</td></tr>
-                  <tr><td>70 °C</td><td>80% of the fan’s range</td></tr>
-                  <tr><td>75 °C and above</td><td>Full</td></tr>
+                  <tr><td>Up to 40 °C</td><td>Lowest</td></tr>
+                  <tr><td>46 °C</td><td>20% of the fan’s range</td></tr>
+                  <tr><td>52 °C</td><td>40% of the fan’s range</td></tr>
+                  <tr><td>58 °C</td><td>60% of the fan’s range</td></tr>
+                  <tr><td>64 °C</td><td>80% of the fan’s range</td></tr>
+                  <tr><td>70 °C and above</td><td>Full</td></tr>
                 </tbody>
               </table>
             </details>

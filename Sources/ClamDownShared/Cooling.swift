@@ -1,6 +1,6 @@
 import Foundation
 
-/// One point of a fan curve: at this CPU temperature (whole °C) the fans run at this speed
+/// One point of a fan curve: at this temperature (whole °C, of the hottest sensor) the fans run at this speed
 /// (whole percent of each fan's range: 0 is the fan's minimum rpm, 100 its maximum).
 public struct FanPoint: Codable, Equatable, Sendable {
     public var temperature: Int
@@ -18,7 +18,7 @@ public enum SafetyFloor {
     public static let rampStart = 70
     public static let rampEnd = 95
 
-    /// The floor's speed in percent at this CPU temperature.
+    /// The floor's speed in percent at this temperature.
     public static func speed(at temperature: Double) -> Double {
         let start = Double(rampStart), end = Double(rampEnd)
         if temperature <= start { return 0 }
@@ -27,7 +27,7 @@ public enum SafetyFloor {
     }
 }
 
-/// What the app asks the helper to do with the fans: a curve of points over the CPU temperature.
+/// What the app asks the helper to do with the fans: a curve of points over the hottest temperature.
 /// No points means fan control is switched off. The helper repairs the policy again before use.
 public struct FanPolicy: Codable, Equatable, Sendable {
     public static let temperatureRange = 40...100
