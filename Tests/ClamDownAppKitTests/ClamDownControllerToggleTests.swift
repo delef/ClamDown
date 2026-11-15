@@ -21,6 +21,7 @@ struct Rig {
     let pauser = FakePauser()
     let sleeper = FakeSleeper()
     let clock = FakeClock()
+    let time = ManualTime()
 
     init(
         availability: [HelperAvailability] = [.ready],
@@ -58,7 +59,8 @@ struct Rig {
             pause: { [registrar, pauser] duration in
                 registrar.pause(duration)
                 await pauser.pause(duration)
-            }
+            },
+            wait: { [time] duration in await time.wait(duration) }
         )
     }
 }

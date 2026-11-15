@@ -113,6 +113,8 @@ public final class ClamDownController: ObservableObject {
     private let now: @Sendable () -> Date
     /// Waits for the given time. Tests replace it, so they do not wait for real.
     private let pause: @Sendable (Duration) async -> Void
+    /// Waits between heartbeats and until the timer ends. Tests replace it with time they move by hand.
+    private let wait: @Sendable (Duration) async -> Void
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
 
@@ -134,7 +136,8 @@ public final class ClamDownController: ObservableObject {
         displays: DisplayReading? = nil,
         sleeper: SystemSleeping? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
-        pause: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+        pause: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
         self.helper = helper
         self.registrar = registrar
@@ -154,6 +157,7 @@ public final class ClamDownController: ObservableObject {
         self.sleeper = sleeper
         self.now = now
         self.pause = pause
+        self.wait = wait
         self.settings = settingsStore.load()
     }
 
@@ -680,8 +684,8 @@ public final class ClamDownController: ObservableObject {
         }
         offAt = now().addingTimeInterval(TimeInterval(duration.components.seconds)
             + TimeInterval(duration.components.attoseconds) / 1e18)
-        timerTask = Task { [weak self] in
-            try? await Task.sleep(for: duration)
+        timerTask = Task { [weak self, wait] in
+            await wait(duration)
             guard !Task.isCancelled else { return }
             await self?.timerFired()
         }
@@ -824,9 +828,9 @@ public final class ClamDownController: ObservableObject {
     private func startHeartbeatLoop() {
         heartbeatTask?.cancel()
         let interval = heartbeatInterval
-        heartbeatTask = Task { [weak self] in
+        heartbeatTask = Task { [weak self, wait] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: interval)
+                await wait(interval)
                 guard !Task.isCancelled else { return }
                 // Also re-checks the cut-offs, so a missed system notification cannot disable the safety net.
                 await self?.handleSystemChange()

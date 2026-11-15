@@ -29,7 +29,9 @@ import Testing
     @Test func timerSwitchesOffWhenItsTimeComes() async throws {
         let rig = Rig()
         await rig.controller.turnOn(for: .milliseconds(30))
-        try await Task.sleep(for: .milliseconds(300))
+        await rig.time.untilWaiting(.milliseconds(30))
+        rig.time.fire(.milliseconds(30))
+        await eventually { rig.controller.state == .off }
         #expect(rig.controller.state == .off)
         #expect(rig.helper.disableCount == 1)
         #expect(rig.controller.offAt == nil)
@@ -97,7 +99,7 @@ import Testing
         let rig = Rig()
         await rig.controller.toggle()
         rig.lid.onClose?()
-        try await Task.sleep(for: .milliseconds(100))
+        await drainMainActor()
         #expect(rig.locker.lockCount == 1)
     }
 
@@ -107,7 +109,7 @@ import Testing
         let rig = Rig(settings: settings)
         await rig.controller.toggle()
         rig.lid.onClose?()
-        try await Task.sleep(for: .milliseconds(100))
+        await drainMainActor()
         #expect(rig.locker.lockCount == 0)
     }
 

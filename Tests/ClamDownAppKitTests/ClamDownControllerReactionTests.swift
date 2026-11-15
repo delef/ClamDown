@@ -98,9 +98,9 @@ import ClamDownShared
         let rig = Rig(heartbeatInterval: .milliseconds(20))
         await rig.controller.toggle()
         rig.monitor.current = snapshot(10, onBattery: true)  // no handleSystemChange() call: a missed notification
-        for _ in 0..<100 where rig.controller.state == .on {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        await rig.time.untilWaiting(.milliseconds(20))
+        rig.time.fire(.milliseconds(20))
+        await eventually { rig.controller.state == .off }
         #expect(rig.controller.state == .off)
         #expect(rig.helper.disableCount == 1)
     }
@@ -108,9 +108,9 @@ import ClamDownShared
     @Test func periodicTickSendsHeartbeatWhileAllowed() async throws {
         let rig = Rig(heartbeatInterval: .milliseconds(20))
         await rig.controller.toggle()
-        for _ in 0..<100 where rig.helper.heartbeatCount == 0 {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        await rig.time.untilWaiting(.milliseconds(20))
+        rig.time.fire(.milliseconds(20))
+        await eventually { rig.helper.heartbeatCount > 0 }
         #expect(rig.helper.heartbeatCount > 0)
         #expect(rig.controller.state == .on)
     }

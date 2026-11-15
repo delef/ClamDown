@@ -22,7 +22,7 @@ import Testing
         await rig.controller.toggle()
         rig.lidReader.state = Self.closedForSleep
         rig.lid.onClose?()
-        try await Task.sleep(for: .milliseconds(100))
+        await drainMainActor()
         #expect(rig.locker.lockCount == 1)
         #expect(rig.controller.state == .on)
         #expect(rig.helper.disableCount == 0)

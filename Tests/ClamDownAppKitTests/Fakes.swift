@@ -277,6 +277,59 @@ final class FakeDisplays: DisplayReading, @unchecked Sendable {
     func hasExternalDisplay() -> Bool { external }
 }
 
+/// Time the test moves by hand, for the controller's timer and heartbeat loops: every wait stays suspended until
+/// the test fires it, or its task is cancelled.
+final class ManualTime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: [Int: (duration: Duration, continuation: CheckedContinuation<Void, Never>)] = [:]
+    private var nextID = 0
+
+    /// The durations of the waits now suspended, shortest first.
+    var pending: [Duration] { lock.withLock { waiting.values.map(\.duration).sorted() } }
+
+    func wait(_ duration: Duration) async {
+        let id = lock.withLock { () -> Int in nextID += 1; return nextID }
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let cancelled = lock.withLock { () -> Bool in
+                    if Task.isCancelled { return true }
+                    waiting[id] = (duration, continuation)
+                    return false
+                }
+                if cancelled { continuation.resume() }
+            }
+        } onCancel: {
+            lock.withLock { waiting.removeValue(forKey: id) }?.continuation.resume()
+        }
+    }
+
+    /// Ends every wait of this duration (every wait when nil) that is suspended now.
+    func fire(_ duration: Duration? = nil) {
+        let fired = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            let ids = waiting.filter { duration == nil || $0.value.duration == duration }.map(\.key)
+            return ids.compactMap { waiting.removeValue(forKey: $0)?.continuation }
+        }
+        fired.forEach { $0.resume() }
+    }
+
+    /// Lets other tasks run until a wait of this duration is suspended. Bounded by turns, not by time.
+    func untilWaiting(_ duration: Duration) async {
+        for _ in 0..<10_000 where !pending.contains(duration) { await Task.yield() }
+    }
+}
+
+/// Lets other tasks run until `condition` holds. Bounded by turns, not by time, so a slow machine cannot make it flaky.
+@MainActor
+func eventually(_ condition: @MainActor () -> Bool) async {
+    for _ in 0..<10_000 where !condition() { await Task.yield() }
+}
+
+/// Runs everything already queued on the main actor, such as a `Task { @MainActor in ... }` a callback just started.
+@MainActor
+func drainMainActor() async {
+    for _ in 0..<3 { await Task { @MainActor in }.value }
+}
+
 /// Stands in for waiting. Records each wait and lets a test say what happens in the world meanwhile.
 @MainActor
 final class FakePauser {
