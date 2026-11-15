@@ -23,8 +23,22 @@ public final class LiveSystemMonitor: SystemMonitoring {
         return SystemSnapshot(
             batteryPercent: power.batteryPercent,
             isOnBattery: power.isOnBattery,
-            thermal: Self.thermalLevel()
+            thermal: Self.thermalLevel(),
+            batteryTemperature: Self.batteryTemperature()
         )
+    }
+
+    /// Read without the helper, so the hot-battery rule works with fan control off too.
+    private static func batteryTemperature() -> Double? {
+        #if DEBUG
+        // Debug builds only, as `debugThermalLevel`: `defaults write <bundle id> debugBatteryTemperature 56`.
+        if let celsius = UserDefaults.standard.object(forKey: "debugBatteryTemperature") as? Double { return celsius }
+        #endif
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        let value = IORegistryEntryCreateCFProperty(service, "Temperature" as CFString, kCFAllocatorDefault, 0)
+        return PowerSnapshotMapper.batteryCelsius(hundredths: (value?.takeRetainedValue() as? NSNumber)?.intValue)
     }
 
     private static func thermalLevel() -> ThermalLevel {

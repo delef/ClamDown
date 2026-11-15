@@ -1,4 +1,12 @@
 public enum PowerSnapshotMapper {
+    /// The `Temperature` of the `AppleSmartBattery` IORegistry entry, in hundredths of °C, as °C.
+    /// Nil when it is missing or not a believable battery temperature.
+    public static func batteryCelsius(hundredths: Int?) -> Double? {
+        guard let hundredths else { return nil }
+        let celsius = Double(hundredths) / 100
+        return celsius > 0 && celsius < 130 ? celsius : nil
+    }
+
     /// Turns IOKit power-source data into the two facts ClamDown needs.
     /// - Parameters:
     ///   - providingSource: `IOPSGetProvidingPowerSourceType`, e.g. "Battery Power" or "AC Power".

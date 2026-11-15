@@ -40,6 +40,26 @@ public enum AutoOffTimer: Int, Codable, CaseIterable, Sendable {
     }
 }
 
+/// How long the battery must stay at or above its limit before ClamDown switches off.
+public enum BatteryHeatHold: Int, Codable, CaseIterable, Sendable {
+    case seconds30 = 30
+    case minute1 = 60
+    case minutes2 = 120
+    case minutes5 = 300
+
+    /// In seconds.
+    public var duration: Double { Double(rawValue) }
+
+    public var title: String {
+        switch self {
+        case .seconds30: "30 seconds"
+        case .minute1: "1 minute"
+        case .minutes2: "2 minutes"
+        case .minutes5: "5 minutes"
+        }
+    }
+}
+
 /// The symbol shown in the menu bar. Each style has a plain and a filled form for off and on.
 public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     case lid, cup, eye, bolt, sun
@@ -81,6 +101,7 @@ public enum FanCurveMode: String, Codable, CaseIterable, Sendable {
 
 public struct Settings: Codable, Equatable, Sendable {
     public static let batteryCutoffRange = 5...50
+    public static let batteryHeatLimitRange = 50...60
 
     // Sleep
     public var autoOffTimer: AutoOffTimer = .never
@@ -92,6 +113,10 @@ public struct Settings: Codable, Equatable, Sendable {
     public var batteryCutoffEnabled = true
     public var batteryCutoffPercent = 10
     public var thermalCutoff: ThermalCutoff = .serious
+    /// Switch off when the battery has stayed this hot (whole °C) for `batteryHeatHold`.
+    public var batteryHeatCutoffEnabled = true
+    public var batteryHeatLimit = 55
+    public var batteryHeatHold: BatteryHeatHold = .minute1
     /// After a battery or heat switch-off with the lid closed, put the Mac to sleep at once.
     public var sleepAfterProtection = true
 
@@ -132,6 +157,7 @@ public struct Settings: Codable, Equatable, Sendable {
     public func clamped() -> Settings {
         var copy = self
         copy.batteryCutoffPercent = min(max(batteryCutoffPercent, Self.batteryCutoffRange.lowerBound), Self.batteryCutoffRange.upperBound)
+        copy.batteryHeatLimit = min(max(batteryHeatLimit, Self.batteryHeatLimitRange.lowerBound), Self.batteryHeatLimitRange.upperBound)
         (copy.fanStartTemperature, copy.fanFullSpeedTemperature) =
             StandardCurve.clamped(start: fanStartTemperature, full: fanFullSpeedTemperature)
         copy.fanAdvancedPoints = Self.validAdvanced(fanAdvancedPoints).map { FanPolicy(points: $0).repaired().points }
@@ -150,6 +176,7 @@ public struct Settings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case autoOffTimer, lockScreenWhenLidClosed, turnOffWhenUnplugged, autoLowPowerOnBattery
         case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff, sleepAfterProtection
+        case batteryHeatCutoffEnabled, batteryHeatLimit, batteryHeatHold
         case fanControlEnabled, fanCurveMode, fanStartTemperature, fanFullSpeedTemperature, fanAdvancedPoints
         case fansOnlyWhenLidClosed
         case launchAtLogin, showDockIcon, notificationsEnabled, menuBarIcon
@@ -172,6 +199,9 @@ public struct Settings: Codable, Equatable, Sendable {
         batteryCutoffPercent = (try? c.decodeIfPresent(Int.self, forKey: .batteryCutoffPercent)) ?? batteryCutoffPercent
         thermalCutoff = (try? c.decodeIfPresent(ThermalCutoff.self, forKey: .thermalCutoff)) ?? thermalCutoff
         sleepAfterProtection = (try? c.decodeIfPresent(Bool.self, forKey: .sleepAfterProtection)) ?? sleepAfterProtection
+        batteryHeatCutoffEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .batteryHeatCutoffEnabled)) ?? batteryHeatCutoffEnabled
+        batteryHeatLimit = (try? c.decodeIfPresent(Int.self, forKey: .batteryHeatLimit)) ?? batteryHeatLimit
+        batteryHeatHold = (try? c.decodeIfPresent(BatteryHeatHold.self, forKey: .batteryHeatHold)) ?? batteryHeatHold
         if c.contains(.fanControlEnabled) {
             fanControlEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .fanControlEnabled)) ?? fanControlEnabled
         } else {

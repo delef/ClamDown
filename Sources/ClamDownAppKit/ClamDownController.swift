@@ -79,6 +79,8 @@ public final class ClamDownController: ObservableObject {
     private var helperBusy = false
     /// Decides when the user hears that fan control has stopped.
     private var fanAlert = FanAlert()
+    /// How long the battery has been hot. Starts again at every Turn On and every system sleep.
+    private var batteryHeat = BatteryHeatWatch()
 
     private struct WakeReport {
         /// When ClamDown switched off.
@@ -206,7 +208,7 @@ public final class ClamDownController: ObservableObject {
             await autoOff(.timerEnded)
             return
         }
-        if let reason = AutoOffPolicy.reason(for: monitor.snapshot(), settings: settings) {
+        if let reason = autoOffReason() {
             await autoOff(reason)
             return
         }
@@ -238,6 +240,8 @@ public final class ClamDownController: ObservableObject {
     /// Call when the Mac is about to sleep.
     public func systemWillSleep() {
         stopSleepWatch()
+        // Time asleep is not time hot: the hold starts again after the wake.
+        batteryHeat.reset()
         guard var report = pendingWakeReport, !report.slept else { return }
         // A user who was at the Mac saw the switch-off when it happened. A sleep long after that is their own doing.
         guard report.away || now().timeIntervalSince(report.at) <= Self.reportWindow else {
@@ -410,7 +414,8 @@ public final class ClamDownController: ObservableObject {
         let preparation = await prepareHelperExclusively()
         pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
         guard show(preparation) else { return }
-        if let reason = AutoOffPolicy.reason(for: monitor.snapshot(), settings: settings) {
+        batteryHeat.reset()
+        if let reason = autoOffReason() {
             let text = "Not turned on: \(reason.summary)."
             state = .off
             announce(text)
@@ -519,6 +524,13 @@ public final class ClamDownController: ObservableObject {
     private static func isSilence(_ error: Error) -> Bool {
         if case .connection? = error as? HelperClientError { return true }
         return false
+    }
+
+    /// The cut-off rules for the current snapshot. Also moves the hot-battery hold on, so call it once per check.
+    private func autoOffReason() -> AutoOffReason? {
+        let snapshot = monitor.snapshot()
+        let heat = batteryHeat.update(snapshot, settings: settings, now: now())
+        return AutoOffPolicy.reason(for: snapshot, settings: settings, batteryHeat: heat)
     }
 
     private func turnOff() async {
