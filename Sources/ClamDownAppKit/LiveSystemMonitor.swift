@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import IOKit.ps
 import ClamDownShared
+import ClamDownSensors
 
 /// Watches power source, battery level, thermal state and wake from sleep.
 /// Every event just says "something changed"; the controller re-reads `snapshot()`.
@@ -9,6 +10,8 @@ public final class LiveSystemMonitor: SystemMonitoring {
     fileprivate var onChange: (@Sendable () -> Void)?
     private var powerSource: CFRunLoopSource?
     private var observers: [NSObjectProtocol] = []
+    /// The SMC battery keys, opened on first use. Nil on a Mac without them.
+    private lazy var smcBattery: SMCBatteryTemperature? = SMCBatteryTemperature()
 
     public init() {}
 
@@ -24,16 +27,21 @@ public final class LiveSystemMonitor: SystemMonitoring {
             batteryPercent: power.batteryPercent,
             isOnBattery: power.isOnBattery,
             thermal: Self.thermalLevel(),
-            batteryTemperature: Self.batteryTemperature()
+            batteryTemperature: batteryTemperature()
         )
     }
 
-    /// Read without the helper, so the hot-battery rule works with fan control off too.
-    private static func batteryTemperature() -> Double? {
+    /// Read without the helper, so the hot-battery rule works with fan control off too. The `AppleSmartBattery`
+    /// entry's `Temperature` comes first; some macOS versions leave it out, and then the SMC battery keys answer.
+    private func batteryTemperature() -> Double? {
         #if DEBUG
         // Debug builds only, as `debugThermalLevel`: `defaults write <bundle id> debugBatteryTemperature 56`.
         if let celsius = UserDefaults.standard.object(forKey: "debugBatteryTemperature") as? Double { return celsius }
         #endif
+        return Self.registryBatteryTemperature() ?? smcBattery?.read()
+    }
+
+    private static func registryBatteryTemperature() -> Double? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return nil }
         defer { IOObjectRelease(service) }
