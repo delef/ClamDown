@@ -312,6 +312,7 @@ struct CoolingPage: View {
     private var overrideLine: String? {
         switch status?.override {
         case .hotCore: "Full speed: a CPU core is at its limit."
+        case .hotBattery: "Full speed: the battery is hot."
         case .system: "Full speed: macOS reports the Mac as hot."
         case nil: nil
         }

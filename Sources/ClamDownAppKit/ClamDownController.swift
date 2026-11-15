@@ -299,7 +299,10 @@ public final class ClamDownController: ObservableObject {
             hottestCPUTemperature: reading.hottestCPUTemperature,
             fans: reading.fans,
             isControlling: false,
-            problem: Self.noHelperForFans
+            problem: Self.noHelperForFans,
+            hottestTemperature: reading.hottestTemperature,
+            hottestGroup: reading.hottestGroup,
+            groupTemperatures: reading.groupTemperatures
         )
     }
 

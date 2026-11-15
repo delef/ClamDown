@@ -8,14 +8,14 @@ import Testing
     private func at(_ seconds: Int) -> SuspendingClock.Instant { t0.advanced(by: .seconds(seconds)) }
 
     @Test func hotCoreNeedsTenSeconds() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         #expect(watch.update(hottest: 100, now: at(0)) == false)
         #expect(watch.update(hottest: 100, now: at(9)) == false)
         #expect(watch.update(hottest: 100, now: at(10)) == true)
     }
 
     @Test func aShortDipRestartsTheTenSeconds() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         _ = watch.update(hottest: 100, now: at(0))
         _ = watch.update(hottest: 99, now: at(6))
         #expect(watch.update(hottest: 100, now: at(9)) == false)
@@ -24,7 +24,7 @@ import Testing
     }
 
     @Test func hotCoreClearsAfterThirtyCoolSeconds() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         _ = watch.update(hottest: 100, now: at(0))
         #expect(watch.update(hottest: 100, now: at(10)) == true)
         // Between 95 and 100 the override holds.
@@ -38,7 +38,7 @@ import Testing
     }
 
     @Test func coolForExactlyThirtySecondsClears() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         _ = watch.update(hottest: 100, now: at(0))
         _ = watch.update(hottest: 100, now: at(10))
         let t1 = 20
@@ -48,14 +48,14 @@ import Testing
     }
 
     @Test func missingHottestNeverTriggers() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         for second in stride(from: 0, through: 60, by: 3) {
             #expect(watch.update(hottest: nil, now: at(second)) == false)
         }
     }
 
     @Test func missingHottestCountsAsCool() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         _ = watch.update(hottest: 100, now: at(0))
         _ = watch.update(hottest: 100, now: at(10))
         _ = watch.update(hottest: nil, now: at(20))
@@ -66,9 +66,39 @@ import Testing
     /// `SuspendingClock` stands still while the Mac sleeps, so a long gap means the helper missed ticks while awake.
     /// The watch takes the two readings at face value and changes state once.
     @Test func aLongGapChangesStateOnce() {
-        var watch = HotCoreWatch()
+        var watch = OverheatWatch.hotCore()
         _ = watch.update(hottest: 100, now: at(0))
         #expect(watch.update(hottest: 100, now: at(3 * 3600)) == true)
         #expect(watch.update(hottest: 100, now: at(3 * 3600 + 3)) == true)
+    }
+}
+
+@Suite struct HotBatteryWatchTests {
+    private let t0 = SuspendingClock.now
+
+    private func at(_ seconds: Int) -> SuspendingClock.Instant { t0.advanced(by: .seconds(seconds)) }
+
+    @Test func onAtOnceAt45() {
+        var watch = OverheatWatch.hotBattery()
+        #expect(watch.update(hottest: 44.9, now: at(0)) == false)
+        #expect(watch.update(hottest: 45, now: at(3)) == true)
+    }
+
+    @Test func offAfterThirtySecondsBelow43() {
+        var watch = OverheatWatch.hotBattery()
+        _ = watch.update(hottest: 47, now: at(0))
+        #expect(watch.update(hottest: 43, now: at(60)) == true)  // 43 is not below 43
+        #expect(watch.update(hottest: 42.5, now: at(63)) == true)
+        #expect(watch.update(hottest: 43.5, now: at(80)) == true)  // restarts the 30 s
+        #expect(watch.update(hottest: 42.5, now: at(83)) == true)
+        #expect(watch.update(hottest: 42.5, now: at(112)) == true)
+        #expect(watch.update(hottest: 42.5, now: at(113)) == false)
+    }
+
+    @Test func missingBatteryNeverTriggers() {
+        var watch = OverheatWatch.hotBattery()
+        for second in stride(from: 0, through: 60, by: 3) {
+            #expect(watch.update(hottest: nil, now: at(second)) == false)
+        }
     }
 }

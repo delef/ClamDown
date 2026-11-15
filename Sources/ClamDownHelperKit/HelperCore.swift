@@ -53,7 +53,9 @@ public actor HelperCore {
     /// Why the last hand-back to macOS failed, until one succeeds.
     private var releaseProblem: String?
     /// Watches for one core at its limit; reset whenever the helper is not asked to drive the fans.
-    private var hotCore = HotCoreWatch()
+    private var hotCore = OverheatWatch.hotCore()
+    /// Watches the hottest battery sensor; reset with `hotCore`.
+    private var hotBattery = OverheatWatch.hotBattery()
     /// Why the fans last ran at full speed, while they did.
     private var fanOverride: FanOverride?
 
@@ -137,7 +139,8 @@ public actor HelperCore {
         fanPolicy = nil
         health.restart()
         fanIdle = true
-        hotCore = HotCoreWatch()
+        hotCore = .hotCore()
+        hotBattery = .hotBattery()
         fanOverride = nil
         enabled = false
     }
@@ -246,13 +249,15 @@ public actor HelperCore {
 
     /// Call every few seconds. Sets the fan speeds while the mode is on and the policy asks for it;
     /// in every other case it hands the fans back to macOS if ClamDown holds them.
-    /// The curve and the safety floor follow the average CPU temperature; a core at its limit or a Mac that
-    /// macOS reports as hot runs the fans at full speed instead.
+    /// The curve and the safety floor follow the hottest sensor of the known groups, or the average CPU
+    /// temperature when no group can be read; a core at its limit, a hot battery or a Mac that macOS reports as hot
+    /// runs the fans at full speed instead.
     /// Any fault (a failed read or write, a lost temperature, a fan that drops out of the reading or does not
     /// follow its target) hands the fans back to macOS; `FanHealth` says when to take them again.
     public func updateFans(now: SuspendingClock.Instant = .now) {
         guard enabled, let policy = fanPolicy, !policy.isOff else {
-            hotCore = HotCoreWatch()
+            hotCore = .hotCore()
+            hotBattery = .hotBattery()
             stopDriving()
             return
         }
@@ -274,6 +279,7 @@ public actor HelperCore {
             return
         }
         let hotCoreActive = hotCore.update(hottest: reading.hottestCPUTemperature, now: now)
+        let hotBatteryActive = hotBattery.update(hottest: reading.groupTemperatures[.battery], now: now)
         if policy.onlyWhenLidClosed, reading.lidClosed != true {
             stopDriving()
             return
@@ -293,7 +299,7 @@ public actor HelperCore {
         }
         knownFanMaxima = reading.fans.map(\.maximum)
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
-        guard let temperature = reading.cpuTemperature else {
+        guard let temperature = reading.hottestTemperature ?? reading.cpuTemperature else {
             fault("Cannot read the CPU temperature.", now: now)
             return
         }
@@ -304,6 +310,8 @@ public actor HelperCore {
         }
         let override: FanOverride? = if hotCoreActive {
             .hotCore
+        } else if hotBatteryActive {
+            .hotBattery
         } else if let level = thermal?.thermalLevel(), level >= .serious {
             .system
         } else {
@@ -365,7 +373,10 @@ public actor HelperCore {
             problem: problem,
             override: fansHeld ? fanOverride : nil,
             control: control,
-            systemThermalLevel: thermal?.thermalLevel()
+            systemThermalLevel: thermal?.thermalLevel(),
+            hottestTemperature: reading?.hottestTemperature,
+            hottestGroup: reading?.hottestGroup,
+            groupTemperatures: reading?.groupTemperatures ?? [:]
         )
     }
 

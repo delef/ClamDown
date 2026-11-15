@@ -163,6 +163,8 @@ public struct FanReading: Codable, Equatable, Sendable {
 public enum FanOverride: String, Codable, Sendable {
     /// The hottest CPU core has been at its limit for a while.
     case hotCore
+    /// The hottest battery sensor is hot.
+    case hotBattery
     /// macOS reports the Mac's thermal level as serious or critical.
     case system
 }
@@ -195,10 +197,17 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
     public var control: FanControlState
     /// The thermal level macOS reports to the helper itself. Nil when the helper does not read it.
     public var systemThermalLevel: ThermalLevel?
+    /// The hottest reading over the sensor groups, in °C: what the curve follows. Nil when no group can be read.
+    public var hottestTemperature: Double?
+    /// The group of `hottestTemperature`. Nil when there is none, or a later helper names a group this build does not know.
+    public var hottestGroup: SensorGroup?
+    /// The hottest value of each group that could be read.
+    public var groupTemperatures: [SensorGroup: Double]
 
     public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], isControlling: Bool,
                 problem: String?, override: FanOverride? = nil, control: FanControlState = .idle,
-                systemThermalLevel: ThermalLevel? = nil) {
+                systemThermalLevel: ThermalLevel? = nil, hottestTemperature: Double? = nil,
+                hottestGroup: SensorGroup? = nil, groupTemperatures: [SensorGroup: Double] = [:]) {
         self.cpuTemperature = cpuTemperature
         self.hottestCPUTemperature = hottestCPUTemperature
         self.fans = fans
@@ -207,6 +216,14 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
         self.override = override
         self.control = control
         self.systemThermalLevel = systemThermalLevel
+        self.hottestTemperature = hottestTemperature
+        self.hottestGroup = hottestGroup
+        self.groupTemperatures = groupTemperatures
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case cpuTemperature, hottestCPUTemperature, fans, isControlling, problem, override, control, systemThermalLevel
+        case hottestTemperature, hottestGroup, groupTemperatures
     }
 
     /// An older helper sends none of the newer fields, and a later one may send values this build does not know:
@@ -221,5 +238,28 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
         override = (try? container.decodeIfPresent(FanOverride.self, forKey: .override)) ?? nil
         control = (try? container.decodeIfPresent(FanControlState.self, forKey: .control)) ?? .idle
         systemThermalLevel = (try? container.decodeIfPresent(ThermalLevel.self, forKey: .systemThermalLevel)) ?? nil
+        hottestTemperature = (try? container.decodeIfPresent(Double.self, forKey: .hottestTemperature)) ?? nil
+        hottestGroup = (try? container.decodeIfPresent(SensorGroup.self, forKey: .hottestGroup)) ?? nil
+        // Keyed by the group's name, so a group a later build adds is dropped instead of failing the status.
+        let groups = (try? container.decodeIfPresent([String: Double].self, forKey: .groupTemperatures)) ?? nil
+        groupTemperatures = Dictionary(uniqueKeysWithValues: (groups ?? [:]).compactMap { name, celsius in
+            SensorGroup(rawValue: name).map { ($0, celsius) }
+        })
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(cpuTemperature, forKey: .cpuTemperature)
+        try container.encodeIfPresent(hottestCPUTemperature, forKey: .hottestCPUTemperature)
+        try container.encode(fans, forKey: .fans)
+        try container.encode(isControlling, forKey: .isControlling)
+        try container.encodeIfPresent(problem, forKey: .problem)
+        try container.encodeIfPresent(override, forKey: .override)
+        try container.encode(control, forKey: .control)
+        try container.encodeIfPresent(systemThermalLevel, forKey: .systemThermalLevel)
+        try container.encodeIfPresent(hottestTemperature, forKey: .hottestTemperature)
+        try container.encodeIfPresent(hottestGroup, forKey: .hottestGroup)
+        try container.encode(Dictionary(uniqueKeysWithValues: groupTemperatures.map { ($0.key.rawValue, $0.value) }),
+                             forKey: .groupTemperatures)
     }
 }

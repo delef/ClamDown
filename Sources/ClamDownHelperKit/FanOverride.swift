@@ -1,15 +1,20 @@
 import ClamDownShared
 
-/// Watches the hottest CPU core for one pinned at its limit, which the average hides among idle cores.
-/// On after the hottest core has stayed at or above `onAt` for `onAfter`; off after it has stayed below
-/// `offBelow` for `offAfter`. A missing reading counts as cool, so a Mac without a hottest-core value
-/// never goes to full speed for this reason.
-public struct HotCoreWatch: Sendable {
-    // First guesses from the spec; device measurements may change them, keeping the rule's shape.
-    public static let defaultOnAt: Double = 100
-    public static let defaultOnAfter: Duration = .seconds(10)
-    public static let defaultOffBelow: Double = 95
-    public static let defaultOffAfter: Duration = .seconds(30)
+/// Watches one temperature for a part that runs too hot, which the curve alone may not answer in time.
+/// On after the value has stayed at or above `onAt` for `onAfter`; off after it has stayed below `offBelow`
+/// for `offAfter`. A missing reading counts as cool, so a Mac without the value never goes to full speed for
+/// this reason.
+public struct OverheatWatch: Sendable {
+    /// The hottest CPU core pinned at its limit, which the average hides among idle cores.
+    /// First guesses from the spec; device measurements may change them, keeping the rule's shape.
+    public static func hotCore() -> OverheatWatch {
+        OverheatWatch(onAt: 100, onAfter: .seconds(10), offBelow: 95, offAfter: .seconds(30))
+    }
+
+    /// The hottest battery sensor: a battery warms slowly and suffers from heat, so full speed comes at once.
+    public static func hotBattery() -> OverheatWatch {
+        OverheatWatch(onAt: 45, onAfter: .zero, offBelow: 43, offAfter: .seconds(30))
+    }
 
     private let onAt: Double
     private let onAfter: Duration
@@ -22,8 +27,7 @@ public struct HotCoreWatch: Sendable {
     /// When the current run of cool readings began, while active.
     private var coolSince: SuspendingClock.Instant?
 
-    public init(onAt: Double = defaultOnAt, onAfter: Duration = defaultOnAfter,
-                offBelow: Double = defaultOffBelow, offAfter: Duration = defaultOffAfter) {
+    public init(onAt: Double, onAfter: Duration, offBelow: Double, offAfter: Duration) {
         self.onAt = onAt
         self.onAfter = onAfter
         self.offBelow = offBelow

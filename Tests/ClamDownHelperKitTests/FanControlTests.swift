@@ -316,16 +316,44 @@ import ClamDownShared
         #expect(FanCurve.speed(percent: 100, fan: fan) == 5000)
     }
 
-    @Test func curveFollowsTheAverage() async throws {
+    @Test func curveFollowsTheHottestSensor() async throws {
+        let fans = FakeFans(temperature: 45)
+        fans.set(hottest: 50)
+        fans.set(group: .cpu, 50)
+        fans.set(group: .battery, 41)
+        fans.set(group: .ssd, 62.5)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        #expect(fans.targets == [[3000]])  // min + 50 % of the range, at the SSD's 62.5 °C
+        let status = await core.coolingStatus()
+        #expect(status.override == nil)
+        #expect(status.hottestTemperature == 62.5)
+        #expect(status.hottestGroup == .ssd)
+        #expect(status.groupTemperatures == [.cpu: 50, .battery: 41, .ssd: 62.5])
+        #expect(status.cpuTemperature == 45)
+        #expect(status.hottestCPUTemperature == 50)
+        #expect(status.control == .controlling)
+    }
+
+    /// Without any group value (as from a source that reads only the CPU), the average is the input, as before.
+    @Test func curveFallsBackToTheAverageWithoutTheHottest() async throws {
         let fans = FakeFans(temperature: 62.5)
         fans.set(hottest: 90)
         let (core, _) = try await enabled(fans: fans)
         try await core.setFanPolicy(standard, now: at(0))
-        #expect(fans.targets == [[3000]])  // min + 50 % of the range
+        #expect(fans.targets == [[3000]])
         let status = await core.coolingStatus()
-        #expect(status.override == nil)
-        #expect(status.hottestCPUTemperature == 90)
+        #expect(status.hottestTemperature == nil)
+        #expect(status.hottestGroup == nil)
         #expect(status.control == .controlling)
+    }
+
+    @Test func noTemperatureAtAllIsStillAFault() async throws {
+        let fans = FakeFans(temperature: nil)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        #expect(fans.targets.isEmpty)
+        #expect(await core.coolingStatus().control == .retrying)
     }
 
     @Test func floorAppliesInTheHelper() async throws {
@@ -333,6 +361,67 @@ import ClamDownShared
         let (core, _) = try await enabled(fans: fans)
         try await core.setFanPolicy(FanPolicy(points: [.init(temperature: 40, speed: 0)], onlyWhenLidClosed: true), now: at(0))
         #expect(fans.targets == [[4200]])  // 80 % of the range
+    }
+
+    @Test func floorFollowsTheHottestSensor() async throws {
+        let fans = FakeFans(temperature: 60)
+        fans.set(group: .cpu, 62)
+        fans.set(group: .gpu, 90)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(FanPolicy(points: [.init(temperature: 40, speed: 0)], onlyWhenLidClosed: true), now: at(0))
+        #expect(fans.targets == [[4200]])
+    }
+
+    @Test func hotBatteryRunsFullSpeedAtOnce() async throws {
+        let fans = FakeFans(temperature: 40)
+        fans.set(group: .battery, 45)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        #expect(fans.targets == [[5000]])
+        #expect(await core.coolingStatus().override == .hotBattery)
+    }
+
+    @Test func hotBatteryEndsAfterThirtySecondsBelow43() async throws {
+        let fans = FakeFans(temperature: 40)
+        fans.set(group: .battery, 46)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(fans.targets.last == [5000])
+        fans.set(group: .battery, 44)  // between 43 and 45 it holds
+        await core.updateFans(now: at(30))
+        #expect(fans.targets.last == [5000])
+        fans.set(group: .battery, 42.9)
+        await core.updateFans(now: at(33))
+        await core.updateFans(now: at(60))
+        #expect(fans.targets.last == [5000])
+        #expect(await core.coolingStatus().override == .hotBattery)
+        await core.updateFans(now: at(63))
+        #expect(fans.targets.last == [4850])
+        #expect(await core.coolingStatus().override == nil)
+    }
+
+    @Test func hotCoreComesBeforeHotBattery() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.set(hottest: 100)
+        fans.set(group: .battery, 50)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(await core.coolingStatus().override == .hotBattery)
+        await core.updateFans(now: at(12))
+        #expect(await core.coolingStatus().override == .hotCore)
+    }
+
+    @Test func hotBatteryComesBeforeTheSystemLevel() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.set(group: .battery, 50)
+        let (core, _) = try await enabled(fans: fans, thermal: FakeThermal(.serious))
+        try await core.setFanPolicy(middle, now: at(0))
+        #expect(await core.coolingStatus().override == .hotBattery)
+        fans.set(group: .battery, 30)
+        await core.updateFans(now: at(40))
+        #expect(await core.coolingStatus().override == .hotBattery)
+        await core.updateFans(now: at(70))
+        #expect(await core.coolingStatus().override == .system)
     }
 
     @Test func hotCoreRunsFullSpeed() async throws {
