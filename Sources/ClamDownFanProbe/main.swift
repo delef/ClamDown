@@ -5,6 +5,7 @@
 //   sudo .build/debug/ClamDownFanProbe load <minutes>
 //   sudo .build/debug/ClamDownFanProbe fullLoad <minutes>
 //        .build/debug/ClamDownFanProbe thermal [minutes]     (with or without sudo)
+//        .build/debug/ClamDownFanProbe sensors [seconds]     (with or without sudo; never touches the fans)
 //   sudo .build/debug/ClamDownFanProbe release
 //
 // CSV with a header row goes to stdout; progress and notes go to stderr.
@@ -27,6 +28,8 @@ private let usage = """
       load <minutes>      CSV: seconds,average,hottest,thermalLevel every second. Fans untouched. Root.
       fullLoad <minutes>  as load, with the fans held at maximum; back to macOS at the end. Root.
       thermal [minutes]   CSV: seconds,uid,thermalLevel every second, 5 minutes by default. Root not needed.
+      sensors [seconds]   CSV: timestamp, each sensor group's hottest value, then every key of the groups,
+                          every second, 60 seconds by default. Read-only: never takes the fans. Root not needed.
       release             hands every fan back to macOS and prints each fan's mode. Root. Safe any time.
     """
 
@@ -39,6 +42,7 @@ private enum Command {
     case load(seconds: Int)
     case fullLoad(seconds: Int)
     case thermal(seconds: Int)
+    case sensors(seconds: Int)
     case release
 
     init?(_ arguments: [String]) {
@@ -54,6 +58,10 @@ private enum Command {
         case let args where args.count == 2 && args[0] == "thermal":
             guard let s = seconds(args[1]) else { return nil }
             self = .thermal(seconds: s)
+        case ["sensors"]: self = .sensors(seconds: 60)
+        case let args where args.count == 2 && args[0] == "sensors":
+            guard let s = Int(args[1]), s > 0, s <= 24 * 3600 else { return nil }
+            self = .sensors(seconds: s)
         case let args where args.count == 2 && args[0] == "load":
             guard let s = seconds(args[1]) else { return nil }
             self = .load(seconds: s)
@@ -275,6 +283,46 @@ private func thermal(_ seconds: Int) -> Never {
     exit(0)
 }
 
+/// Every temperature the curve can follow, once a second, for checking the limits in a bag. Opens the SMC to read
+/// only: no fan is taken and nothing is written, so it needs no root and leaves whatever drives the fans alone.
+/// The key columns are the CPU and GPU keys this Mac has, then every fixed key of the table, also the ones this
+/// Mac lacks (their column stays empty), so files from different Macs line up.
+private func sensors(_ seconds: Int) -> Never {
+    guard let hardware = SMCFanHardware() else {
+        note("cannot open the SMC.")
+        exit(1)
+    }
+    let found = hardware.sensorKeys
+    let prefixed = found.filter { $0.group == .cpu || $0.group == .gpu }.flatMap(\.keys)
+    let keys = prefixed + SensorKeys.fixed.flatMap(\.keys)
+    let missing = SensorKeys.fixed.flatMap(\.keys).filter { key in !found.contains { $0.keys.contains(key) } }
+    note("reading \(keys.count - missing.count) keys for \(seconds) s"
+        + (missing.isEmpty ? "." : "; not on this Mac: \(missing.joined(separator: ", ")).")
+        + " Group values leave out readings outside 10–130 °C; key columns are raw.")
+    // Raw key names in the header: none contains a comma or a quote.
+    emit((["timestamp"] + SensorGroup.allCases.map(\.rawValue) + keys).joined(separator: ","))
+    let stamp = ISO8601DateFormatter()
+    stamp.formatOptions = [.withInternetDateTime]
+    stamp.timeZone = .current
+    everySecond(seconds) { second, _ in
+        let raw = hardware.readKeys(keys)
+        var byGroup: [SensorGroup: [Double]] = [:]
+        for (key, value) in zip(keys, raw) {
+            guard let value, let group = SensorKeys.group(of: key) ?? (prefixed.contains(key) ? .cpu : nil) else { continue }
+            byGroup[group, default: []].append(value)
+        }
+        let groups = SensorKeys.hottestByGroup(byGroup)
+        emit(([stamp.string(from: Date())] + SensorGroup.allCases.map { format(groups[$0], 1) } + raw.map { format($0, 2) })
+            .joined(separator: ","))
+        if second % 30 == 0 {
+            let summary = SensorGroup.allCases.compactMap { group in groups[group].map { "\(group.title) \(format($0, 1))" } }
+            note("\(second)/\(seconds) s: \(summary.joined(separator: ", ")) °C.")
+        }
+    }
+    note("done.")
+    exit(0)
+}
+
 /// Hands every fan back to macOS and prints what the SMC says afterwards. Exits 0 only when no fan is left manual.
 private func release(_ hardware: SMCFanHardware) -> Never {
     var failed = false
@@ -304,6 +352,7 @@ private func run() -> Never {
         exit(2)
     }
     if case .thermal(let seconds) = command { thermal(seconds) }
+    if case .sensors(let seconds) = command { sensors(seconds) }
     guard getuid() == 0 else {
         note("run it with sudo: it drives the fans through the SMC and must see what a root daemon sees.")
         exit(1)
@@ -359,7 +408,7 @@ private func run() -> Never {
             case .ftst: try ftst(hardware, fans)
             case .load(let seconds): try load(seconds, hardware, holdingAtMaximum: nil)
             case .fullLoad(let seconds): try load(seconds, hardware, holdingAtMaximum: fans)
-            case .thermal, .release: break
+            case .thermal, .sensors, .release: break
             }
         } catch ProbeError.stopping {
             // A signal is already handing the fans back and exiting.
