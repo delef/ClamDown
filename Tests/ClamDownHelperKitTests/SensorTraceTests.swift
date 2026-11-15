@@ -8,7 +8,7 @@ import ClamDownShared
 /// through the helper, one reading a second, with the default settings. Each recording is checked against rules that
 /// must hold whatever the temperatures do. Add the recording of every new situation, such as a Mac in a bag.
 @Suite struct SensorTraceTests {
-    static let traces = ["m3-pro-desk-load", "m3-pro-desk-idle"]
+    static let traces = ["m3-pro-desk-load", "m3-pro-desk-idle", "m3-pro-desk-lid-closed"]
 
     struct Sample {
         var groups: [SensorGroup: Double]
