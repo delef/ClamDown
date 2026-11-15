@@ -22,7 +22,7 @@ public enum MenuBarIconImage {
     }
 
     /// The name VoiceOver reads for a plain icon.
-    private static let accessibilityName = "ClamDown"
+    private static let accessibilityName = String(localized: "ClamDown")
 
     /// The Lid on an 18 x 18 pt canvas, from the paths of the approved sketch (an 18 x 18 view box, y down).
     /// Off is a rounded outline with a flat line; on is the filled lid with a heartbeat cut out of it.
@@ -110,7 +110,7 @@ public enum MenuBarIconImage {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "ClamDown needs attention"
+        image.accessibilityDescription = String(localized: "ClamDown needs attention")
         return image
     }
 }

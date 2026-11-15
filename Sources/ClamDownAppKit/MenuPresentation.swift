@@ -1,3 +1,5 @@
+import Foundation
+
 /// The one thing the menu offers to press when ClamDown cannot work as it is.
 public enum MenuRecovery: Equatable, Sendable {
     /// The helper is not allowed or not registered: the setup assistant leads through it.
@@ -38,18 +40,18 @@ public struct MenuPresentation: Equatable {
         let setup: MenuRecovery? = helperReady ? nil : .finishSetup
         switch state {
         case .on:
-            self.init(symbolName: icon.onSymbol, toggleTitle: "Turn Off", statusLine: notice,
+            self.init(symbolName: icon.onSymbol, toggleTitle: String(localized: "Turn Off"), statusLine: notice,
                       needsAttention: !helperReady, recovery: setup, isOn: true, coolingLine: coolingLine)
         case .off:
-            self.init(symbolName: icon.offSymbol, toggleTitle: "Turn On", statusLine: notice,
+            self.init(symbolName: icon.offSymbol, toggleTitle: String(localized: "Turn On"), statusLine: notice,
                       needsAttention: !helperReady, recovery: setup)
         case .needsApproval:
-            self.init(symbolName: icon.offSymbol, toggleTitle: "Turn On",
-                      statusLine: "Approve ClamDown in System Settings > Login Items", needsAttention: true,
+            self.init(symbolName: icon.offSymbol, toggleTitle: String(localized: "Turn On"),
+                      statusLine: String(localized: "Approve ClamDown in System Settings > Login Items"), needsAttention: true,
                       recovery: .finishSetup)
         case .failed(let message):
             // The switch says what pressing it does now: the same thing once more.
-            self.init(symbolName: icon.offSymbol, toggleTitle: "Try Again", statusLine: message, needsAttention: true,
+            self.init(symbolName: icon.offSymbol, toggleTitle: String(localized: "Try Again"), statusLine: message, needsAttention: true,
                       recovery: setup ?? .reinstallHelper)
         }
     }
@@ -57,7 +59,10 @@ public struct MenuPresentation: Equatable {
     /// What VoiceOver reads for the menu bar item: the app, whether it is on, and whether it needs the user.
     /// The icon alone says this only by its shape, and the menu bar item is the app's only way in.
     public var accessibilityLabel: String {
-        "ClamDown, " + (isOn ? "on" : "off") + (needsAttention ? ", needs attention" : "")
+        let state = isOn ? String(localized: "on") : String(localized: "off")
+        return needsAttention
+            ? String(localized: "ClamDown, \(state), needs attention")
+            : String(localized: "ClamDown, \(state)")
     }
 }
 

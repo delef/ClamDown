@@ -71,7 +71,7 @@ struct FanCurveChart: View {
         }
         .frame(height: Self.topMargin + CDMetric.chartHeight + Self.bottomMargin)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Fan curve over the hottest temperature")
+        .accessibilityLabel(String(localized: "Fan curve over the hottest temperature"))
         // A waiting key move keeps its draft: the settings have not caught up with it yet.
         .onChange(of: points) { _ in if dragging == nil, keyMoves.pending == nil { draft = nil } }
         .onChange(of: mode) { _ in
@@ -133,15 +133,16 @@ struct FanCurveChart: View {
         for temperature in stride(from: Plot.coolest, through: Plot.hottest, by: 10) {
             grid.move(to: plot.point(temperature, 0))
             grid.addLine(to: plot.point(temperature, 100))
-            context.draw(axisText("\(Int(temperature)) \u{00B0}C"),
+            context.draw(axisText(String(localized: "\(Int(temperature)) \u{00B0}C")),
                          at: CGPoint(x: plot.x(temperature), y: plot.rect.maxY + 12), anchor: .center)
         }
-        context.draw(axisText("Hottest temperature"),
+        context.draw(axisText(String(localized: "Hottest temperature")),
                      at: CGPoint(x: plot.rect.midX, y: plot.rect.maxY + 29), anchor: .center)
         for speed in [0.0, 25, 50, 75, 100] {
             grid.move(to: plot.point(Plot.coolest, speed))
             grid.addLine(to: plot.point(Plot.hottest, speed))
-            let label = speed == 0 ? "min" : speed == 100 ? "max" : "\(Int(speed)) %"
+            let label = speed == 0 ? String(localized: "min")
+                : speed == 100 ? String(localized: "max") : String(localized: "\(Int(speed)) %")
             // Clear of a handle at the left edge, where the Standard curve's first point sits by default.
             context.draw(axisText(label), at: CGPoint(x: plot.rect.minX - 12, y: plot.y(speed)), anchor: .trailing)
         }
@@ -152,7 +153,7 @@ struct FanCurveChart: View {
                 context.draw(axisText(Self.rpmText(scale.rpm(at: speed))),
                              at: CGPoint(x: plot.rect.maxX + 6, y: plot.y(speed)), anchor: .leading)
             }
-            context.draw(axisText("rpm"), at: CGPoint(x: plot.rect.maxX + 6, y: plot.rect.minY - 12), anchor: .leading)
+            context.draw(axisText(String(localized: "rpm")), at: CGPoint(x: plot.rect.maxX + 6, y: plot.rect.minY - 12), anchor: .leading)
         }
     }
 
@@ -228,8 +229,8 @@ struct FanCurveChart: View {
             .onMoveCommand { nudge(index, $0) }
             .gesture(drag(index, plot: plot))
             .accessibilityElement()
-            .accessibilityLabel("Point \(index + 1)")
-            .accessibilityValue("\(point.temperature) degrees, \(point.speed) percent")
+            .accessibilityLabel(String(localized: "Point \(index + 1)"))
+            .accessibilityValue(String(localized: "\(point.temperature) degrees, \(point.speed) percent"))
             .accessibilityAdjustableAction { direction in
                 switch direction {
                 case .increment: nudge(index, .right)
@@ -237,8 +238,8 @@ struct FanCurveChart: View {
                 @unknown default: break
                 }
             }
-            .accessibilityAction(named: "Raise Speed") { nudge(index, .up) }
-            .accessibilityAction(named: "Lower Speed") { nudge(index, .down) }
+            .accessibilityAction(named: String(localized: "Raise Speed")) { nudge(index, .up) }
+            .accessibilityAction(named: String(localized: "Lower Speed")) { nudge(index, .down) }
             .position(plot.point(Double(point.temperature), Double(point.speed)))
     }
 
@@ -300,9 +301,10 @@ struct FanCurveChart: View {
     }
 
     private func dragLabel(for point: FanPoint, plot: Plot) -> some View {
-        var text = "\(point.temperature) \u{00B0}C \u{00B7} \(point.speed) %"
+        var text = String(localized: "\(point.temperature) \u{00B0}C \u{00B7} \(point.speed) %")
         if let scale = rpmScale {
-            text += " \u{00B7} \(Self.rpmText(scale.rpm(at: Double(point.speed)))) rpm"
+            let rpm = Self.rpmText(scale.rpm(at: Double(point.speed)))
+            text = String(localized: "\(point.temperature) \u{00B0}C \u{00B7} \(point.speed) % \u{00B7} \(rpm) rpm")
         }
         let center = plot.point(Double(point.temperature), Double(point.speed))
         let above = center.y - 26

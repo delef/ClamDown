@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ClamDown",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     dependencies: [
         // Updates from GitHub Releases. Pinned: moving to a new Sparkle version is a reviewed change.

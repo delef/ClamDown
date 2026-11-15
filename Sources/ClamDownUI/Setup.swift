@@ -212,7 +212,7 @@ public struct CDMenuBarStrip<Icon: View>: View {
             withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { pulsing = true }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("The ClamDown icon in the menu bar")
+        .accessibilityLabel(String(localized: "The ClamDown icon in the menu bar"))
     }
 }
 
@@ -325,7 +325,7 @@ public struct CDStepDots: View {
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: current)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Step \(current + 1) of \(count)")
+        .accessibilityLabel(String(localized: "Step \(current + 1) of \(count)"))
     }
 }
 

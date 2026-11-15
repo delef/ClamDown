@@ -33,22 +33,26 @@ struct GeneralPage: View {
 
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection("Startup") {
+            CDSection(String(localized: "Startup")) {
                 LaunchAtLoginRow(controller: controller)
-                CDSwitchRow("Show Dock Icon",
-                            detail: "Adds ClamDown to the Dock. Clicking it opens these settings.",
+                CDSwitchRow(String(localized: "Show Dock Icon"),
+                            detail: String(localized: "Adds ClamDown to the Dock. Clicking it opens these settings."),
                             isOn: controller.binding(\.showDockIcon))
             }
-            CDSection("Notifications") {
-                CDSwitchRow("Notify When Switched Off",
-                            detail: "Tells you when ClamDown switches itself off, for example at low battery. "
-                                + "The menu always shows the reason.",
+            CDSection(String(localized: "Notifications")) {
+                CDSwitchRow(String(localized: "Notify When Switched Off"),
+                            detail: String(localized: """
+                                Tells you when ClamDown switches itself off, for example at low battery. The menu \
+                                always shows the reason.
+                                """),
                             isOn: controller.binding(\.notificationsEnabled))
                 notificationHint
             }
-            CDSection("Settings") {
-                CDRow("Reset All Settings",
-                      detail: "Restores every setting to its default. Launch at Login stays as it is.") {
+            CDSection(String(localized: "Settings")) {
+                CDRow(String(localized: "Reset All Settings"),
+                      detail: String(localized: """
+                          Restores every setting to its default. Launch at Login stays as it is.
+                          """)) {
                     Button("Reset") { Task { await controller.resetSettings() } }
                         .cdButtonStyle(.secondary)
                 }
@@ -66,11 +70,11 @@ struct GeneralPage: View {
         case .nothing:
             EmptyView()
         case .allow:
-            notificationHintLine(button: "Allow") {
+            notificationHintLine(button: String(localized: "Allow")) {
                 Task { permission = await notifications.requestPermission() }
             }
         case .openSettings:
-            notificationHintLine(button: "Open Notification Settings") {
+            notificationHintLine(button: String(localized: "Open Notification Settings")) {
                 SystemSettings.openNotifications()
             }
         }
@@ -78,7 +82,7 @@ struct GeneralPage: View {
 
     private func notificationHintLine(button: String, action: @escaping () -> Void) -> some View {
         HStack {
-            CDNote("macOS is not showing ClamDown's notifications yet.", tone: .warning)
+            CDNote(String(localized: "macOS is not showing ClamDown's notifications yet."), tone: .warning)
             Button(button, action: action)
                 .cdButtonStyle(.secondary)
         }
@@ -94,27 +98,37 @@ struct SleepPage: View {
 
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection("Keep Awake") {
-                CDRow("Switch Off After",
-                      detail: "Turns the mode off by itself after this time. Turn On For\u{2026} in the menu overrides it once.") {
+            CDSection(String(localized: "Keep Awake")) {
+                CDRow(String(localized: "Switch Off After"),
+                      detail: String(localized: """
+                          Turns the mode off by itself after this time. Turn On For\u{2026} in the menu \
+                          overrides it once.
+                          """)) {
                     Picker("Switch Off After", selection: controller.binding(\.autoOffTimer)) {
                         ForEach(AutoOffTimer.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden()
                     .frame(width: 130, alignment: .trailing)
                 }
-                CDSwitchRow("Switch Off When Unplugged",
-                            detail: "Lets the Mac sleep as soon as the power adapter is disconnected.",
+                CDSwitchRow(String(localized: "Switch Off When Unplugged"),
+                            detail: String(localized: """
+                                Lets the Mac sleep as soon as the power adapter is disconnected.
+                                """),
                             isOn: controller.binding(\.turnOffWhenUnplugged))
             }
-            CDSection("Security") {
-                CDSwitchRow("Lock Screen When Closed",
-                            detail: "Without this, a Mac kept awake with the lid closed opens without a password.",
+            CDSection(String(localized: "Security")) {
+                CDSwitchRow(String(localized: "Lock Screen When Closed"),
+                            detail: String(localized: """
+                                Without this, a Mac kept awake with the lid closed opens without a password.
+                                """),
                             isOn: controller.binding(\.lockScreenWhenLidClosed))
             }
-            CDSection("Power") {
-                CDSwitchRow("Low Power Mode on Battery",
-                            detail: "Switches on Low Power Mode on battery while ClamDown is on, and puts it back afterwards.",
+            CDSection(String(localized: "Power")) {
+                CDSwitchRow(String(localized: "Low Power Mode on Battery"),
+                            detail: String(localized: """
+                                Switches on Low Power Mode on battery while ClamDown is on, and puts it back \
+                                afterwards.
+                                """),
                             isOn: controller.binding(\.autoLowPowerOnBattery))
             }
         }
@@ -130,33 +144,39 @@ struct ProtectionPage: View {
 
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection("Battery") {
-                CDSwitchRow("Switch Off at Low Battery",
-                            detail: "Lets the Mac sleep at this level, so it does not run flat in a bag.",
+            CDSection(String(localized: "Battery")) {
+                CDSwitchRow(String(localized: "Switch Off at Low Battery"),
+                            detail: String(localized: """
+                                Lets the Mac sleep at this level, so it does not run flat in a bag.
+                                """),
                             isOn: controller.binding(\.batteryCutoffEnabled))
                 if controller.settings.batteryCutoffEnabled {
-                    SettingSlider("Level", value: controller.binding(\.batteryCutoffPercent),
+                    SettingSlider(String(localized: "Level"), value: controller.binding(\.batteryCutoffPercent),
                                   range: AppSettings.batteryCutoffRange, unit: "%")
                 }
             }
-            CDSection("Heat") {
-                CDRow("Switch Off When Hot",
-                      detail: "Lets the Mac sleep when macOS reports this thermal level. "
-                          + "Now: \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized).") {
+            CDSection(String(localized: "Heat")) {
+                CDRow(String(localized: "Switch Off When Hot"),
+                      detail: String(localized: """
+                          Lets the Mac sleep when macOS reports this thermal level. Now: \
+                          \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized).
+                          """)) {
                     Picker("Switch Off When Hot", selection: controller.binding(\.thermalCutoff)) {
                         ForEach(ThermalCutoff.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
                     }
                     .labelsHidden()
                     .frame(width: 150, alignment: .trailing)
                 }
-                CDSwitchRow("Switch Off When the Battery Is Hot",
-                            detail: "Lets the Mac sleep when the battery stays this hot, as it can in a bag. "
-                                + "Now: \(batteryNow).",
+                CDSwitchRow(String(localized: "Switch Off When the Battery Is Hot"),
+                            detail: String(localized: """
+                                Lets the Mac sleep when the battery stays this hot, as it can in a bag. Now: \
+                                \(batteryNow).
+                                """),
                             isOn: controller.binding(\.batteryHeatCutoffEnabled))
                 if controller.settings.batteryHeatCutoffEnabled {
-                    SettingSlider("Limit", value: controller.binding(\.batteryHeatLimit),
+                    SettingSlider(String(localized: "Limit"), value: controller.binding(\.batteryHeatLimit),
                                   range: AppSettings.batteryHeatLimitRange, unit: " \u{00B0}C")
-                    CDRow("For At Least") {
+                    CDRow(String(localized: "For At Least")) {
                         Picker("For At Least", selection: controller.binding(\.batteryHeatHold)) {
                             ForEach(BatteryHeatHold.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
@@ -165,25 +185,27 @@ struct ProtectionPage: View {
                     }
                 }
             }
-            CDSection("After Switching Off") {
-                CDSwitchRow("Put the Mac to Sleep",
-                            detail: "When low battery or heat switches ClamDown off and nobody is at the Mac, "
-                                + "it goes to sleep at once.",
+            CDSection(String(localized: "After Switching Off")) {
+                CDSwitchRow(String(localized: "Put the Mac to Sleep"),
+                            detail: String(localized: """
+                                When low battery or heat switches ClamDown off and nobody is at the Mac, it goes to \
+                                sleep at once.
+                                """),
                             isOn: controller.binding(\.sleepAfterProtection))
             }
         }
     }
 
     private var batteryNow: String {
-        controller.batteryTemperature().map { "\(Int($0.rounded())) \u{00B0}C" } ?? "unknown"
+        controller.batteryTemperature().map { String(localized: "\(Int($0.rounded())) \u{00B0}C") } ?? String(localized: "unknown")
     }
 
     private static func label(for cutoff: ThermalCutoff) -> String {
         switch cutoff {
-        case .fair: "Fair (earliest)"
-        case .serious: "Serious"
-        case .critical: "Critical (latest)"
-        case .never: "Never"
+        case .fair: String(localized: "Fair (earliest)")
+        case .serious: String(localized: "Serious")
+        case .critical: String(localized: "Critical (latest)")
+        case .never: String(localized: "Never")
         }
     }
 }
@@ -199,45 +221,52 @@ struct CoolingPage: View {
 
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection("Fans") {
+            CDSection(String(localized: "Fans")) {
                 if let reason = unsupportedReason {
                     // The stored choice stays as it is; on this Mac it cannot do anything.
-                    CDSwitchRow("Fan Control", detail: reason, isOn: .constant(false))
+                    CDSwitchRow(String(localized: "Fan Control"), detail: reason, isOn: .constant(false))
                         .disabled(true)
                     CDNote(Self.offNote)
                 } else {
-                    CDSwitchRow("Fan Control",
-                                detail: "Off: macOS keeps the fans. ClamDown hands them back when it switches off, "
-                                    + "quits or crashes.",
+                    CDSwitchRow(String(localized: "Fan Control"),
+                                detail: String(localized: """
+                                    Off: macOS keeps the fans. ClamDown hands them back when it switches off, quits or \
+                                    crashes.
+                                    """),
                                 isOn: controller.binding(\.fanControlEnabled))
                     if controller.settings.fanControlEnabled {
-                        CDRow("Curve") { modePicker }
+                        CDRow(String(localized: "Curve")) { modePicker }
                         curve
                         caseRule
                         if let note = controlNote {
                             CDNote(note, tone: .warning)
                         }
-                        CDSwitchRow("Only With Lid Closed",
-                                    detail: "Leaves the fans to macOS while the lid is open, so they stay quiet while you work.",
+                        CDSwitchRow(String(localized: "Only With Lid Closed"),
+                                    detail: String(localized: """
+                                        Leaves the fans to macOS while the lid is open, so they stay quiet while you work.
+                                        """),
                                     isOn: controller.binding(\.fansOnlyWhenLidClosed))
                     } else {
                         CDNote(Self.offNote)
                     }
                 }
             }
-            CDSection("Now") {
-                CDValueRow("Hottest", value: hottestText)
+            CDSection(String(localized: "Now")) {
+                CDValueRow(String(localized: "Hottest"), value: hottestText)
                 ForEach(groupsShown, id: \.self) { group in
                     CDValueRow(group.title, value: Self.temperatureText(status?.groupTemperatures[group]))
                 }
                 if groupsShown.isEmpty, let average = status?.cpuTemperature {
                     // Without the groups the helper follows the average CPU temperature, so that is what is shown.
-                    CDValueRow("CPU Temperature", value: Self.temperatureText(average))
+                    CDValueRow(String(localized: "CPU Temperature"), value: Self.temperatureText(average))
                 }
                 ForEach(Array((status?.fans ?? []).enumerated()), id: \.offset) { index, fan in
-                    CDValueRow("Fan \(index + 1)", value: "\(Int(fan.rpm.rounded()).formatted()) rpm")
+                    CDValueRow(String(localized: "Fan \(index + 1)"),
+                               value: String(localized: "\(Int(fan.rpm.rounded()).formatted()) rpm"))
                 }
-                CDValueRow("Controlled By", value: status?.isControlling == true ? "ClamDown" : "macOS")
+                CDValueRow(String(localized: "Controlled By"),
+                           value: status?.isControlling == true
+                               ? String(localized: "ClamDown") : String(localized: "macOS"))
                 if let problem = statusProblem {
                     CDNote(problem, tone: .warning)
                 }
@@ -252,7 +281,7 @@ struct CoolingPage: View {
         }
     }
 
-    private static let offNote = "macOS controls the fans. ClamDown does not touch them."
+    private static let offNote = String(localized: "macOS controls the fans. ClamDown does not touch them.")
 
     private var modePicker: some View {
         Picker("Curve", selection: Binding(
@@ -295,21 +324,28 @@ struct CoolingPage: View {
                     .help("Puts this mode's curve back to its defaults.")
             }
             CDNote(settings.fanCurveMode == .standard
-                ? "Fans stay at their lowest speed up to the first point and reach full speed at the second, "
-                    + "following the hottest of the CPU, GPU, battery, SSD, Wi-Fi and airflow sensors."
-                : "Five points, each at or above the one before it, on the hottest sensor; the fans never "
-                    + "run under the safety floor.")
+                ? String(localized: """
+                    Fans stay at their lowest speed up to the first point and reach full speed at the \
+                    second, following the hottest of the CPU, GPU, battery, SSD, Wi-Fi and airflow \
+                    sensors.
+                    """)
+                : String(localized: """
+                    Five points, each at or above the one before it, on the hottest sensor; the fans \
+                    never run under the safety floor.
+                    """))
         }
     }
 
     /// The case rule: its own two temperatures on the airflow sensors, on top of the curve.
     @ViewBuilder private var caseRule: some View {
-        CDRow("Case", detail: "The case can feel hot while the chips are only warm. The fans also speed up with the "
-            + "airflow sensors: from the first value, full speed at the second. Now: "
-            + Self.temperatureText(status?.groupTemperatures[.airflow]) + ".")
-        SettingSlider("Speeds Up From", value: controller.binding(\.caseStartTemperature),
+        CDRow(String(localized: "Case"), detail: String(localized: """
+            The case can feel hot while the chips are only warm. The fans also speed up with the \
+            airflow sensors: from the first value, full speed at the second. Now: \
+            \(Self.temperatureText(status?.groupTemperatures[.airflow])).
+            """))
+        SettingSlider(String(localized: "Speeds Up From"), value: controller.binding(\.caseStartTemperature),
                       range: CaseRamp.startRange, unit: " \u{00B0}C")
-        SettingSlider("Full Speed At", value: controller.binding(\.caseFullSpeedTemperature),
+        SettingSlider(String(localized: "Full Speed At"), value: controller.binding(\.caseFullSpeedTemperature),
                       range: (CaseRamp.startRange.lowerBound + CaseRamp.minimumSpan)...CaseRamp.fullSpeedMaximum,
                       unit: " \u{00B0}C")
     }
@@ -331,8 +367,10 @@ struct CoolingPage: View {
                     }
                     .monospacedDigit()
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Point \(index + 1): \(points[index].temperature) degrees, "
-                        + "\(points[index].speed) percent")
+                    .accessibilityLabel(String(localized: """
+                        Point \(index + 1): \(points[index].temperature) degrees, \(points[index].speed) \
+                        percent
+                        """))
                 }
             }
         }
@@ -350,9 +388,9 @@ struct CoolingPage: View {
 
     private var overrideLine: String? {
         switch status?.override {
-        case .hotCore: "Full speed: a CPU core is at its limit."
-        case .hotBattery: "Full speed: the battery is hot."
-        case .system: "Full speed: macOS reports the Mac as hot."
+        case .hotCore: String(localized: "Full speed: a CPU core is at its limit.")
+        case .hotBattery: String(localized: "Full speed: the battery is hot.")
+        case .system: String(localized: "Full speed: macOS reports the Mac as hot.")
         case nil: nil
         }
     }
@@ -363,7 +401,10 @@ struct CoolingPage: View {
         switch status.control {
         case .retrying:
             let clause = FanAlert.clause(from: status.problem).map { ": \($0)" } ?? ""
-            return "Fan control paused\(clause). ClamDown takes the fans again in a moment; macOS has them until then."
+            return String(localized: """
+                Fan control paused\(clause). ClamDown takes the fans again in a moment; macOS has \
+                them until then.
+                """)
         case .stopped:
             return FanAlert.line(reason: status.problem)
         case .idle, .controlling:
@@ -377,7 +418,7 @@ struct CoolingPage: View {
             if status.control == .retrying || status.control == .stopped || unsupportedReason != nil { return nil }
             return status.problem
         }
-        return statusLoaded ? "Cannot read the temperature sensors." : nil
+        return statusLoaded ? String(localized: "Cannot read the temperature sensors.") : nil
     }
 
     /// "52 °C (Battery)": what the curve follows now.
@@ -393,7 +434,7 @@ struct CoolingPage: View {
     }
 
     private static func temperatureText(_ temperature: Double?) -> String {
-        temperature.map { "\(Int($0.rounded())) \u{00B0}C" } ?? "\u{2014}"
+        temperature.map { String(localized: "\(Int($0.rounded())) \u{00B0}C") } ?? "\u{2014}"
     }
 }
 
@@ -406,8 +447,8 @@ struct AppearancePage: View {
 
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection("Menu Bar") {
-                CDRow("Icon Style", detail: "The icon fills in while ClamDown is on.")
+            CDSection(String(localized: "Menu Bar")) {
+                CDRow(String(localized: "Icon Style"), detail: String(localized: "The icon fills in while ClamDown is on."))
                 HStack(spacing: 8) {
                     ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
                         CDChoiceTile(style.title, isSelected: controller.settings.menuBarIcon == style) {
@@ -437,29 +478,37 @@ struct HelperPage: View {
 
     var body: some View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection("Helper") {
-                CDValueRow("Status", value: statusText, tone: statusTone)
+            CDSection(String(localized: "Helper")) {
+                CDValueRow(String(localized: "Status"), value: statusText, tone: statusTone)
                 if let notice = controller.notice {
                     CDNote(notice)
                 }
-                CDRow("Reinstall Helper",
-                      detail: "Installs the helper from this version again. Use it when the helper is stuck.") {
+                CDRow(String(localized: "Reinstall Helper"),
+                      detail: String(localized: """
+                          Installs the helper from this version again. Use it when the helper is stuck.
+                          """)) {
                     Button("Reinstall") { run { await controller.reinstallHelper() } }
                         .cdButtonStyle(.secondary)
                 }
-                CDRow("Approve in System Settings",
-                      detail: "Opens Login Items & Extensions, where macOS asks you to allow the helper.") {
+                CDRow(String(localized: "Approve in System Settings"),
+                      detail: String(localized: """
+                          Opens Login Items & Extensions, where macOS asks you to allow the helper.
+                          """)) {
                     Button("Open\u{2026}") { controller.openHelperApproval() }
                         .cdButtonStyle(.secondary)
                 }
-                CDRow("Remove Helper",
-                      detail: "Puts back your original power settings and removes the helper. Turn On sets it up again.") {
+                CDRow(String(localized: "Remove Helper"),
+                      detail: String(localized: """
+                          Puts back your original power settings and removes the helper. Turn On sets it up \
+                          again.
+                          """)) {
                     Button("Remove") { run { await controller.removeHelper() } }
                         .cdButtonStyle(.destructive)
                 }
             }
-            CDSection("Setup") {
-                CDRow("Setup Assistant", detail: "Walks through the helper, notifications and startup again.") {
+            CDSection(String(localized: "Setup")) {
+                CDRow(String(localized: "Setup Assistant"),
+                      detail: String(localized: "Walks through the helper, notifications and startup again.")) {
                     Button("Open\u{2026}") { openSetup() }
                         .cdButtonStyle(.secondary)
                 }
@@ -475,9 +524,9 @@ struct HelperPage: View {
     /// The controller's published state, so this page and the setup assistant never disagree.
     private var statusText: String {
         switch controller.helperAvailability {
-        case .ready: "Running"
-        case .requiresApproval: "Needs approval"
-        case .notRegistered: "Not installed"
+        case .ready: String(localized: "Running")
+        case .requiresApproval: String(localized: "Needs approval")
+        case .notRegistered: String(localized: "Not installed")
         case .unavailable(let message): message
         }
     }

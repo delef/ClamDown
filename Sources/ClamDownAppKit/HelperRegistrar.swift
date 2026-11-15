@@ -11,8 +11,8 @@ public enum HelperAvailability: Equatable, Sendable {
         case .enabled: self = .ready
         case .requiresApproval: self = .requiresApproval
         case .notRegistered: self = .notRegistered
-        case .notFound: self = .unavailable("The helper is missing from the app bundle.")
-        @unknown default: self = .unavailable("Unknown helper status.")
+        case .notFound: self = .unavailable(String(localized: "The helper is missing from the app bundle."))
+        @unknown default: self = .unavailable(String(localized: "Unknown helper status."))
         }
     }
 

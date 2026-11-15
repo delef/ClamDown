@@ -108,7 +108,8 @@ struct SetupView: View {
     }
 
     private var continueTitle: String {
-        model.step == .notifications && model.notifications != .allowed ? "Skip" : "Continue"
+        model.step == .notifications && model.notifications != .allowed
+            ? String(localized: "Skip") : String(localized: "Continue")
     }
 
     private func turnOnNow() {
@@ -120,7 +121,7 @@ struct SetupView: View {
             } else if case .failed(let message) = controller.state {
                 turnOnProblem = message
             } else {
-                turnOnProblem = controller.notice ?? "ClamDown did not turn on."
+                turnOnProblem = controller.notice ?? String(localized: "ClamDown did not turn on.")
             }
         }
     }
@@ -132,8 +133,12 @@ private struct WelcomeStep: View {
     var body: some View {
         CDStepScreen(
             icon: .app,
-            title: "Welcome to ClamDown",
-            text: "ClamDown keeps your MacBook working with the lid closed, so your agents keep going. It locks the screen, drives the fans, and switches itself off before a low battery or heat becomes a problem."
+            title: String(localized: "Welcome to ClamDown"),
+            text: String(localized: """
+                ClamDown keeps your MacBook working with the lid closed, so your agents keep going. \
+                It locks the screen, drives the fans, and switches itself off before a low battery \
+                or heat becomes a problem.
+                """)
         ) {
             Text("Setup takes about a minute.")
                 .font(.callout)
@@ -149,8 +154,12 @@ private struct HelperStep: View {
     var body: some View {
         CDStepScreen(
             icon: .symbol("key.fill"),
-            title: "Allow the helper",
-            text: "ClamDown needs a small background helper with administrator rights. It changes the sleep setting and drives the fans, and it does nothing else. macOS asks you to allow it once."
+            title: String(localized: "Allow the helper"),
+            text: String(localized: """
+                ClamDown needs a small background helper with administrator rights. It changes the \
+                sleep setting and drives the fans, and it does nothing else. macOS asks you to \
+                allow it once.
+                """)
         ) {
             CDStatusCard {
                 CDStatusLine(symbol: status.symbol, tint: status.tint, title: status.title,
@@ -169,26 +178,28 @@ private struct HelperStep: View {
 
     private var status: StatusInfo {
         if let error = model.helperError {
-            return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger, title: "The helper is not set up",
+            return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger, title: String(localized: "The helper is not set up"),
                          detail: error, detailTone: .danger)
         }
         switch model.helper {
         case .ready:
-            return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: "Allowed")
+            return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: String(localized: "Allowed"))
         case .requiresApproval:
-            return .init(symbol: "clock.fill", tint: CDColor.warning, title: "Waiting for you",
-                         detail: "Turn on ClamDown in System Settings > General > Login Items & Extensions.")
+            return .init(symbol: "clock.fill", tint: CDColor.warning, title: String(localized: "Waiting for you"),
+                         detail: String(localized: """
+                             Turn on ClamDown in System Settings > General > Login Items & Extensions.
+                             """))
         case .notRegistered, .unavailable:
-            return .init(symbol: "circle.dashed", tint: .secondary, title: "Not set up yet")
+            return .init(symbol: "circle.dashed", tint: .secondary, title: String(localized: "Not set up yet"))
         }
     }
 
     private var buttonTitle: String? {
-        if model.helperError != nil { return "Try Again" }
+        if model.helperError != nil { return String(localized: "Try Again") }
         switch model.helper {
         case .ready: return nil
-        case .requiresApproval: return "Open Login Items"
-        case .notRegistered, .unavailable: return "Allow…"
+        case .requiresApproval: return String(localized: "Open Login Items")
+        case .notRegistered, .unavailable: return String(localized: "Allow…")
         }
     }
 }
@@ -199,8 +210,11 @@ private struct NotificationsStep: View {
     var body: some View {
         CDStepScreen(
             icon: .symbol("bell.badge.fill"),
-            title: "Know when ClamDown switches off",
-            text: "With the lid closed you cannot see the menu. A notification tells you when ClamDown switched itself off, for example at low battery or when the Mac got hot."
+            title: String(localized: "Know when ClamDown switches off"),
+            text: String(localized: """
+                With the lid closed you cannot see the menu. A notification tells you when ClamDown \
+                switched itself off, for example at low battery or when the Mac got hot.
+                """)
         ) {
             CDStatusCard {
                 CDStatusLine(symbol: status.symbol, tint: status.tint, title: status.title,
@@ -230,12 +244,12 @@ private struct NotificationsStep: View {
     private var status: StatusInfo {
         switch model.notifications {
         case .notAsked:
-            .init(symbol: "bell", tint: .secondary, title: "Not allowed yet")
+            .init(symbol: "bell", tint: .secondary, title: String(localized: "Not allowed yet"))
         case .allowed:
-            .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: "Allowed")
+            .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: String(localized: "Allowed"))
         case .denied:
-            .init(symbol: "bell.slash.fill", tint: CDColor.warning, title: "Switched off",
-                  detail: "Notifications for ClamDown are off in System Settings.")
+            .init(symbol: "bell.slash.fill", tint: CDColor.warning, title: String(localized: "Switched off"),
+                  detail: String(localized: "Notifications for ClamDown are off in System Settings."))
         }
     }
 }
@@ -249,8 +263,10 @@ private struct StartupStep: View {
     var body: some View {
         CDStepScreen(
             icon: .symbol("power"),
-            title: "Start with your Mac",
-            text: "ClamDown can open in the menu bar when you log in, so it is ready when you need it."
+            title: String(localized: "Start with your Mac"),
+            text: String(localized: """
+                ClamDown can open in the menu bar when you log in, so it is ready when you need it.
+                """)
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 CDStatusCard {
@@ -262,7 +278,8 @@ private struct StartupStep: View {
                     .padding(.vertical, 10)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Label(protection.isEmpty ? "No protection is switched on" : "Protection is already on",
+                    Label(protection.isEmpty ? String(localized: "No protection is switched on")
+                        : String(localized: "Protection is already on"),
                           systemImage: "shield.lefthalf.filled")
                         .font(.headline)
                         .foregroundStyle(.secondary)
@@ -292,16 +309,16 @@ private struct StartupStep: View {
         let settings = controller.settings
         var items: [(icon: String, text: String)] = []
         if settings.lockScreenWhenLidClosed {
-            items.append(("lock.laptopcomputer", "Locks the screen when the lid closes"))
+            items.append(("lock.laptopcomputer", String(localized: "Locks the screen when the lid closes")))
         }
         if settings.batteryCutoffEnabled {
-            items.append(("battery.25", "Switches off at \(settings.batteryCutoffPercent)% battery"))
+            items.append(("battery.25", String(localized: "Switches off at \(settings.batteryCutoffPercent)% battery")))
         }
         if settings.thermalCutoff != .never {
-            items.append(("thermometer.high", "Switches off when the Mac gets hot"))
+            items.append(("thermometer.high", String(localized: "Switches off when the Mac gets hot")))
         }
         if hasFans, settings.fanControlEnabled {
-            items.append(("fan", "Drives the fans from the hottest sensor"))
+            items.append(("fan", String(localized: "Drives the fans from the hottest sensor")))
         }
         return items
     }
@@ -313,8 +330,8 @@ private struct DoneStep: View {
     var body: some View {
         CDStepScreen(
             icon: .success,
-            title: "You're set",
-            text: "ClamDown lives in the menu bar. Look for this icon:"
+            title: String(localized: "You're set"),
+            text: String(localized: "ClamDown lives in the menu bar. Look for this icon:")
         ) {
             VStack(spacing: 18) {
                 CDMenuBarStrip(clock: Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())) {

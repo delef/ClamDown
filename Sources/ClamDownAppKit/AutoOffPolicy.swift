@@ -20,11 +20,11 @@ public enum AutoOffReason: Equatable, Sendable {
     /// Short phrase used in notifications and status lines.
     public var summary: String {
         switch self {
-        case .batteryLow(let percent): "battery at \(percent)%"
-        case .thermal(let level): "Mac is hot (\(level.name))"
-        case .batteryHot(let celsius): "battery is hot (\(celsius) \u{00B0}C)"
-        case .unplugged: "power adapter unplugged"
-        case .timerEnded: "timer ended"
+        case .batteryLow(let percent): String(localized: "battery at \(percent)%")
+        case .thermal(let level): String(localized: "Mac is hot (\(level.name))")
+        case .batteryHot(let celsius): String(localized: "battery is hot (\(celsius) \u{00B0}C)")
+        case .unplugged: String(localized: "power adapter unplugged")
+        case .timerEnded: String(localized: "timer ended")
         }
     }
 }

@@ -94,11 +94,11 @@ public final class ClamDownController: ObservableObject {
         var slept = false
 
         func text(asOf now: Date) -> String {
-            let action = forced ? "put the Mac to sleep" : "let the Mac sleep"
+            let action = forced ? String(localized: "put the Mac to sleep") : String(localized: "let the Mac sleep")
             let when = Calendar.current.isDate(at, inSameDayAs: now)
-                ? "at \(at.formatted(date: .omitted, time: .shortened))"
-                : "on \(at.formatted(date: .abbreviated, time: .shortened))"
-            return "ClamDown \(action) \(when): \(why)."
+                ? String(localized: "at \(at.formatted(date: .omitted, time: .shortened))")
+                : String(localized: "on \(at.formatted(date: .abbreviated, time: .shortened))")
+            return String(localized: "ClamDown \(action) \(when): \(why).")
         }
     }
 
@@ -237,8 +237,10 @@ public final class ClamDownController: ObservableObject {
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
         let helperStillAllowed = helperAvailability == .ready
-        announce(helperStillAllowed ? "Turned off: the helper stopped the mode." : Self.helperLost)
-        leaveWakeReport(why: helperStillAllowed ? "the helper stopped the mode" : "macOS no longer allows the helper")
+        announce(helperStillAllowed ? String(localized: "Turned off: the helper stopped the mode.") : Self.helperLost)
+        leaveWakeReport(why: helperStillAllowed
+            ? String(localized: "the helper stopped the mode")
+            : String(localized: "macOS no longer allows the helper"))
     }
 
     /// Call when the Mac is about to sleep.
@@ -268,7 +270,7 @@ public final class ClamDownController: ObservableObject {
         onWakeReport?(text)
     }
 
-    static let helperLost = "Turned off: macOS no longer allows the helper. Open Setup to allow it again."
+    static let helperLost = String(localized: "Turned off: macOS no longer allows the helper. Open Setup to allow it again.")
 
     public func updateSettings(_ new: Settings) async {
         let previous = settings
@@ -277,7 +279,7 @@ public final class ClamDownController: ObservableObject {
         do {
             try settingsStore.save(candidate)
         } catch {
-            notice = "Could not save settings: \(Self.describe(error))"
+            notice = String(localized: "Could not save settings: \(Self.describe(error))")
             return
         }
         settings = candidate
@@ -285,7 +287,7 @@ public final class ClamDownController: ObservableObject {
             do {
                 try await helper.setLowPowerOnBattery(settings.autoLowPowerOnBattery)
             } catch {
-                notice = "Could not change Low Power Mode: \(Self.describe(error))"
+                notice = String(localized: "Could not change Low Power Mode: \(Self.describe(error))")
             }
         }
         if state.isOn, settings.fanPolicy != previous.fanPolicy {
@@ -319,7 +321,7 @@ public final class ClamDownController: ObservableObject {
         monitor.snapshot().batteryTemperature
     }
 
-    static let noHelperForFans = "The helper is not running, so ClamDown cannot drive the fans yet. Turn ClamDown on once to set it up."
+    static let noHelperForFans = String(localized: "The helper is not running, so ClamDown cannot drive the fans yet. Turn ClamDown on once to set it up.")
 
     /// Call when the app quits.
     public func shutdown() async {
@@ -345,14 +347,14 @@ public final class ClamDownController: ObservableObject {
         do {
             try await reregisterHelper()
         } catch {
-            state = .failed("Could not reinstall the helper: \(Self.describe(error))")
+            state = .failed(String(localized: "Could not reinstall the helper: \(Self.describe(error))"))
             return
         }
         installedHelper.fingerprint = nil
         refreshHelperAvailability()
         guard show(Self.preparation(for: helperAvailability)) else { return }
         installedHelper.fingerprint = helperFingerprint
-        notice = "Helper reinstalled."
+        notice = String(localized: "Helper reinstalled.")
     }
 
     /// Restores every setting to its default. Launch at login is the system's own state, so it stays as it is.
@@ -409,20 +411,20 @@ public final class ClamDownController: ObservableObject {
             unreached = true
         } catch {
             let reason = Self.describe(error).trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            notice = "Could not put the original power settings back: \(reason). The helper stays installed."
+            notice = String(localized: "Could not put the original power settings back: \(reason). The helper stays installed.")
             return
         }
         do {
             try await registrar.unregister()
         } catch {
-            state = .failed("Could not remove the helper: \(Self.describe(error))")
+            state = .failed(String(localized: "Could not remove the helper: \(Self.describe(error))"))
             return
         }
         installedHelper.fingerprint = nil
         state = .off
         notice = unreached
-            ? "Helper removed. It did not answer, so the original power settings were not checked. Turn On sets it up again."
-            : "Helper removed. Turn On sets it up again."
+            ? String(localized: "Helper removed. It did not answer, so the original power settings were not checked. Turn On sets it up again.")
+            : String(localized: "Helper removed. Turn On sets it up again.")
         refreshHelperAvailability()
     }
 
@@ -441,7 +443,7 @@ public final class ClamDownController: ObservableObject {
         guard show(preparation) else { return }
         batteryHeat.reset()
         if let reason = autoOffReason() {
-            let text = "Not turned on: \(reason.summary)."
+            let text = String(localized: "Not turned on: \(reason.summary).")
             state = .off
             announce(text)
             return
@@ -471,7 +473,7 @@ public final class ClamDownController: ObservableObject {
         do {
             try await helper.setFanPolicy(settings.fanPolicy)
         } catch {
-            notice = "Could not control the fans: \(Self.describe(error))"
+            notice = String(localized: "Could not control the fans: \(Self.describe(error))")
         }
     }
 
@@ -502,7 +504,7 @@ public final class ClamDownController: ObservableObject {
             // The helper answered with a failure of its own: waiting changes nothing.
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
         }
-        notice = "Waiting for the helper to start…"
+        notice = String(localized: "Waiting for the helper to start…")
         defer { notice = nil }
         if let outcome = await lookForHelper(Self.helperQuickLooks) { return outcome }
 
@@ -510,7 +512,7 @@ public final class ClamDownController: ObservableObject {
             try await reregisterHelper()
         } catch {
             refreshHelperAvailability()
-            return .stopped(.failed("The helper did not answer, and registering it again failed: \(Self.describe(error))"))
+            return .stopped(.failed(String(localized: "The helper did not answer, and registering it again failed: \(Self.describe(error))")))
         }
         let availability = registrar.availability()
         helperAvailability = availability
@@ -563,7 +565,7 @@ public final class ClamDownController: ObservableObject {
             try await helper.disable()
         } catch {
             // The helper may still be keeping the Mac awake, so the switch keeps showing "on".
-            notice = "Could not turn off: \(Self.describe(error))"
+            notice = String(localized: "Could not turn off: \(Self.describe(error))")
             return
         }
         finishOff()
@@ -577,15 +579,16 @@ public final class ClamDownController: ObservableObject {
             guard state.isOn else { return }
             // Stop the heartbeat on purpose: the helper's own watchdog then resets the Mac within about 90 seconds.
             finishOff()
-            announce("Turned off: \(reason.summary). The helper did not confirm, so it will reset by itself within 90 seconds.")
+            announce(String(localized: "Turned off: \(reason.summary). The helper did not confirm, so it will reset by itself within 90 seconds."))
             leaveWakeReport(why: reason.summary)
             return
         }
         guard state.isOn else { return }
         finishOff()
         let attendance = forcesSleep(after: reason) ? attendance() : .attended
-        announce("Turned off: \(reason.summary). "
-            + (attendance == .unattended ? "The Mac is going to sleep." : "The Mac can sleep now."))
+        let outcome = attendance == .unattended
+            ? String(localized: "The Mac is going to sleep.") : String(localized: "The Mac can sleep now.")
+        announce(String(localized: "Turned off: \(reason.summary). \(outcome)"))
         leaveWakeReport(why: reason.summary)
         startSleepWatch(attendance)
     }
@@ -677,7 +680,7 @@ public final class ClamDownController: ObservableObject {
         case .show(let line, let notify):
             fanControlLine = line
             if notify, settings.notificationsEnabled {
-                notifier.post(title: "ClamDown", body: line)
+                notifier.post(title: String(localized: "ClamDown"), body: line)
             }
         case .clear:
             fanControlLine = nil
@@ -687,7 +690,7 @@ public final class ClamDownController: ObservableObject {
     private func announce(_ text: String) {
         notice = text
         if settings.notificationsEnabled {
-            notifier.post(title: "ClamDown", body: text)
+            notifier.post(title: String(localized: "ClamDown"), body: text)
         }
     }
 
@@ -740,7 +743,7 @@ public final class ClamDownController: ObservableObject {
         return await prepareHelperExclusively()
     }
 
-    static let helperBusyMessage = "ClamDown is still setting up the helper. Try again in a moment."
+    static let helperBusyMessage = String(localized: "ClamDown is still setting up the helper. Try again in a moment.")
 
     /// The work of `prepareHelper()`. The caller holds `helperBusy`.
     private func prepareHelperExclusively() async -> HelperPreparation {
@@ -770,7 +773,7 @@ public final class ClamDownController: ObservableObject {
         switch availability {
         case .ready: .ready
         case .requiresApproval: .needsApproval
-        case .notRegistered: .failed("The helper could not be registered.")
+        case .notRegistered: .failed(String(localized: "The helper could not be registered."))
         case .unavailable(let message): .failed(message)
         }
     }
@@ -797,7 +800,7 @@ public final class ClamDownController: ObservableObject {
             try await reregisterHelper()
         } catch {
             refreshHelperAvailability()
-            return .failed("Could not update the helper: \(Self.describe(error))")
+            return .failed(String(localized: "Could not update the helper: \(Self.describe(error))"))
         }
         let availability = registrar.availability()
         helperAvailability = availability
@@ -858,15 +861,15 @@ public final class ClamDownController: ObservableObject {
     private static func describe(_ error: Error) -> String {
         switch error as? HelperClientError {
         case .helper(let message), .connection(let message): return message
-        case .unsigned: return "The app is not code-signed, so it cannot talk to the helper."
+        case .unsigned: return String(localized: "The app is not code-signed, so it cannot talk to the helper.")
         case nil: break
         }
         let systemError = error as NSError
         guard systemError.domain == "SMAppServiceErrorDomain" else { return systemError.localizedDescription }
         // Code 1 is "operation not permitted": macOS has not allowed the helper, or refused to start it.
         if systemError.code == 1 {
-            return "macOS did not allow the helper to start. Allow ClamDown in Login Items, then try again."
+            return String(localized: "macOS did not allow the helper to start. Allow ClamDown in Login Items, then try again.")
         }
-        return "macOS could not set up the helper (error \(systemError.code))."
+        return String(localized: "macOS could not set up the helper (error \(systemError.code)).")
     }
 }

@@ -144,6 +144,8 @@ scripts/build-app.sh debug      # Apple Development identity; use "release" for 
 scripts/verify-bundle.sh
 ```
 
+User-visible text lives in `Resources/Localizable.xcstrings`, which `scripts/sync-strings.sh` refreshes from the code.
+
 `scripts/coverage.sh` runs the tests with code coverage and fails when the helper, sensor, shared or app module drops under its limit; CI runs it on every pull request. `swift test --repeat-until fail --maximum-repetitions 100` looks for a test that fails only now and then; the `flaky` workflow does the same every week. The sensor tests replay real SMC key dumps from `Tests/ClamDownSensorsTests/Fixtures`; `.build/debug/ClamDownFanProbe keys "<machine>"` takes a new one without root.
 
 For a release:

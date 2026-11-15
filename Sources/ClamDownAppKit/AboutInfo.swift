@@ -16,7 +16,7 @@ public struct AboutInfo: Equatable, Sendable {
         self.macOSVersion = macOSVersion
     }
 
-    public var versionLine: String { "Version \(appVersion) (\(build))" }
+    public var versionLine: String { String(localized: "Version \(appVersion) (\(build))") }
 
     /// What "Copy version info" puts on the pasteboard.
     public var clipboardText: String { "ClamDown \(appVersion) (\(build)), macOS \(macOSVersion)" }
@@ -38,9 +38,9 @@ public enum UpdateStatus: Equatable, Sendable {
 
     public func title() -> String {
         switch self {
-        case .available(let version): "Version \(version) is available"
-        case .checking: "Checking…"
-        case .upToDate: "You have the latest version"
+        case .available(let version): String(localized: "Version \(version) is available")
+        case .checking: String(localized: "Checking…")
+        case .upToDate: String(localized: "You have the latest version")
         }
     }
 
@@ -51,6 +51,6 @@ public enum UpdateStatus: Equatable, Sendable {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: "en_US")
         formatter.dateTimeStyle = .named
-        return "Checked " + formatter.localizedString(for: lastCheck, relativeTo: now)
+        return String(localized: "Checked \(formatter.localizedString(for: lastCheck, relativeTo: now))")
     }
 }

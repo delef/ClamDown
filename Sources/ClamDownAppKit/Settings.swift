@@ -1,3 +1,4 @@
+import Foundation
 import ClamDownShared
 
 public enum ThermalCutoff: String, Codable, CaseIterable, Sendable {
@@ -30,12 +31,12 @@ public enum AutoOffTimer: Int, Codable, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .never: "Never"
-        case .minutes30: "30 minutes"
-        case .hour1: "1 hour"
-        case .hours2: "2 hours"
-        case .hours4: "4 hours"
-        case .hours8: "8 hours"
+        case .never: String(localized: "Never")
+        case .minutes30: String(localized: "30 minutes")
+        case .hour1: String(localized: "1 hour")
+        case .hours2: String(localized: "2 hours")
+        case .hours4: String(localized: "4 hours")
+        case .hours8: String(localized: "8 hours")
         }
     }
 }
@@ -52,10 +53,10 @@ public enum BatteryHeatHold: Int, Codable, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .seconds30: "30 seconds"
-        case .minute1: "1 minute"
-        case .minutes2: "2 minutes"
-        case .minutes5: "5 minutes"
+        case .seconds30: String(localized: "30 seconds")
+        case .minute1: String(localized: "1 minute")
+        case .minutes2: String(localized: "2 minutes")
+        case .minutes5: String(localized: "5 minutes")
         }
     }
 }
@@ -82,11 +83,11 @@ public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .lid: "Lid"
-        case .cup: "Cup"
-        case .eye: "Eye"
-        case .bolt: "Bolt"
-        case .sun: "Sun"
+        case .lid: String(localized: "Lid")
+        case .cup: String(localized: "Cup")
+        case .eye: String(localized: "Eye")
+        case .bolt: String(localized: "Bolt")
+        case .sun: String(localized: "Sun")
         }
     }
 }

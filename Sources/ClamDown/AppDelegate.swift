@@ -165,9 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RunLoop.main.perform {
             MainActor.assumeIsolated {
                 let alert = NSAlert()
-                alert.messageText = "ClamDown switched off while you were away"
+                alert.messageText = String(localized: "ClamDown switched off while you were away")
                 alert.informativeText = text
-                alert.addButton(withTitle: "OK")
+                alert.addButton(withTitle: String(localized: "OK"))
                 alert.window.level = .floating
                 NSApp.activate(ignoringOtherApps: true)
                 alert.runModal()

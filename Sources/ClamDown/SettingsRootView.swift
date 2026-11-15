@@ -39,11 +39,11 @@ struct SettingsRootView: View {
     }
 
     private var statusLine: String {
-        guard controller.state.isOn else { return "Off" }
+        guard controller.state.isOn else { return String(localized: "Off") }
         if let offAt = controller.offAt {
-            return "On until \(offAt.formatted(date: .omitted, time: .shortened))"
+            return String(localized: "On until \(offAt.formatted(date: .omitted, time: .shortened))")
         }
-        return "On"
+        return String(localized: "On")
     }
 
     @ViewBuilder private func page(for pane: SettingsPane) -> some View {

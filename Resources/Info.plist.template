@@ -8,6 +8,8 @@
     <string>ClamDown</string>
     <key>CFBundleDisplayName</key>
     <string>ClamDown</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
     <key>CFBundleExecutable</key>
     <string>ClamDown</string>
     <key>CFBundleIconFile</key>

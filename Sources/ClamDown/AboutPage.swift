@@ -25,23 +25,25 @@ struct AboutPage: View {
 
     var body: some View {
         CDSettingsPage(header: { header }, content: {
-            CDSection("Updates") {
+            CDSection(String(localized: "Updates")) {
                 CDRow(updater.status.title(), detail: updater.status.detail(now: Date())) {
                     Button("Check Now") { updater.checkForUpdates() }
                         .cdButtonStyle(isAvailable ? .primary : .secondary)
                         .disabled(!updater.canCheckForUpdates)
                 }
-                CDSwitchRow("Check Automatically",
-                            detail: "Looks for a new version on GitHub once a day. Sends nothing about you or your Mac.",
+                CDSwitchRow(String(localized: "Check Automatically"),
+                            detail: String(localized: """
+                                Looks for a new version on GitHub once a day. Sends nothing about you or your Mac.
+                                """),
                             isOn: $updater.checksAutomatically)
             }
-            CDSection("Links") {
-                LinkRow("Website", destination: AboutInfo.website)
-                LinkRow("Release Notes", destination: AboutInfo.releaseNotes)
-                LinkRow("Source Code", destination: AboutInfo.sourceCode)
-                LinkRow("Report a Problem", destination: info.reportProblemURL)
+            CDSection(String(localized: "Links")) {
+                LinkRow(String(localized: "Website"), destination: AboutInfo.website)
+                LinkRow(String(localized: "Release Notes"), destination: AboutInfo.releaseNotes)
+                LinkRow(String(localized: "Source Code"), destination: AboutInfo.sourceCode)
+                LinkRow(String(localized: "Report a Problem"), destination: info.reportProblemURL)
             }
-            CDFootnote("Apache License 2.0 \u{00B7} Updates by Sparkle")
+            CDFootnote(String(localized: "Apache License 2.0 \u{00B7} Updates by Sparkle"))
         })
         .onAppear { updater.refreshStatus() }
     }
@@ -63,7 +65,7 @@ struct AboutPage: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                Button(copied ? "Copied" : "Copy", action: copyVersion)
+                Button(copied ? String(localized: "Copied") : String(localized: "Copy"), action: copyVersion)
                     .cdButtonStyle(.secondary)
                     .controlSize(.small)
             }

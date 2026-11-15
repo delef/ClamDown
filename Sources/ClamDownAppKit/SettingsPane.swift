@@ -8,13 +8,13 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .general: "General"
-        case .sleep: "Sleep"
-        case .protection: "Protection"
-        case .cooling: "Cooling"
-        case .appearance: "Appearance"
-        case .helper: "Helper"
-        case .about: "About"
+        case .general: String(localized: "General")
+        case .sleep: String(localized: "Sleep")
+        case .protection: String(localized: "Protection")
+        case .cooling: String(localized: "Cooling")
+        case .appearance: String(localized: "Appearance")
+        case .helper: String(localized: "Helper")
+        case .about: String(localized: "About")
         }
     }
 
@@ -33,12 +33,12 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
     /// The line under the page title. About has none.
     public var subtitle: String {
         switch self {
-        case .general: "Startup, notifications and a fresh start."
-        case .sleep: "How long ClamDown keeps the Mac awake, and what it does meanwhile."
-        case .protection: "When ClamDown lets a Mac in a bag go to sleep."
-        case .cooling: "ClamDown takes the fans and cools early, because a closed Mac has little airflow."
-        case .appearance: "How ClamDown looks in the menu bar."
-        case .helper: "A small background helper with administrator rights changes the sleep setting and drives the fans. It does nothing else."
+        case .general: String(localized: "Startup, notifications and a fresh start.")
+        case .sleep: String(localized: "How long ClamDown keeps the Mac awake, and what it does meanwhile.")
+        case .protection: String(localized: "When ClamDown lets a Mac in a bag go to sleep.")
+        case .cooling: String(localized: "ClamDown takes the fans and cools early, because a closed Mac has little airflow.")
+        case .appearance: String(localized: "How ClamDown looks in the menu bar.")
+        case .helper: String(localized: "A small background helper with administrator rights changes the sleep setting and drives the fans. It does nothing else.")
         case .about: ""
         }
     }

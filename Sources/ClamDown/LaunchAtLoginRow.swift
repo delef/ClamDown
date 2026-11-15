@@ -17,7 +17,8 @@ struct LaunchAtLoginRow: View {
     }
 
     var body: some View {
-        CDSwitchRow("Launch at Login", detail: "Opens ClamDown in the menu bar when you log in.", isOn: binding)
+        CDSwitchRow(String(localized: "Launch at Login"),
+                    detail: String(localized: "Opens ClamDown in the menu bar when you log in."), isOn: binding)
             .task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
             // The row can stay on screen for days; coming back from System Settings is when the answer may have changed.
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -36,7 +37,7 @@ struct LaunchAtLoginRow: View {
                 do {
                     try loginItem.apply(wanted)
                 } catch {
-                    self.error = "Could not change Launch at Login: \(error.localizedDescription)"
+                    self.error = String(localized: "Could not change Launch at Login: \(error.localizedDescription)")
                 }
                 Task { await controller.syncLaunchAtLogin(systemValue: loginItem.isEnabled()) }
             }

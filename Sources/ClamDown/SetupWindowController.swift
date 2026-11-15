@@ -71,7 +71,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     private func makeWindow() -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: SetupView.size),
                               styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: true)
-        window.title = "ClamDown Setup"
+        window.title = String(localized: "ClamDown Setup")
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.delegate = self

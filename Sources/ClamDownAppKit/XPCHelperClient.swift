@@ -72,11 +72,11 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
 
     public func coolingStatus() async throws -> CoolingStatus {
         let data: Data? = try await send { proxy, reply in proxy.coolingStatus(reply: reply) }
-        guard let data else { throw HelperClientError.helper("The helper could not read the sensors.") }
+        guard let data else { throw HelperClientError.helper(String(localized: "The helper could not read the sensors.")) }
         do {
             return try JSONDecoder().decode(CoolingStatus.self, from: data)
         } catch {
-            throw HelperClientError.helper("The helper sent an unreadable sensor report.")
+            throw HelperClientError.helper(String(localized: "The helper sent an unreadable sensor report."))
         }
     }
 
@@ -122,7 +122,7 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
                 once.resume(throwing: HelperClientError.connection(Self.noAnswer))
             }
             guard let proxy = object as? ClamDownHelperXPC else {
-                once.resume(throwing: HelperClientError.connection("The helper proxy has an unexpected type."))
+                once.resume(throwing: HelperClientError.connection(String(localized: "The helper proxy has an unexpected type.")))
                 return
             }
             call(proxy) { once.resume(returning: $0) }
@@ -130,7 +130,7 @@ public final class XPCHelperClient: HelperControlling, @unchecked Sendable {
     }
 
     /// The system's own text for this is "Couldn't communicate with a helper application", which tells the user nothing.
-    static let noAnswer = "The helper did not answer."
+    static let noAnswer = String(localized: "The helper did not answer.")
 
     private func currentConnection() -> NSXPCConnection {
         lock.withLock {

@@ -1,3 +1,4 @@
+import Foundation
 import ClamDownShared
 
 /// Decides when to tell the user that ClamDown has stopped controlling the fans: one menu line while the helper
@@ -44,8 +45,8 @@ public struct FanAlert: Equatable, Sendable {
     /// "ClamDown is not controlling the fans: <reason>. macOS has them."
     /// The helper's reasons are whole sentences, sometimes with raw error text; here they become part of one.
     public static func line(reason: String?) -> String {
-        guard let clause = clause(from: reason) else { return "ClamDown is not controlling the fans. macOS has them." }
-        return "ClamDown is not controlling the fans: \(clause). macOS has them."
+        guard let clause = clause(from: reason) else { return String(localized: "ClamDown is not controlling the fans. macOS has them.") }
+        return String(localized: "ClamDown is not controlling the fans: \(clause). macOS has them.")
     }
 
     /// The reason on one line, without its closing full stop, starting in lower case unless it starts with a name.
