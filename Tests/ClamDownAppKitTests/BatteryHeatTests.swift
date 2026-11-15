@@ -76,7 +76,7 @@ import ClamDownSensors
 
     @Test func itIsProtectiveAndSaysWhy() {
         #expect(hot.isProtective)
-        #expect(hot.summary == "battery is hot (56 °C)")
+        #expect(hot.turnedOffText == "Turned off because the battery is hot (56 °C).")
     }
 
     @Test func thermalComesFirst() {
@@ -147,7 +147,7 @@ import ClamDownSensors
         await rig.controller.handleSystemChange()
         #expect(rig.controller.state == .off)
         #expect(rig.sleeper.sleepCount == 1)
-        #expect(rig.controller.notice == "Turned off: battery is hot (56 °C). The Mac is going to sleep.")
+        #expect(rig.controller.notice == "Turned off because the battery is hot (56 °C). The Mac is going to sleep.")
     }
 
     @Test func aDipResetsTheHold() async {

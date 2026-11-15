@@ -83,7 +83,7 @@ import Testing
                                        problem: "Fan 1 does not reach the speed it was set to.", control: .stopped)
     static let controlling = CoolingStatus(cpuTemperature: 80, fans: [], isControlling: true, problem: nil,
                                            control: .controlling)
-    static let stoppedLine = "ClamDown is not controlling the fans: fan 1 does not reach the speed it was set to. macOS has them."
+    static let stoppedLine = "ClamDown is not controlling the fans. macOS has them. Fan 1 does not reach the speed it was set to."
 
     @Test func heartbeatAsksForCoolingWhenFanControlIsOn() async {
         let rig = Rig()

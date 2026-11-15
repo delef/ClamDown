@@ -40,7 +40,7 @@ import ClamDownShared
         #expect(rig.helper.disableCount == 1)
         #expect(rig.activity.endCount == 1)
         let body = rig.notifier.posted.last?.body ?? ""
-        #expect(body.contains("battery at 10%") && body.contains("The Mac can sleep now."))
+        #expect(body.contains("the battery is at 10%") && body.contains("The Mac can sleep now."))
     }
 
     @Test func lowBatteryWhileChargingStaysOn() async {
@@ -56,7 +56,7 @@ import ClamDownShared
         rig.monitor.current = snapshot(80, onBattery: true, thermal: .serious)
         await rig.controller.handleSystemChange()
         #expect(rig.controller.state == .off)
-        #expect(rig.notifier.posted.last?.body.contains("Mac is hot (serious)") == true)
+        #expect(rig.notifier.posted.last?.body.contains("the Mac is hot (Serious)") == true)
     }
 
     @Test func noBatteryMacStaysOn() async {
@@ -129,7 +129,7 @@ import ClamDownShared
         rig.helper.with { $0.heartbeatResult = .success(false) }
         await rig.controller.sendHeartbeat()
         #expect(rig.controller.state == .off)
-        #expect(rig.notifier.posted.last?.body == "Turned off: the helper stopped the mode.")
+        #expect(rig.notifier.posted.last?.body == "Turned off because the helper stopped the mode.")
         #expect(rig.activity.endCount == 1)
     }
 

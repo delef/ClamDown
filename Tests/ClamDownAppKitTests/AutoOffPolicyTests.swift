@@ -49,9 +49,20 @@ import ClamDownShared
         #expect(reason(pct: 5, onBattery: true, thermal: .critical) == .thermal(.critical))
     }
 
-    @Test func summaryTexts() {
-        #expect(AutoOffReason.batteryLow(percent: 10).summary == "battery at 10%")
-        #expect(AutoOffReason.thermal(.serious).summary == "Mac is hot (serious)")
+    @Test func reasonTexts() {
+        #expect(AutoOffReason.batteryLow(percent: 10).turnedOffText == "Turned off because the battery is at 10%.")
+        #expect(AutoOffReason.thermal(.serious).notTurnedOnText == "Not turned on because the Mac is hot (Serious).")
+        #expect(AutoOffReason.batteryHot(celsius: 56).pastText == "The battery was hot (56 \u{00B0}C).")
+    }
+
+    /// Every reason text is a whole sentence, so it never needs another sentence's grammar in a translation.
+    @Test(arguments: [AutoOffReason.batteryLow(percent: 10), .thermal(.critical), .batteryHot(celsius: 56),
+                      .unplugged, .timerEnded])
+    func everyReasonTextIsAWholeSentence(reason: AutoOffReason) {
+        for text in [reason.turnedOffText, reason.notTurnedOnText, reason.pastText] {
+            #expect(text.first?.isUppercase == true, "\(text)")
+            #expect(text.hasSuffix("."), "\(text)")
+        }
     }
 }
 

@@ -85,6 +85,7 @@ public final class ClamDownController: ObservableObject {
     private struct WakeReport {
         /// When ClamDown switched off.
         let at: Date
+        /// Why, as a whole sentence in the past tense.
         let why: String
         /// True when the lid was closed at the switch-off: nobody saw the notification then.
         let away: Bool
@@ -94,11 +95,17 @@ public final class ClamDownController: ObservableObject {
         var slept = false
 
         func text(asOf now: Date) -> String {
-            let action = forced ? String(localized: "put the Mac to sleep") : String(localized: "let the Mac sleep")
-            let when = Calendar.current.isDate(at, inSameDayAs: now)
-                ? String(localized: "at \(at.formatted(date: .omitted, time: .shortened))")
-                : String(localized: "on \(at.formatted(date: .abbreviated, time: .shortened))")
-            return String(localized: "ClamDown \(action) \(when): \(why).")
+            let what: String
+            if Calendar.current.isDate(at, inSameDayAs: now) {
+                let time = at.formatted(date: .omitted, time: .shortened)
+                what = forced ? String(localized: "ClamDown put the Mac to sleep at \(time).")
+                    : String(localized: "ClamDown let the Mac sleep at \(time).")
+            } else {
+                let date = at.formatted(date: .abbreviated, time: .shortened)
+                what = forced ? String(localized: "ClamDown put the Mac to sleep on \(date).")
+                    : String(localized: "ClamDown let the Mac sleep on \(date).")
+            }
+            return String.sentences(what, why)
         }
     }
 
@@ -237,10 +244,10 @@ public final class ClamDownController: ObservableObject {
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
         let helperStillAllowed = helperAvailability == .ready
-        announce(helperStillAllowed ? String(localized: "Turned off: the helper stopped the mode.") : Self.helperLost)
+        announce(helperStillAllowed ? String(localized: "Turned off because the helper stopped the mode.") : Self.helperLost)
         leaveWakeReport(why: helperStillAllowed
-            ? String(localized: "the helper stopped the mode")
-            : String(localized: "macOS no longer allows the helper"))
+            ? String(localized: "The helper stopped the mode.")
+            : String(localized: "macOS no longer allowed the helper."))
     }
 
     /// Call when the Mac is about to sleep.
@@ -270,7 +277,7 @@ public final class ClamDownController: ObservableObject {
         onWakeReport?(text)
     }
 
-    static let helperLost = String(localized: "Turned off: macOS no longer allows the helper. Open Setup to allow it again.")
+    static let helperLost = String(localized: "Turned off because macOS no longer allows the helper. Open Setup to allow it again.")
 
     public func updateSettings(_ new: Settings) async {
         let previous = settings
@@ -443,7 +450,7 @@ public final class ClamDownController: ObservableObject {
         guard show(preparation) else { return }
         batteryHeat.reset()
         if let reason = autoOffReason() {
-            let text = String(localized: "Not turned on: \(reason.summary).")
+            let text = reason.notTurnedOnText
             state = .off
             announce(text)
             return
@@ -579,8 +586,9 @@ public final class ClamDownController: ObservableObject {
             guard state.isOn else { return }
             // Stop the heartbeat on purpose: the helper's own watchdog then resets the Mac within about 90 seconds.
             finishOff()
-            announce(String(localized: "Turned off: \(reason.summary). The helper did not confirm, so it will reset by itself within 90 seconds."))
-            leaveWakeReport(why: reason.summary)
+            let unconfirmed = String(localized: "The helper did not confirm, so it will reset by itself within 90 seconds.")
+            announce(String.sentences(reason.turnedOffText, unconfirmed))
+            leaveWakeReport(why: reason.pastText)
             return
         }
         guard state.isOn else { return }
@@ -588,8 +596,8 @@ public final class ClamDownController: ObservableObject {
         let attendance = forcesSleep(after: reason) ? attendance() : .attended
         let outcome = attendance == .unattended
             ? String(localized: "The Mac is going to sleep.") : String(localized: "The Mac can sleep now.")
-        announce(String(localized: "Turned off: \(reason.summary). \(outcome)"))
-        leaveWakeReport(why: reason.summary)
+        announce(String.sentences(reason.turnedOffText, outcome))
+        leaveWakeReport(why: reason.pastText)
         startSleepWatch(attendance)
     }
 

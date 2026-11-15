@@ -36,7 +36,7 @@ import Testing
         #expect(rig.controller.state == .off)
         #expect(rig.helper.disableCount == 1)
         #expect(rig.sleeper.sleepCount == 1)
-        #expect(rig.notifier.posted.map(\.body) == ["Turned off: Mac is hot (serious). The Mac is going to sleep."])
+        #expect(rig.notifier.posted.map(\.body) == ["Turned off because the Mac is hot (Serious). The Mac is going to sleep."])
 
         // The Mac falls asleep. It stirs in the bag: macOS then says "closing the lid does not sleep this Mac".
         rig.controller.systemWillSleep()
@@ -54,7 +54,7 @@ import Testing
         rig.idle.time = .seconds(1)
         rig.controller.systemDidWake()
         rig.controller.systemDidWake()
-        let told = "ClamDown put the Mac to sleep at \(switchedOff): Mac is hot (serious)."
+        let told = "ClamDown put the Mac to sleep at \(switchedOff). The Mac was hot (Serious)."
         #expect(reports == [told])
         #expect(rig.controller.notice == told)
         #expect(rig.sleeper.sleepCount == 1)
@@ -75,7 +75,7 @@ import Testing
         #expect(rig.controller.state == .off)
         #expect(rig.sleeper.sleepCount == 0)
         #expect(rig.pauser.waits.isEmpty)
-        #expect(rig.controller.notice == "Turned off: Mac is hot (serious). The Mac can sleep now.")
+        #expect(rig.controller.notice == "Turned off because the Mac is hot (Serious). The Mac can sleep now.")
 
         // The display goes away and the user stops typing, long after: still no sleep from ClamDown.
         rig.displays.external = false

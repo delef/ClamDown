@@ -71,7 +71,7 @@ import Testing
         await rig.controller.toggle()
         #expect(rig.controller.state == .off)
         #expect(rig.helper.enableCalls.isEmpty)
-        #expect(rig.controller.notice == "Not turned on: power adapter unplugged.")
+        #expect(rig.controller.notice == "Not turned on because the power adapter is unplugged.")
     }
 
     @Test func switchesOffWhenTheAdapterIsUnplugged() async {
@@ -82,7 +82,7 @@ import Testing
         rig.monitor.current = .calm
         await rig.controller.handleSystemChange()
         #expect(rig.controller.state == .off)
-        #expect(rig.controller.notice?.contains("power adapter unplugged") == true)
+        #expect(rig.controller.notice?.contains("the power adapter was unplugged") == true)
     }
 
     // MARK: Lid
@@ -120,7 +120,7 @@ import Testing
         settings.notificationsEnabled = false
         let rig = Rig(snapshot: SystemSnapshot(batteryPercent: 5, isOnBattery: true, thermal: .nominal), settings: settings)
         await rig.controller.toggle()
-        #expect(rig.controller.notice == "Not turned on: battery at 5%.")
+        #expect(rig.controller.notice == "Not turned on because the battery is at 5%.")
         #expect(rig.notifier.posted.isEmpty)
     }
 

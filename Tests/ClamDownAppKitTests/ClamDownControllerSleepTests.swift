@@ -27,7 +27,7 @@ import Testing
         await rig.controller.handleSystemChange()
         #expect(rig.controller.state == .off)
         #expect(rig.sleeper.sleepCount == 1)
-        #expect(rig.controller.notice == "Turned off: Mac is hot (serious). The Mac is going to sleep.")
+        #expect(rig.controller.notice == "Turned off because the Mac is hot (Serious). The Mac is going to sleep.")
     }
 
     @Test func batterySwitchOffSleepsAnUnattendedMac() async {
@@ -35,7 +35,7 @@ import Testing
         rig.monitor.current = Self.lowBattery
         await rig.controller.handleSystemChange()
         #expect(rig.sleeper.sleepCount == 1)
-        #expect(rig.controller.notice == "Turned off: battery at 5%. The Mac is going to sleep.")
+        #expect(rig.controller.notice == "Turned off because the battery is at 5%. The Mac is going to sleep.")
     }
 
     @Test func noSleepWithTheLidOpen() async {
@@ -44,7 +44,7 @@ import Testing
         await rig.controller.handleSystemChange()
         #expect(rig.controller.state == .off)
         #expect(rig.sleeper.sleepCount == 0)
-        #expect(rig.controller.notice == "Turned off: battery at 5%. The Mac can sleep now.")
+        #expect(rig.controller.notice == "Turned off because the battery is at 5%. The Mac can sleep now.")
     }
 
     /// Closed, but macOS keeps it awake by design: someone is working on an external display.
@@ -104,7 +104,7 @@ import Testing
         await rig.controller.sleepWatch?.value
         #expect(rig.controller.state == .off)
         #expect(rig.sleeper.sleepCount == 0)
-        #expect(rig.controller.notice == "Turned off: Mac is hot (serious). The Mac can sleep now.")
+        #expect(rig.controller.notice == "Turned off because the Mac is hot (Serious). The Mac can sleep now.")
     }
 
     @Test func noSleepWhileSomeoneKeepsTyping() async {
@@ -114,7 +114,7 @@ import Testing
         await rig.controller.handleSystemChange()
         await rig.controller.sleepWatch?.value
         #expect(rig.sleeper.sleepCount == 0)
-        #expect(rig.controller.notice == "Turned off: Mac is hot (serious). The Mac can sleep now.")
+        #expect(rig.controller.notice == "Turned off because the Mac is hot (Serious). The Mac can sleep now.")
         #expect(!rig.pauser.waits.isEmpty && rig.pauser.waits.count <= 6)
         #expect(rig.pauser.waits.allSatisfy { $0 == .seconds(55) })
     }
@@ -210,7 +210,7 @@ import Testing
         rig.lidReader.state = Self.open
         rig.controller.systemDidWake()
         rig.controller.systemDidWake()
-        #expect(reports == ["ClamDown put the Mac to sleep at \(time(rig)): battery at 5%."])
+        #expect(reports == ["ClamDown put the Mac to sleep at \(time(rig)). The battery was at 5%."])
     }
 
     /// "The Mac is going to sleep." is stale once the user is back. The menu then says what happened.
@@ -221,7 +221,7 @@ import Testing
         rig.controller.systemWillSleep()
         rig.lidReader.state = Self.open
         rig.controller.systemDidWake()
-        #expect(rig.controller.notice == "ClamDown put the Mac to sleep at \(time(rig)): battery at 5%.")
+        #expect(rig.controller.notice == "ClamDown put the Mac to sleep at \(time(rig)). The battery was at 5%.")
     }
 
     @Test func allowedSleepIsWordedAsLet() async {
@@ -234,7 +234,7 @@ import Testing
         let switchedOffAt = time(rig)
         rig.controller.systemWillSleep()
         rig.controller.systemDidWake()
-        #expect(reports == ["ClamDown let the Mac sleep at \(switchedOffAt): timer ended."])
+        #expect(reports == ["ClamDown let the Mac sleep at \(switchedOffAt). The timer ended."])
     }
 
     /// A power event can wake a Mac inside the bag. That is not the user coming back.
@@ -316,7 +316,7 @@ import Testing
         rig.clock.advance(by: 26 * 3600)
         rig.lidReader.state = Self.open
         rig.controller.systemDidWake()
-        #expect(reports == ["ClamDown put the Mac to sleep on \(switchedOff): battery at 5%."])
+        #expect(reports == ["ClamDown put the Mac to sleep on \(switchedOff). The battery was at 5%."])
     }
 
     /// The user was at the Mac the whole time and saw the notification when it happened.
@@ -352,6 +352,6 @@ import Testing
         await rig.controller.sendHeartbeat()
         rig.controller.systemWillSleep()
         rig.controller.systemDidWake()
-        #expect(reports == ["ClamDown let the Mac sleep at \(time(rig)): the helper stopped the mode."])
+        #expect(reports == ["ClamDown let the Mac sleep at \(time(rig)). The helper stopped the mode."])
     }
 }

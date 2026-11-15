@@ -4,6 +4,28 @@
     "" : {
 
     },
+    "%@ %@" : {
+      "comment" : "Two whole sentences, one after the other.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ (%@)" : {
+      "comment" : "A temperature and the sensor group it comes from.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
     "%@ rpm" : {
 
     },
@@ -98,6 +120,9 @@
     "After Switching Off" : {
 
     },
+    "Airflow" : {
+
+    },
     "Allow" : {
 
     },
@@ -134,6 +159,9 @@
     "Bolt" : {
 
     },
+    "CPU" : {
+
+    },
     "CPU Temperature" : {
 
     },
@@ -161,16 +189,6 @@
     "ClamDown" : {
 
     },
-    "ClamDown %@ %@: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "ClamDown %1$@ %2$@: %3$@."
-          }
-        }
-      }
-    },
     "ClamDown Setup" : {
 
     },
@@ -183,13 +201,16 @@
     "ClamDown is not controlling the fans. macOS has them." : {
 
     },
-    "ClamDown is not controlling the fans: %@. macOS has them." : {
-
-    },
     "ClamDown is still setting up the helper. Try again in a moment." : {
 
     },
     "ClamDown keeps your MacBook working with the lid closed, so your agents keep going. It locks the screen, drives the fans, and switches itself off before a low battery or heat becomes a problem." : {
+
+    },
+    "ClamDown let the Mac sleep at %@." : {
+
+    },
+    "ClamDown let the Mac sleep on %@." : {
 
     },
     "ClamDown lives in the menu bar. Look for this icon:" : {
@@ -199,6 +220,12 @@
 
     },
     "ClamDown needs attention" : {
+
+    },
+    "ClamDown put the Mac to sleep at %@." : {
+
+    },
+    "ClamDown put the Mac to sleep on %@." : {
 
     },
     "ClamDown switched off while you were away" : {
@@ -255,6 +282,9 @@
     "Could not update the helper: %@" : {
 
     },
+    "Critical" : {
+
+    },
     "Critical (latest)" : {
 
     },
@@ -279,6 +309,9 @@
     "Eye" : {
 
     },
+    "Fair" : {
+
+    },
     "Fair (earliest)" : {
 
     },
@@ -288,7 +321,7 @@
     "Fan Control" : {
 
     },
-    "Fan control paused%@. ClamDown takes the fans again in a moment; macOS has them until then." : {
+    "Fan control paused. ClamDown takes the fans again in a moment; macOS has them until then." : {
 
     },
     "Fan curve over the hottest temperature" : {
@@ -322,6 +355,9 @@
 
     },
     "Full speed: the battery is hot." : {
+
+    },
+    "GPU" : {
 
     },
     "General" : {
@@ -417,9 +453,6 @@
     "Lower Speed" : {
 
     },
-    "Mac is hot (%@)" : {
-
-    },
     "Menu Bar" : {
 
     },
@@ -432,6 +465,9 @@
     "No protection is switched on" : {
 
     },
+    "Nominal" : {
+
+    },
     "Not allowed yet" : {
 
     },
@@ -441,7 +477,19 @@
     "Not set up yet" : {
 
     },
-    "Not turned on: %@." : {
+    "Not turned on because the Mac is hot (%@)." : {
+
+    },
+    "Not turned on because the battery is at %lld%%." : {
+
+    },
+    "Not turned on because the battery is hot (%lld °C)." : {
+
+    },
+    "Not turned on because the power adapter is unplugged." : {
+
+    },
+    "Not turned on because the timer has ended." : {
 
     },
     "Notifications" : {
@@ -565,6 +613,9 @@
     "Running" : {
 
     },
+    "SSD" : {
+
+    },
     "Safety floor" : {
 
     },
@@ -680,7 +731,16 @@
     "The Mac is going to sleep." : {
 
     },
+    "The Mac was hot (%@)." : {
+
+    },
     "The app is not code-signed, so it cannot talk to the helper." : {
+
+    },
+    "The battery was at %lld%%." : {
+
+    },
+    "The battery was hot (%lld °C)." : {
 
     },
     "The case can feel hot while the chips are only warm. The fans also speed up with the airflow sensors: from the first value, full speed at the second. Now: %@." : {
@@ -698,6 +758,9 @@
     "The helper did not answer." : {
 
     },
+    "The helper did not confirm, so it will reset by itself within 90 seconds." : {
+
+    },
     "The helper is missing from the app bundle." : {
 
     },
@@ -713,7 +776,16 @@
     "The helper sent an unreadable sensor report." : {
 
     },
+    "The helper stopped the mode." : {
+
+    },
     "The icon fills in while ClamDown is on." : {
+
+    },
+    "The power adapter was unplugged." : {
+
+    },
+    "The timer ended." : {
 
     },
     "Try Again" : {
@@ -737,23 +809,25 @@
     "Turn on ClamDown in System Settings > General > Login Items & Extensions." : {
 
     },
-    "Turned off: %@. %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Turned off: %1$@. %2$@"
-          }
-        }
-      }
-    },
-    "Turned off: %@. The helper did not confirm, so it will reset by itself within 90 seconds." : {
+    "Turned off because macOS no longer allows the helper. Open Setup to allow it again." : {
 
     },
-    "Turned off: macOS no longer allows the helper. Open Setup to allow it again." : {
+    "Turned off because the Mac is hot (%@)." : {
 
     },
-    "Turned off: the helper stopped the mode." : {
+    "Turned off because the battery is at %lld%%." : {
+
+    },
+    "Turned off because the battery is hot (%lld °C)." : {
+
+    },
+    "Turned off because the helper stopped the mode." : {
+
+    },
+    "Turned off because the power adapter was unplugged." : {
+
+    },
+    "Turned off because the timer ended." : {
 
     },
     "Turns off at %@" : {
@@ -811,6 +885,9 @@
     "When low battery or heat switches ClamDown off and nobody is at the Mac, it goes to sleep at once." : {
 
     },
+    "Wi-Fi" : {
+
+    },
     "With the lid closed you cannot see the menu. A notification tells you when ClamDown switched itself off, for example at low battery or when the Mac got hot." : {
 
     },
@@ -824,18 +901,6 @@
 
     },
     "You're set" : {
-
-    },
-    "at %@" : {
-
-    },
-    "battery at %lld%%" : {
-
-    },
-    "battery is hot (%lld °C)" : {
-
-    },
-    "let the Mac sleep" : {
 
     },
     "macOS" : {
@@ -853,7 +918,7 @@
     "macOS is not showing ClamDown's notifications yet." : {
 
     },
-    "macOS no longer allows the helper" : {
+    "macOS no longer allowed the helper." : {
 
     },
     "max" : {
@@ -868,22 +933,7 @@
     "on" : {
 
     },
-    "on %@" : {
-
-    },
-    "power adapter unplugged" : {
-
-    },
-    "put the Mac to sleep" : {
-
-    },
     "rpm" : {
-
-    },
-    "the helper stopped the mode" : {
-
-    },
-    "timer ended" : {
 
     },
     "unknown" : {

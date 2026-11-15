@@ -4,7 +4,7 @@ import Testing
 
 @Suite struct FanAlertTests {
     static let reason = "Fan 2 does not reach the speed it was set to."
-    static let line = "ClamDown is not controlling the fans: fan 2 does not reach the speed it was set to. macOS has them."
+    static let line = "ClamDown is not controlling the fans. macOS has them. Fan 2 does not reach the speed it was set to."
 
     static func status(_ control: FanControlState, holding: Bool = false, reason: String? = reason) -> CoolingStatus {
         CoolingStatus(cpuTemperature: 70, fans: [], isControlling: holding,
@@ -87,7 +87,7 @@ import Testing
         var alert = FanAlert()
         _ = alert.update(Self.status(.stopped))
         #expect(alert.update(Self.status(.stopped, reason: "Cannot open the SMC."))
-            == .show(line: "ClamDown is not controlling the fans: cannot open the SMC. macOS has them.", notify: false))
+            == .show(line: "ClamDown is not controlling the fans. macOS has them. Cannot open the SMC.", notify: false))
     }
 
     @Test func resetClearsAShownLineAndStartsAfresh() {
@@ -100,43 +100,33 @@ import Testing
 
     // MARK: - The helper's own reasons in the line
 
+    static let stopped = "ClamDown is not controlling the fans. macOS has them."
+
     @Test(arguments: [
-        ("Could not set the fan speed: macOS did not hand over fan 1.",
-         "could not set the fan speed: macOS did not hand over fan 1"),
-        ("Could not read the sensors: SMC call for F0Tg failed (kern 5, result 132)",
-         "could not read the sensors: SMC call for F0Tg failed (kern 5, result 132)"),
-        ("Could not set the fan speed: Expected targets for 2 fans, got 1.",
-         "could not set the fan speed: Expected targets for 2 fans, got 1"),
-        ("Cannot read the temperature sensors.", "cannot read the temperature sensors"),
-        ("Could not read every fan.", "could not read every fan"),
-        ("Could not hand the fans back to macOS: SMC key F0Md does not exist",
-         "could not hand the fans back to macOS: SMC key F0Md does not exist"),
-        ("Cannot open the SMC.", "cannot open the SMC"),
+        "Could not set the fan speed: macOS did not hand over fan 1.",
+        "Could not read the sensors: SMC call for F0Tg failed (kern 5, result 132).",
+        "Cannot read the temperature sensors.",
+        "SMC key F0Md does not exist.",
+        "macOS did not hand over fan 2.",
     ])
-    func helperReasonsReadAsPartOfTheSentence(reason: String, expected: String) {
-        #expect(FanAlert.line(reason: reason) == "ClamDown is not controlling the fans: \(expected). macOS has them.")
+    func theHelpersReasonFollowsAsItsOwnSentence(reason: String) {
+        #expect(FanAlert.line(reason: reason) == "\(Self.stopped) \(reason)")
     }
 
-    @Test func aReasonThatStartsWithANameKeepsItsCapital() {
-        #expect(FanAlert.line(reason: "SMC key F0Md does not exist")
-            == "ClamDown is not controlling the fans: SMC key F0Md does not exist. macOS has them.")
-        #expect(FanAlert.line(reason: "ClamDown lost the helper.")
-            == "ClamDown is not controlling the fans: ClamDown lost the helper. macOS has them.")
-        #expect(FanAlert.line(reason: "Mac is too hot.")
-            == "ClamDown is not controlling the fans: Mac is too hot. macOS has them.")
-        #expect(FanAlert.line(reason: "macOS did not hand over fan 2.")
-            == "ClamDown is not controlling the fans: macOS did not hand over fan 2. macOS has them.")
+    @Test func aReasonWithoutAFullStopGetsOne() {
+        #expect(FanAlert.line(reason: "Could not set the fan speed: Expected targets for 2 fans, got 1")
+            == "\(Self.stopped) Could not set the fan speed: Expected targets for 2 fans, got 1.")
     }
 
     @Test func neverTwoFullStops() {
-        #expect(FanAlert.line(reason: "Fan 1 stalled...") == "ClamDown is not controlling the fans: fan 1 stalled. macOS has them.")
-        #expect(FanAlert.line(reason: "Fan 1 stalled…") == "ClamDown is not controlling the fans: fan 1 stalled. macOS has them.")
-        #expect(FanAlert.line(reason: "Fan 1 stalled. ") == "ClamDown is not controlling the fans: fan 1 stalled. macOS has them.")
+        for reason in ["Fan 1 stalled...", "Fan 1 stalled\u{2026}", "Fan 1 stalled. "] {
+            #expect(FanAlert.line(reason: reason) == "\(Self.stopped) Fan 1 stalled.")
+        }
     }
 
     @Test func rawErrorTextOnSeveralLinesReadsAsOne() {
         #expect(FanAlert.line(reason: "Could not set the fan speed:\n  kern 5\tresult 132\n")
-            == "ClamDown is not controlling the fans: could not set the fan speed: kern 5 result 132. macOS has them.")
+            == "\(Self.stopped) Could not set the fan speed: kern 5 result 132.")
     }
 
     @Test func noReasonLeavesItOut() {

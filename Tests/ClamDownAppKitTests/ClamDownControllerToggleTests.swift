@@ -96,8 +96,8 @@ struct Rig {
         await rig.controller.toggle()
         #expect(rig.controller.state == .off)
         #expect(rig.helper.enableCalls.isEmpty)
-        #expect(rig.notifier.posted.last?.body.contains("battery at 10%") == true)
-        #expect(rig.controller.notice?.contains("battery at 10%") == true)
+        #expect(rig.notifier.posted.last?.body.contains("the battery is at 10%") == true)
+        #expect(rig.controller.notice?.contains("the battery is at 10%") == true)
     }
 
     @Test func refusesWhenThermalAlreadyAtCutoff() async {
@@ -105,8 +105,8 @@ struct Rig {
         await rig.controller.toggle()
         #expect(rig.controller.state == .off)
         #expect(rig.helper.enableCalls.isEmpty)
-        #expect(rig.notifier.posted.last?.body.contains("Mac is hot (serious)") == true)
-        #expect(rig.controller.notice?.contains("Mac is hot (serious)") == true)
+        #expect(rig.notifier.posted.last?.body.contains("the Mac is hot (Serious)") == true)
+        #expect(rig.controller.notice?.contains("the Mac is hot (Serious)") == true)
     }
 
     /// System Settings no longer opens by itself: the setup assistant explains the step first.

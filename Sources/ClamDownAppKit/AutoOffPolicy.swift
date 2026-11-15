@@ -17,14 +17,38 @@ public enum AutoOffReason: Equatable, Sendable {
         }
     }
 
-    /// Short phrase used in notifications and status lines.
-    public var summary: String {
+    // Each message is a whole sentence, so a translation never has to fit a phrase into someone else's grammar.
+
+    /// Said when ClamDown switches itself off for this reason.
+    public var turnedOffText: String {
         switch self {
-        case .batteryLow(let percent): String(localized: "battery at \(percent)%")
-        case .thermal(let level): String(localized: "Mac is hot (\(level.name))")
-        case .batteryHot(let celsius): String(localized: "battery is hot (\(celsius) \u{00B0}C)")
-        case .unplugged: String(localized: "power adapter unplugged")
-        case .timerEnded: String(localized: "timer ended")
+        case .batteryLow(let percent): String(localized: "Turned off because the battery is at \(percent)%.")
+        case .thermal(let level): String(localized: "Turned off because the Mac is hot (\(level.localizedName)).")
+        case .batteryHot(let celsius): String(localized: "Turned off because the battery is hot (\(celsius) \u{00B0}C).")
+        case .unplugged: String(localized: "Turned off because the power adapter was unplugged.")
+        case .timerEnded: String(localized: "Turned off because the timer ended.")
+        }
+    }
+
+    /// Said when Turn On is refused for this reason.
+    public var notTurnedOnText: String {
+        switch self {
+        case .batteryLow(let percent): String(localized: "Not turned on because the battery is at \(percent)%.")
+        case .thermal(let level): String(localized: "Not turned on because the Mac is hot (\(level.localizedName)).")
+        case .batteryHot(let celsius): String(localized: "Not turned on because the battery is hot (\(celsius) \u{00B0}C).")
+        case .unplugged: String(localized: "Not turned on because the power adapter is unplugged.")
+        case .timerEnded: String(localized: "Not turned on because the timer has ended.")
+        }
+    }
+
+    /// The reason after the Mac wakes, when it is already in the past.
+    public var pastText: String {
+        switch self {
+        case .batteryLow(let percent): String(localized: "The battery was at \(percent)%.")
+        case .thermal(let level): String(localized: "The Mac was hot (\(level.localizedName)).")
+        case .batteryHot(let celsius): String(localized: "The battery was hot (\(celsius) \u{00B0}C).")
+        case .unplugged: String(localized: "The power adapter was unplugged.")
+        case .timerEnded: String(localized: "The timer ended.")
         }
     }
 }

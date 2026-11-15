@@ -159,7 +159,7 @@ struct ProtectionPage: View {
                 CDRow(String(localized: "Switch Off When Hot"),
                       detail: String(localized: """
                           Lets the Mac sleep when macOS reports this thermal level. Now: \
-                          \(ThermalLevel(ProcessInfo.processInfo.thermalState).name.capitalized).
+                          \(ThermalLevel(ProcessInfo.processInfo.thermalState).localizedName).
                           """)) {
                     Picker("Switch Off When Hot", selection: controller.binding(\.thermalCutoff)) {
                         ForEach(ThermalCutoff.allCases, id: \.self) { Text(Self.label(for: $0)).tag($0) }
@@ -254,7 +254,7 @@ struct CoolingPage: View {
             CDSection(String(localized: "Now")) {
                 CDValueRow(String(localized: "Hottest"), value: hottestText)
                 ForEach(groupsShown, id: \.self) { group in
-                    CDValueRow(group.title, value: Self.temperatureText(status?.groupTemperatures[group]))
+                    CDValueRow(group.localizedTitle, value: Self.temperatureText(status?.groupTemperatures[group]))
                 }
                 if groupsShown.isEmpty, let average = status?.cpuTemperature {
                     // Without the groups the helper follows the average CPU temperature, so that is what is shown.
@@ -400,11 +400,10 @@ struct CoolingPage: View {
         guard let status else { return nil }
         switch status.control {
         case .retrying:
-            let clause = FanAlert.clause(from: status.problem).map { ": \($0)" } ?? ""
-            return String(localized: """
-                Fan control paused\(clause). ClamDown takes the fans again in a moment; macOS has \
-                them until then.
+            let paused = String(localized: """
+                Fan control paused. ClamDown takes the fans again in a moment; macOS has them until then.
                 """)
+            return FanAlert.sentence(from: status.problem).map { String.sentences(paused, $0) } ?? paused
         case .stopped:
             return FanAlert.line(reason: status.problem)
         case .idle, .controlling:
@@ -424,8 +423,9 @@ struct CoolingPage: View {
     /// "52 °C (Battery)": what the curve follows now.
     private var hottestText: String {
         guard let celsius = status?.hottestTemperature else { return "\u{2014}" }
-        let group = status?.hottestGroup.map { " (\($0.title))" } ?? ""
-        return Self.temperatureText(celsius) + group
+        let temperature = Self.temperatureText(celsius)
+        guard let group = status?.hottestGroup else { return temperature }
+        return String(localized: "\(temperature) (\(group.localizedTitle))", comment: "A temperature and the sensor group it comes from.")
     }
 
     /// The groups this Mac reports a value for, in their usual order.

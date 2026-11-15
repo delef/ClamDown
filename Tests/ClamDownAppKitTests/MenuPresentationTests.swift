@@ -22,7 +22,7 @@ import Testing
         #expect(MenuPresentation(state: .off, notice: nil, helperReady: false).needsAttention)
         #expect(MenuPresentation(state: .failed("boom"), notice: nil).needsAttention)
         #expect(MenuPresentation(state: .needsApproval, notice: nil).needsAttention)
-        #expect(!MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").needsAttention)
+        #expect(!MenuPresentation(state: .off, notice: "Turned off because the battery is at 10%.").needsAttention)
         #expect(!MenuPresentation(state: .on, notice: nil).needsAttention)
     }
 
@@ -45,12 +45,12 @@ import Testing
     @Test func nothingToRecoverWhenAllIsWell() {
         #expect(MenuPresentation(state: .off, notice: nil).recovery == nil)
         #expect(MenuPresentation(state: .on, notice: nil).recovery == nil)
-        #expect(MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").recovery == nil)
+        #expect(MenuPresentation(state: .off, notice: "Turned off because the battery is at 10%.").recovery == nil)
     }
 
     /// The Mac still stays awake and macOS cools it, so the icon gets no attention mark.
     @Test func coolingLineIsShownWithoutAttentionMark() {
-        let line = "ClamDown is not controlling the fans: cannot open the SMC. macOS has them."
+        let line = "ClamDown is not controlling the fans. macOS has them. Cannot open the SMC."
         let p = MenuPresentation(state: .on, notice: nil, coolingLine: line)
         #expect(p.coolingLine == line)
         #expect(!p.needsAttention)
@@ -67,7 +67,7 @@ import Testing
     }
 
     @Test func noticeShownWhenOff() {
-        #expect(MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").statusLine == "Turned off: battery at 10%.")
+        #expect(MenuPresentation(state: .off, notice: "Turned off because the battery is at 10%.").statusLine == "Turned off because the battery is at 10%.")
     }
 
     @Test func noticeShownWhileOn() {
@@ -89,7 +89,7 @@ import Testing
     @Test func saysTheAppAndWhetherItIsOn() {
         #expect(MenuPresentation(state: .on, notice: nil).accessibilityLabel == "ClamDown, on")
         #expect(MenuPresentation(state: .off, notice: nil).accessibilityLabel == "ClamDown, off")
-        #expect(MenuPresentation(state: .off, notice: "Turned off: battery at 10%.").accessibilityLabel == "ClamDown, off")
+        #expect(MenuPresentation(state: .off, notice: "Turned off because the battery is at 10%.").accessibilityLabel == "ClamDown, off")
     }
 
     @Test func saysWhenItNeedsAttention() {

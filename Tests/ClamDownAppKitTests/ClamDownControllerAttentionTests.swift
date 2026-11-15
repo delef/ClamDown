@@ -52,7 +52,7 @@ import Testing
         await rig.controller.toggle()
         rig.helper.with { $0.heartbeatResult = .failure(HelperClientError.connection("gone")) }
         await rig.controller.sendHeartbeat()
-        let text = "Turned off: macOS no longer allows the helper. Open Setup to allow it again."
+        let text = "Turned off because macOS no longer allows the helper. Open Setup to allow it again."
         #expect(rig.controller.state == .off)
         #expect(rig.controller.notice == text)
         #expect(rig.notifier.posted.last?.body == text)

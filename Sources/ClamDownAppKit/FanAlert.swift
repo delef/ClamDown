@@ -42,30 +42,24 @@ public struct FanAlert: Equatable, Sendable {
         return .clear
     }
 
-    /// "ClamDown is not controlling the fans: <reason>. macOS has them."
-    /// The helper's reasons are whole sentences, sometimes with raw error text; here they become part of one.
+    /// "ClamDown is not controlling the fans. macOS has them. <reason>"
+    /// The helper's reason follows as its own sentence, so a translation needs no grammar from it.
     public static func line(reason: String?) -> String {
-        guard let clause = clause(from: reason) else { return String(localized: "ClamDown is not controlling the fans. macOS has them.") }
-        return String(localized: "ClamDown is not controlling the fans: \(clause). macOS has them.")
+        let stopped = String(localized: "ClamDown is not controlling the fans. macOS has them.")
+        guard let reason = sentence(from: reason) else { return stopped }
+        return String.sentences(stopped, reason)
     }
 
-    /// The reason on one line, without its closing full stop, starting in lower case unless it starts with a name.
-    public static func clause(from reason: String?) -> String? {
+    /// The helper's reason on one line, ending in exactly one full stop. Nil when there is no text.
+    /// The helper's reasons are whole sentences, sometimes raw error text with line breaks or an ellipsis.
+    public static func sentence(from reason: String?) -> String? {
         guard let reason else { return nil }
         var text = reason.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        while let last = text.last, last == "." || last == "…" || last == " " {
+        while let last = text.last, last == "." || last == "\u{2026}" || last == " " {
             text.removeLast()
         }
-        guard let first = text.first else { return nil }
-        let firstWord = text.prefix { $0.isLetter || $0.isNumber || $0 == "/" }
-        guard !keepsCapital(firstWord) else { return text }
-        return first.lowercased() + text.dropFirst()
-    }
-
-    /// Names the helper's reasons can start with. Acronyms and words like "ClamDown" are caught by their inner capitals.
-    private static let names: Set<Substring> = ["Mac", "Apple", "I"]
-
-    private static func keepsCapital(_ word: Substring) -> Bool {
-        names.contains(word) || word.dropFirst().contains { $0.isUppercase }
+        // The case stays as the helper wrote it: "macOS did not hand over fan 2." starts a sentence correctly.
+        guard !text.isEmpty else { return nil }
+        return text + "."
     }
 }
