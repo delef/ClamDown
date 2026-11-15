@@ -71,7 +71,7 @@ public protocol FanHardware: SensorReading {
 /// then `F<n>Md` = 1 puts fan n in manual mode and `F<n>Tg` sets its target speed.
 public final class SMCFanHardware: FanHardware, @unchecked Sendable {
     private let lock = NSLock()
-    private let smc: SMC
+    private let smc: any SMCAccess
     /// The CPU keys, for the average and the hottest core.
     private let temperatureKeys: [String]
     /// Every key of every group this Mac has, in group order. CPU uses `temperatureKeys`.
@@ -80,12 +80,23 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
     public let supportsControl: Bool
     /// How long to wait for macOS to hand over a fan after `Ftst` = 1.
     private let takeoverTimeout: Duration
+    /// Waits between take-over attempts.
+    private let pause: @Sendable (Duration) -> Void
+    private let lidReader: @Sendable () -> Bool?
 
     /// Nil when the SMC cannot be opened.
-    public init?(takeoverTimeout: Duration = .seconds(5)) {
+    public convenience init?(takeoverTimeout: Duration = .seconds(5)) {
         guard let smc = SMC() else { return nil }
+        self.init(smc: smc, takeoverTimeout: takeoverTimeout)
+    }
+
+    init(smc: any SMCAccess, takeoverTimeout: Duration = .seconds(5),
+         pause: @escaping @Sendable (Duration) -> Void = { Thread.sleep(forTimeInterval: Double($0.components.seconds) + Double($0.components.attoseconds) / 1e18) },
+         lidClosed: @escaping @Sendable () -> Bool? = SMCFanHardware.lidClosed) {
         self.smc = smc
         self.takeoverTimeout = takeoverTimeout
+        self.pause = pause
+        lidReader = lidClosed
         fanCount = Int(smc.read("FNum")?.number ?? 0)
         let allKeys = (0..<smc.keyCount()).compactMap { smc.key(at: $0) }
         temperatureKeys = Self.findCPUTemperatureKeys(smc, allKeys: allKeys)
@@ -110,7 +121,7 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
                 byGroup[group] = keys.compactMap { smc.read($0)?.number }
             }
             return HardwareReading(cpuTemperature: temperatures.average, hottestCPUTemperature: temperatures.hottest,
-                                   fans: fans, lidClosed: Self.lidClosed(),
+                                   fans: fans, lidClosed: lidReader(),
                                    groupTemperatures: SensorKeys.hottestByGroup(byGroup))
         }
     }
@@ -182,14 +193,14 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         repeat {
             try? smc.write("F\(index)Md", bytes: [1])
             if smc.read("F\(index)Md")?.number == 1 { return }
-            Thread.sleep(forTimeInterval: 0.2)
+            pause(.milliseconds(200))
         } while ContinuousClock.now < deadline
         throw FanHardwareError.notReleasedBySystem(fan: index)
     }
 
     /// Apple Silicon reports CPU core temperatures under `Tp*` (performance) and `Te*` (efficiency) as floats.
     /// Intel Macs use a few fixed `TC0*` keys instead.
-    private static func findCPUTemperatureKeys(_ smc: SMC, allKeys: [String]) -> [String] {
+    private static func findCPUTemperatureKeys(_ smc: any SMCAccess, allKeys: [String]) -> [String] {
         let appleSilicon = allKeys.filter { key in
             (key.hasPrefix("Tp") || key.hasPrefix("Te"))
                 && smc.read(key).map { $0.type == "flt " && ($0.number.map(isPlausible) ?? false) } == true
@@ -200,7 +211,7 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
 
     /// CPU as found above; GPU is every `Tg*` key with a number (a value that is implausible now may be fine later,
     /// so plausibility is checked on each reading); the fixed keys where this Mac has them.
-    private static func findGroupKeys(_ smc: SMC, allKeys: [String], cpu: [String]) -> [(group: SensorGroup, keys: [String])] {
+    private static func findGroupKeys(_ smc: any SMCAccess, allKeys: [String], cpu: [String]) -> [(group: SensorGroup, keys: [String])] {
         let gpu = allKeys.filter { SensorKeys.group(of: $0) == .gpu && smc.read($0)?.number != nil }
         let fixed = SensorKeys.fixed.map { group, keys in (group, keys.filter { smc.read($0)?.number != nil }) }
         return ([(SensorGroup.cpu, cpu), (.gpu, gpu)] + fixed).filter { !$0.1.isEmpty }
@@ -208,11 +219,11 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
 
     private static func isPlausible(_ celsius: Double) -> Bool { CPUTemperatures.isPlausible(celsius) }
 
-    private static func floatBytes(_ value: Double) -> [UInt8] {
+    static func floatBytes(_ value: Double) -> [UInt8] {
         withUnsafeBytes(of: Float(value)) { Array($0) }
     }
 
-    private static func lidClosed() -> Bool? {
+    static func lidClosed() -> Bool? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
         guard service != 0 else { return nil }
         defer { IOObjectRelease(service) }

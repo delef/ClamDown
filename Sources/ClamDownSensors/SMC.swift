@@ -75,9 +75,20 @@ private struct SMCParam {
     var bytes: SMCBytes = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 }
 
+/// The SMC calls ClamDown makes. `SMC` talks to the hardware; tests use a stand-in that records every write.
+/// Not thread-safe: the owner serialises access.
+protocol SMCAccess: AnyObject {
+    func keyCount() -> Int
+    /// The name of the key at `index` in the SMC's key list.
+    func key(at index: Int) -> String?
+    func read(_ key: String) -> SMCValue?
+    func write(_ key: String, bytes: [UInt8]) throws
+    func has(_ key: String) -> Bool
+}
+
 /// A minimal client for the System Management Controller. Reading works for any user; writing needs root.
 /// Not thread-safe: the owner serialises access.
-final class SMC {
+final class SMC: SMCAccess {
     private enum Command: UInt8 {
         case readKey = 5
         case writeKey = 6

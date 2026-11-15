@@ -6,6 +6,7 @@
 //   sudo .build/debug/ClamDownFanProbe fullLoad <minutes>
 //        .build/debug/ClamDownFanProbe thermal [minutes]     (with or without sudo)
 //        .build/debug/ClamDownFanProbe sensors [seconds]     (with or without sudo; never touches the fans)
+//        .build/debug/ClamDownFanProbe keys <machine>        (with or without sudo; never touches the fans)
 //   sudo .build/debug/ClamDownFanProbe release
 //
 // CSV with a header row goes to stdout; progress and notes go to stderr.
@@ -30,6 +31,8 @@ private let usage = """
       thermal [minutes]   CSV: seconds,uid,thermalLevel every second, 5 minutes by default. Root not needed.
       sensors [seconds]   CSV: timestamp, each sensor group's hottest value, then every key of the groups,
                           every second, 60 seconds by default. Read-only: never takes the fans. Root not needed.
+      keys <machine>      JSON: type and raw bytes of every temperature and fan key, for a test fixture.
+                          <machine> is free text, such as "MacBook Pro M4 Pro, macOS 27.2". Read-only. Root not needed.
       release             hands every fan back to macOS and prints each fan's mode. Root. Safe any time.
     """
 
@@ -43,6 +46,7 @@ private enum Command {
     case fullLoad(seconds: Int)
     case thermal(seconds: Int)
     case sensors(seconds: Int)
+    case keys(machine: String)
     case release
 
     init?(_ arguments: [String]) {
@@ -59,6 +63,8 @@ private enum Command {
             guard let s = seconds(args[1]) else { return nil }
             self = .thermal(seconds: s)
         case ["sensors"]: self = .sensors(seconds: 60)
+        case let args where args.count == 2 && args[0] == "keys" && !args[1].isEmpty:
+            self = .keys(machine: args[1])
         case let args where args.count == 2 && args[0] == "sensors":
             guard let s = Int(args[1]), s > 0, s <= 24 * 3600 else { return nil }
             self = .sensors(seconds: s)
@@ -346,6 +352,23 @@ private func release(_ hardware: SMCFanHardware) -> Never {
     exit(failed ? 1 : 0)
 }
 
+/// Prints the key dump as JSON on stdout. Never touches the fans.
+private func keys(_ machine: String) -> Never {
+    guard let dump = SMCKeyDump.capture(machine: machine) else {
+        note("cannot open the SMC.")
+        exit(1)
+    }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    guard let data = try? encoder.encode(dump) else {
+        note("cannot encode the dump.")
+        exit(1)
+    }
+    emit(String(decoding: data, as: UTF8.self))
+    note("\(dump.entries.count) keys.")
+    exit(0)
+}
+
 private func run() -> Never {
     guard let command = Command(Array(CommandLine.arguments.dropFirst())) else {
         writeLine(usage, to: STDERR_FILENO)
@@ -353,6 +376,7 @@ private func run() -> Never {
     }
     if case .thermal(let seconds) = command { thermal(seconds) }
     if case .sensors(let seconds) = command { sensors(seconds) }
+    if case .keys(let machine) = command { keys(machine) }
     guard getuid() == 0 else {
         note("run it with sudo: it drives the fans through the SMC and must see what a root daemon sees.")
         exit(1)
@@ -408,7 +432,7 @@ private func run() -> Never {
             case .ftst: try ftst(hardware, fans)
             case .load(let seconds): try load(seconds, hardware, holdingAtMaximum: nil)
             case .fullLoad(let seconds): try load(seconds, hardware, holdingAtMaximum: fans)
-            case .thermal, .sensors, .release: break
+            case .thermal, .sensors, .keys, .release: break
             }
         } catch ProbeError.stopping {
             // A signal is already handing the fans back and exiting.

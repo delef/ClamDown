@@ -7,3 +7,4 @@ docs/superpowers/
 .superpowers/
 .wrangler/
 *.profraw
+.claude/worktrees/

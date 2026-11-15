@@ -5,12 +5,17 @@ import Foundation
 /// as on macOS versions whose `AppleSmartBattery` entry has no `Temperature`.
 public final class SMCBatteryTemperature: @unchecked Sendable {
     private let lock = NSLock()
-    private let smc: SMC
+    private let smc: any SMCAccess
     private let keys: [String]
 
     /// Nil when the SMC cannot be opened or has none of the battery keys.
-    public init?() {
+    public convenience init?() {
         guard let smc = SMC() else { return nil }
+        self.init(smc: smc)
+    }
+
+    /// Nil when the SMC has none of the battery keys.
+    init?(smc: any SMCAccess) {
         let battery = SensorKeys.fixed.first { $0.group == .battery }?.keys ?? []
         let present = battery.filter { smc.read($0)?.number != nil }
         guard !present.isEmpty else { return nil }

@@ -16,6 +16,8 @@ let package = Package(
         .testTarget(name: "ClamDownUITests", dependencies: ["ClamDownUI"]),
         .testTarget(name: "ClamDownSharedTests", dependencies: ["ClamDownShared"]),
         .target(name: "ClamDownSensors", dependencies: ["ClamDownShared"]),
+        .testTarget(name: "ClamDownSensorsTests", dependencies: ["ClamDownSensors", "ClamDownShared"],
+                    resources: [.copy("Fixtures")]),
         .target(name: "ClamDownAppKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
         .testTarget(name: "ClamDownAppKitTests", dependencies: ["ClamDownAppKit", "ClamDownSensors"]),
         .target(name: "ClamDownHelperKit", dependencies: ["ClamDownShared", "ClamDownSensors"]),
