@@ -213,6 +213,7 @@ struct CoolingPage: View {
                     if controller.settings.fanControlEnabled {
                         CDRow("Curve") { modePicker }
                         curve
+                        caseRule
                         if let note = controlNote {
                             CDNote(note, tone: .warning)
                         }
@@ -299,6 +300,18 @@ struct CoolingPage: View {
                 : "Five points, each at or above the one before it, on the hottest sensor; the fans never "
                     + "run under the safety floor.")
         }
+    }
+
+    /// The case rule: its own two temperatures on the airflow sensors, on top of the curve.
+    @ViewBuilder private var caseRule: some View {
+        CDRow("Case", detail: "The case can feel hot while the chips are only warm. The fans also speed up with the "
+            + "airflow sensors: from the first value, full speed at the second. Now: "
+            + Self.temperatureText(status?.groupTemperatures[.airflow]) + ".")
+        SettingSlider("Speeds Up From", value: controller.binding(\.caseStartTemperature),
+                      range: CaseRamp.startRange, unit: " \u{00B0}C")
+        SettingSlider("Full Speed At", value: controller.binding(\.caseFullSpeedTemperature),
+                      range: (CaseRamp.startRange.lowerBound + CaseRamp.minimumSpan)...CaseRamp.fullSpeedMaximum,
+                      unit: " \u{00B0}C")
     }
 
     @ViewBuilder private func values(_ points: [FanPoint], mode: FanCurveMode) -> some View {

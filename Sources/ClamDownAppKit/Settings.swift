@@ -130,6 +130,9 @@ public struct Settings: Codable, Equatable, Sendable {
     /// The Advanced curve's five points. Nil until Advanced is first chosen.
     public var fanAdvancedPoints: [FanPoint]?
     public var fansOnlyWhenLidClosed = true
+    /// The case rule's two temperatures: the fans speed up with the airflow sensors from the first, full at the second.
+    public var caseStartTemperature = CaseRamp.defaultStart
+    public var caseFullSpeedTemperature = CaseRamp.defaultFull
 
     // General
     public var launchAtLogin = false
@@ -143,7 +146,12 @@ public struct Settings: Codable, Equatable, Sendable {
 
     /// What the helper gets for the fans. No points means fan control is off.
     public var fanPolicy: FanPolicy {
-        FanPolicy(points: fanControlEnabled ? fanCurvePoints : [], onlyWhenLidClosed: fansOnlyWhenLidClosed)
+        FanPolicy(points: fanControlEnabled ? fanCurvePoints : [], onlyWhenLidClosed: fansOnlyWhenLidClosed,
+                  caseRamp: caseRamp)
+    }
+
+    public var caseRamp: CaseRamp {
+        CaseRamp(start: caseStartTemperature, full: caseFullSpeedTemperature).clamped()
     }
 
     /// The curve of the visible mode, whether fan control is on or not: what the Cooling page's chart shows.
@@ -161,6 +169,7 @@ public struct Settings: Codable, Equatable, Sendable {
         (copy.fanStartTemperature, copy.fanFullSpeedTemperature) =
             StandardCurve.clamped(start: fanStartTemperature, full: fanFullSpeedTemperature)
         copy.fanAdvancedPoints = Self.validAdvanced(fanAdvancedPoints).map { FanPolicy(points: $0).repaired().points }
+        (copy.caseStartTemperature, copy.caseFullSpeedTemperature) = (caseRamp.start, caseRamp.full)
         return copy
     }
 
@@ -178,7 +187,7 @@ public struct Settings: Codable, Equatable, Sendable {
         case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff, sleepAfterProtection
         case batteryHeatCutoffEnabled, batteryHeatLimit, batteryHeatHold
         case fanControlEnabled, fanCurveMode, fanStartTemperature, fanFullSpeedTemperature, fanAdvancedPoints
-        case fansOnlyWhenLidClosed
+        case fansOnlyWhenLidClosed, caseStartTemperature, caseFullSpeedTemperature
         case launchAtLogin, showDockIcon, notificationsEnabled, menuBarIcon
     }
 
@@ -212,6 +221,8 @@ public struct Settings: Codable, Equatable, Sendable {
         fanStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanStartTemperature)) ?? fanStartTemperature
         fanFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanFullSpeedTemperature)) ?? fanFullSpeedTemperature
         fansOnlyWhenLidClosed = (try? c.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) ?? fansOnlyWhenLidClosed
+        caseStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .caseStartTemperature)) ?? caseStartTemperature
+        caseFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .caseFullSpeedTemperature)) ?? caseFullSpeedTemperature
         launchAtLogin = (try? c.decodeIfPresent(Bool.self, forKey: .launchAtLogin)) ?? launchAtLogin
         showDockIcon = (try? c.decodeIfPresent(Bool.self, forKey: .showDockIcon)) ?? showDockIcon
         notificationsEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled)) ?? notificationsEnabled

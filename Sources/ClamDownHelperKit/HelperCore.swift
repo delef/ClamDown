@@ -317,7 +317,8 @@ public actor HelperCore {
         } else {
             nil
         }
-        let percent = override == nil ? policy.speed(at: temperature) : 100
+        let percent = override == nil
+            ? policy.speed(at: temperature, caseTemperature: reading.groupTemperatures[.airflow]) : 100
         let maxDrop = allowedDrop(now: now)
         let targets = reading.fans.enumerated().map { index, fan in
             let wanted = FanCurve.speed(percent: percent, fan: fan)

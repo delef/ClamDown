@@ -6,3 +6,4 @@ Config/Signing.local.xcconfig
 docs/superpowers/
 .superpowers/
 .wrangler/
+*.profraw

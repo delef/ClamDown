@@ -117,7 +117,7 @@ import ClamDownShared
     @Test func defaultsDriveTheFansOnlyWithTheLidClosed() {
         let s = Settings()
         #expect(s.fanControlEnabled && s.fanCurveMode == .standard && s.fanAdvancedPoints == nil && s.fansOnlyWhenLidClosed)
-        #expect(s.fanPolicy == FanPolicy(points: standardLine, onlyWhenLidClosed: true))
+        #expect(s.fanPolicy == FanPolicy(points: standardLine, onlyWhenLidClosed: true, caseRamp: .standard))
     }
 
     /// A Mac in a bag has little airflow, so the fans start before anything is hot.
@@ -208,9 +208,35 @@ import ClamDownShared
         let own = [FanPoint(temperature: 45, speed: 10), FanPoint(temperature: 55, speed: 20), FanPoint(temperature: 65, speed: 30),
                    FanPoint(temperature: 75, speed: 40), FanPoint(temperature: 85, speed: 80)]
         s.fanAdvancedPoints = own
-        #expect(s.fanPolicy == FanPolicy(points: own, onlyWhenLidClosed: true))
+        #expect(s.fanPolicy == FanPolicy(points: own, onlyWhenLidClosed: true, caseRamp: .standard))
         s.fanCurveMode = .standard
         #expect(s.fanPolicy.points == standardLine)
+    }
+
+    @Test func caseRuleDefaultsTo38And44AndGoesToTheHelper() {
+        let s = Settings()
+        #expect(s.caseStartTemperature == 38 && s.caseFullSpeedTemperature == 44)
+        #expect(s.fanPolicy.caseRamp == CaseRamp(start: 38, full: 44))
+    }
+
+    @Test func caseRuleFromAnOlderBuildGetsTheDefaults() throws {
+        let old = Data(#"{"fanControlEnabled":true,"fanStartTemperature":45}"#.utf8)
+        let s = try JSONDecoder().decode(Settings.self, from: old)
+        #expect(s.fanStartTemperature == 45 && s.caseRamp == .standard)
+    }
+
+    @Test func caseRuleRoundTripsAndClamps() throws {
+        var s = Settings()
+        s.caseStartTemperature = 41
+        s.caseFullSpeedTemperature = 48
+        #expect(try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s)) == s)
+        s.caseStartTemperature = 49
+        s.caseFullSpeedTemperature = 40
+        let clamped = s.clamped()
+        #expect(clamped.caseStartTemperature == 49 && clamped.caseFullSpeedTemperature == 51)
+        s.caseStartTemperature = 10
+        s.caseFullSpeedTemperature = 99
+        #expect(s.clamped().caseRamp == CaseRamp(start: 30, full: 60))
     }
 }
 

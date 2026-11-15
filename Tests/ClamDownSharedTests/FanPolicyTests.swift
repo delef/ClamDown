@@ -49,8 +49,45 @@ import ClamDownShared
         #expect(StandardCurve.points(start: 50, full: 75) == [.init(temperature: 50, speed: 0), .init(temperature: 75, speed: 100)])
     }
 
+    @Test func caseRampRunsFromStartToFull() {
+        let ramp = CaseRamp.standard
+        #expect(ramp.speed(at: 30) == 0 && ramp.speed(at: 38) == 0 && ramp.speed(at: 41) == 50)
+        #expect(ramp.speed(at: 44) == 100 && ramp.speed(at: 70) == 100)
+    }
+
+    @Test func caseRampClamps() {
+        #expect(CaseRamp(start: 20, full: 25).clamped() == CaseRamp(start: 30, full: 32))
+        #expect(CaseRamp(start: 55, full: 99).clamped() == CaseRamp(start: 50, full: 60))
+    }
+
+    @Test func warmCaseWinsOverAQuietCurve() {
+        let withCase = FanPolicy(points: p.points, caseRamp: .standard)
+        #expect(withCase.speed(at: 45, caseTemperature: 41) == 50)
+        #expect(withCase.speed(at: 70, caseTemperature: 41) == 80)
+        #expect(withCase.speed(at: 45, caseTemperature: nil) == 0)
+    }
+
+    @Test func noCaseRuleIgnoresTheCase() {
+        #expect(p.speed(at: 45, caseTemperature: 60) == 0)
+    }
+
+    @Test func offStaysOffWithAHotCase() {
+        #expect(FanPolicy(points: [], caseRamp: .standard).speed(at: 45, caseTemperature: 60) == 0)
+    }
+
+    @Test func repairClampsTheCaseRule() {
+        #expect(FanPolicy(points: p.points, caseRamp: CaseRamp(start: 45, full: 40)).repaired().caseRamp == CaseRamp(start: 45, full: 47))
+    }
+
+    @Test func policyFromAnOlderAppHasNoCaseRule() throws {
+        let old = Data(#"{"points":[{"temperature":50,"speed":0}],"onlyWhenLidClosed":true}"#.utf8)
+        #expect(try JSONDecoder().decode(FanPolicy.self, from: old).caseRamp == nil)
+    }
+
     @Test func policyRoundTripsAsJSON() throws {
         let decoded = try JSONDecoder().decode(FanPolicy.self, from: JSONEncoder().encode(p))
         #expect(decoded == p)
+        let withCase = FanPolicy(points: p.points, caseRamp: .standard)
+        #expect(try JSONDecoder().decode(FanPolicy.self, from: JSONEncoder().encode(withCase)) == withCase)
     }
 }

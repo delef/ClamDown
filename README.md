@@ -65,6 +65,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
   - **Standard:** two points. By default the fans speed up from 40 °C and reach full speed at 70 °C (both settings).
   - **Advanced:** five points you drag on a chart.
 - Under any curve sits a safety floor that ClamDown never goes under: from 70 °C the fans rise in a straight line to full speed at 95 °C. The fans run at the faster of the curve and the floor.
+- The case has its own rule, because it can feel hot while the chips are only warm: the fans also follow the airflow sensors, from 0 % at 38 °C to full speed at 44 °C. Both temperatures can be changed on the Cooling page. The fans run at the fastest of the curve, the floor and the case rule.
 - The fans go to full speed when a CPU core sits at its limit, when the battery reaches 45 °C (until it has been under 43 °C for 30 seconds), or when macOS reports the Mac as hot.
 - If ClamDown cannot control the fans, it hands them back to macOS and tries again by itself. When it has stopped, it tells you once: a line in the menu and one notification.
 - On battery, it switches on Low Power Mode for the battery profile (setting, on by default) and puts your previous value back when it switches off.
@@ -78,7 +79,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 - When you open the lid after ClamDown let the Mac sleep, it tells you why, in a window that stays until you close it.
 - It posts a notification that names the reason whenever it switches itself off (setting, on by default).
 
-Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. The Cooling page has the Fan Control switch, the curve chart, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
+Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. The Cooling page has the Fan Control switch, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
 
 ## Requirements
 
