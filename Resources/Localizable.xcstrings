@@ -740,9 +740,6 @@
     "Switches on Low Power Mode on battery while ClamDown is on, and puts it back afterwards." : {
 
     },
-    "System" : {
-
-    },
     "Tells you when ClamDown switches itself off, for example at low battery. The menu always shows the reason." : {
 
     },

@@ -12,12 +12,14 @@ import Testing
     /// How far one colour channel may move (0–255) before the pixel counts as different.
     static let channelTolerance = 24
 
-    @Test(arguments: [ColorScheme.light, .dark]) func sectionWithRows(scheme: ColorScheme) throws {
-        try check("section", scheme: scheme) {
-            CDSection("Now") {
+    /// The rows the kit lays out itself. The card around them is the system form's, which `ImageRenderer` does not
+    /// draw, so it is checked in the settings pictures instead.
+    @Test(arguments: [ColorScheme.light, .dark]) func rows(scheme: ColorScheme) throws {
+        try check("rows", scheme: scheme) {
+            VStack(alignment: .leading, spacing: 12) {
                 CDValueRow("Hottest", value: "65 °C (CPU)")
-                CDValueRow("Airflow", value: "41 °C")
-                CDValueRow("Controlled By", value: "ClamDown")
+                CDValueRow("Controlled By", value: "ClamDown", tone: .success)
+                CDRow("Reinstall Helper", detail: "Installs the helper from this version again.") { Text("Button") }
                 CDNote("Fan control paused. ClamDown takes the fans again in a moment.", tone: .warning)
             }
             .frame(width: 420)
@@ -26,7 +28,7 @@ import Testing
     }
 
     @Test func darkDiffersFromLight() throws {
-        let view = CDSection("Now") { CDValueRow("Hottest", value: "65 °C") }.frame(width: 300).padding(8)
+        let view = CDValueRow("Hottest", value: "65 °C").frame(width: 300).padding(8)
         let light = try #require(Self.render(view, scheme: .light))
         let dark = try #require(Self.render(view, scheme: .dark))
         #expect(Self.differingShare(light, dark) > 0.1, "the dark render looks like the light one")

@@ -17,7 +17,7 @@ import Testing
             #expect(!pane.title.isEmpty && !pane.symbol.isEmpty)
         }
         #expect(SettingsPane.allCases.map(\.symbol) == [
-            "gearshape", "moon.zzz", "shield.lefthalf.filled", "fan", "paintbrush", "wrench.and.screwdriver", "info.circle",
+            "gearshape.fill", "moon.zzz.fill", "shield.lefthalf.filled", "fan.fill", "paintbrush.fill", "wrench.and.screwdriver.fill", "info",
         ])
     }
 

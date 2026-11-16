@@ -20,13 +20,13 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
 
     public var symbol: String {
         switch self {
-        case .general: "gearshape"
-        case .sleep: "moon.zzz"
+        case .general: "gearshape.fill"
+        case .sleep: "moon.zzz.fill"
         case .protection: "shield.lefthalf.filled"
-        case .cooling: "fan"
-        case .appearance: "paintbrush"
-        case .helper: "wrench.and.screwdriver"
-        case .about: "info.circle"
+        case .cooling: "fan.fill"
+        case .appearance: "paintbrush.fill"
+        case .helper: "wrench.and.screwdriver.fill"
+        case .about: "info"
         }
     }
 

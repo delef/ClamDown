@@ -7,8 +7,6 @@ public enum CDColor {
     public static let brandNavy = Color(red: 0x0E / 255, green: 0x27 / 255, blue: 0x66 / 255)
     /// #1D8796, the light end of the brand gradient.
     public static let brandTeal = Color(red: 0x1D / 255, green: 0x87 / 255, blue: 0x96 / 255)
-    /// #11896A in light appearance, #5FDCAA in dark.
-    public static let brandMint = dynamic(light: (0x11, 0x89, 0x6A), dark: (0x5F, 0xDC, 0xAA))
     /// #6FF0B8, the glow behind the app icon.
     public static let brandMintGlow = Color(red: 0x6F / 255, green: 0xF0 / 255, blue: 0xB8 / 255)
 
@@ -130,13 +128,9 @@ public enum CDColor {
 public enum CDMetric {
     public static let cardRadius: CGFloat = 12
     public static let setupCardRadius: CGFloat = 16
-    public static let choiceTileRadius: CGFloat = 10
-    public static let tileSize: CGFloat = 46
-    public static let tileRadius: CGFloat = 12
+    public static let choiceTileRadius: CGFloat = 8
     public static let cardInset: CGFloat = 16
     public static let cardRowPadding: CGFloat = 10
-    public static let pageInset: CGFloat = 20
-    public static let pageSpacing: CGFloat = 22
     public static let rowSpacing: CGFloat = 10
 
     /// The plot of a chart, without its axis labels.

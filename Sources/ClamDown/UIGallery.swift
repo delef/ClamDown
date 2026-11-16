@@ -163,8 +163,8 @@ private struct ButtonsGallery: View {
 private struct SmallPartsGallery: View {
     var body: some View {
         HStack(alignment: .center, spacing: 32) {
-            CDBrandTile(symbol: "gearshape")
-            CDBrandTile(symbol: "fan", size: 96)
+            CDSettingsIcon(symbol: "gearshape.fill", color: .gray)
+            CDSettingsIcon(symbol: "fan.fill", color: .cyan, size: 56)
             CDAppIcon(size: 64)
             CDAppIcon(size: 64, glow: true)
             HStack(spacing: 14) {
@@ -207,7 +207,7 @@ private struct ShellGallery: View {
                 }
             },
             detail: { pane in
-                CDSettingsPage(title: pane.rawValue.capitalized, subtitle: "What this page is for.", symbol: "gearshape") {
+                CDSettingsPage(title: pane.rawValue.capitalized, subtitle: "What this page is for.", symbol: "gearshape.fill", color: .gray) {
                     CDSection("Section") {
                         CDSwitchRow("A switch", detail: "Its explanation.", isOn: $on)
                     }
@@ -222,14 +222,10 @@ private struct SettingsPageGallery: View {
     @State private var off = false
 
     var body: some View {
-        CDSettingsPage(title: "General", subtitle: "Starting, notifying and showing ClamDown.", symbol: "gearshape") {
+        CDSettingsPage(title: "General", subtitle: "Starting, notifying and showing ClamDown.", symbol: "gearshape.fill", color: .gray) {
             CDSection("Switches") {
                 CDSwitchRow("Show in Dock", detail: "Keeps ClamDown in the Dock as well as the menu bar.", isOn: $on)
                 CDSwitchRow("A switch that is off", isOn: $off)
-                CDRow("System switch, for comparison",
-                      detail: "The rows above use the kit's switch; this one is the system's plain .switch toggle.") {
-                    Toggle("System", isOn: $on).labelsHidden().toggleStyle(.switch)
-                }
                 CDSwitchRow("A row with a three-line explanation",
                             detail: "This explanation is long on purpose. It has to wrap onto a second and a third line "
                                 + "and never be cut off, at any text size, next to a control that keeps its place at "

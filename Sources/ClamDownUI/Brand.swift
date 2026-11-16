@@ -1,33 +1,28 @@
 import AppKit
 import SwiftUI
 
-/// A rounded tile in the brand gradient with a white SF Symbol: the identity of a settings page.
-public struct CDBrandTile: View {
+/// A settings icon as System Settings draws them: a white SF Symbol on a rounded square of one colour, a little
+/// lighter at the top.
+public struct CDSettingsIcon: View {
     private let symbol: String
+    private let color: Color
     private let size: CGFloat
 
-    public init(symbol: String, size: CGFloat = CDMetric.tileSize) {
+    public init(symbol: String, color: Color, size: CGFloat = 20) {
         self.symbol = symbol
+        self.color = color
         self.size = size
     }
 
     public var body: some View {
-        let shape = RoundedRectangle(cornerRadius: size * CDMetric.tileRadius / CDMetric.tileSize, style: .continuous)
-        shape
-            .fill(CDColor.brandGradient)
-            .overlay {
-                // The light edge along the top of the tile.
-                shape.strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.3), .clear], startPoint: .top, endPoint: .center),
-                    lineWidth: 1)
-            }
+        RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+            .fill(color.gradient)
             .overlay {
                 Image(systemName: symbol)
-                    .font(.system(size: size * 0.52, weight: .medium))
+                    .font(.system(size: size * 0.56, weight: .medium))
                     .foregroundStyle(.white)
             }
             .frame(width: size, height: size)
-            .shadow(color: CDColor.brandNavy.opacity(0.25), radius: size * 0.12, y: size * 0.07)
             .accessibilityHidden(true)
     }
 }

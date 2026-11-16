@@ -14,35 +14,41 @@ public enum CDTone: Sendable {
     }
 }
 
-/// The header of a settings page: a brand tile, the page title and one line saying what the page is for.
+/// The top card of a settings page, as in System Settings: the page's icon, its title and one line saying what the
+/// page is for, centred.
 public struct CDSettingsPageHeader: View {
     private let title: String
     private let subtitle: String
     private let symbol: String
+    private let color: Color
 
-    public init(title: String, subtitle: String, symbol: String) {
+    public init(title: String, subtitle: String, symbol: String, color: Color) {
         self.title = title
         self.subtitle = subtitle
         self.symbol = symbol
+        self.color = color
     }
 
     public var body: some View {
-        HStack(spacing: 14) {
-            CDBrandTile(symbol: symbol)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.title2.bold())
+        VStack(spacing: 6) {
+            CDSettingsIcon(symbol: symbol, color: color, size: 56)
+                .padding(.bottom, 4)
+            Text(title).font(.title3.bold())
+            if !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// One page of the settings window: a header, then grouped sections.
+/// One page of the settings window: a grouped form, as System Settings draws its panes. The header is the first
+/// card and scrolls with the page.
 public struct CDSettingsPage<Header: View, Content: View>: View {
     private let header: Header
     private let content: Content
@@ -55,28 +61,25 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
     }
 
     public var body: some View {
-        let page = pageContent
         if look == .glass, #available(macOS 26, *) {
-            page.background(alignment: .top) { aura }
+            // The form's own background is hidden so the glow shows through; the cards keep their fill.
+            form
+                .scrollContentBackground(.hidden)
+                .background(alignment: .top) { aura }
+                .background(Color(nsColor: .windowBackgroundColor))
         } else {
-            page.background(Color(nsColor: .windowBackgroundColor))
+            form
         }
     }
 
-    /// The header and the sections on a plain scroll view, so the header scrolls with the page. The cards are drawn
-    /// here rather than by a Form: on macOS 27.2 a Form measures the rows of the section after an empty section (the
-    /// header's own, in an earlier version of this page) 36 pt high, which clips them, and its header row cannot be
-    /// drawn without a card.
-    private var pageContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CDMetric.pageSpacing) {
-                header
-                content
-            }
-            .padding(.horizontal, CDMetric.pageInset)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var form: some View {
+        // No section may be empty: on macOS 27.2 a Form measures the rows of the section after an empty one 36 pt
+        // high, which clips them. The header always has content.
+        Form {
+            Section { header }
+            content
         }
+        .formStyle(.grouped)
     }
 
     /// A faint brand glow at the top of the page, extended under the glass sidebar.
@@ -91,56 +94,58 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
 }
 
 extension CDSettingsPage where Header == CDSettingsPageHeader {
-    /// A page whose header is the brand tile with the title and one line of purpose.
-    public init(title: String, subtitle: String, symbol: String, @ViewBuilder content: () -> Content) {
-        self.init(header: { CDSettingsPageHeader(title: title, subtitle: subtitle, symbol: symbol) }, content: content)
+    /// A page whose header is the page's icon with the title and one line of purpose.
+    public init(title: String, subtitle: String, symbol: String, color: Color, @ViewBuilder content: () -> Content) {
+        self.init(header: { CDSettingsPageHeader(title: title, subtitle: subtitle, symbol: symbol, color: color) },
+                  content: content)
     }
 }
 
-/// A titled group of rows on one card.
+/// A titled group of rows: one card of the form, with an optional line of small text under it.
 public struct CDSection<Content: View>: View {
     private let title: String?
+    private let footer: String?
     private let content: Content
-    @Environment(\.colorSchemeContrast) private var contrast
 
-    public init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
+    public init(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.footer = footer
         self.content = content()
     }
 
     public var body: some View {
-        let card = RoundedRectangle(cornerRadius: CDMetric.cardRadius, style: .continuous)
-        VStack(alignment: .leading, spacing: 8) {
-            if let title {
-                Text(title).font(.headline).padding(.leading, 6)
-            }
-            // _VariadicView (in SwiftUI since macOS 10.15) lets the card put a separator between rows it does not own.
-            _VariadicView.Tree(CDCardRows()) { content }
-                .background(card.fill(CDColor.cardBackground))
-                .clipShape(card)
-                .overlay(card.strokeBorder(CDColor.cardBorder(contrast)))
-        }
-    }
-}
-
-/// Lays the children of a section out as rows of one card: padded, with a hairline between two rows.
-private struct CDCardRows: _VariadicView_UnaryViewRoot {
-    func body(children: _VariadicView.Children) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(children.enumerated()), id: \.offset) { index, child in
-                if index > 0 {
-                    Divider().padding(.horizontal, CDMetric.cardInset)
-                }
-                child
-                    .padding(.horizontal, CDMetric.cardInset)
-                    .padding(.vertical, CDMetric.cardRowPadding)
+        Section {
+            content
+        } header: {
+            if let title { Text(title) }
+        } footer: {
+            if let footer {
+                Text(footer)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 }
 
+/// The title of a row with an optional explanation under it, which the form draws in the secondary style.
+private struct CDRowLabel: View {
+    let title: String
+    let detail: String?
+
+    var body: some View {
+        Text(title)
+        if let detail {
+            Text(detail)
+        }
+    }
+}
+
 /// One setting: a title, an explanation under it that always shows and wraps, and the control on the right.
+/// Laid out by hand rather than with `LabeledContent`: on macOS 27.2 a form measures a `LabeledContent` row whose
+/// control is a button one line high, so a second line of explanation runs into the next row.
 public struct CDRow<Control: View>: View {
     private let title: String
     private let detail: String?
@@ -153,17 +158,17 @@ public struct CDRow<Control: View>: View {
     }
 
     public var body: some View {
-        HStack(alignment: .center, spacing: CDMetric.rowSpacing) {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                 if let detail {
                     Text(detail)
-                        .font(.callout)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: CDMetric.rowSpacing)
+            .frame(maxWidth: .infinity, alignment: .leading)
             control
         }
         .accessibilityElement(children: .contain)
@@ -177,7 +182,7 @@ extension CDRow where Control == EmptyView {
     }
 }
 
-/// A row with a switch and no "Enabled" or "Disabled" label.
+/// A row with the system switch.
 public struct CDSwitchRow: View {
     private let title: String
     private let detail: String?
@@ -190,11 +195,10 @@ public struct CDSwitchRow: View {
     }
 
     public var body: some View {
-        CDRow(title, detail: detail) {
-            Toggle(title, isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.cdSwitch)
+        Toggle(isOn: isOn) {
+            CDRowLabel(title: title, detail: detail)
         }
+        .toggleStyle(.switch)
     }
 }
 
@@ -211,7 +215,7 @@ public struct CDValueRow: View {
     }
 
     public var body: some View {
-        CDRow(title) {
+        LabeledContent(title) {
             Text(value)
                 .monospacedDigit()
                 .foregroundStyle(tone.style)
@@ -236,22 +240,5 @@ public struct CDNote: View {
             .foregroundStyle(tone.style)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// A small line of text below the sections of a page, such as a licence line.
-public struct CDFootnote: View {
-    private let text: String
-
-    public init(_ text: String) {
-        self.text = text
-    }
-
-    public var body: some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
-            .multilineTextAlignment(.center)
     }
 }

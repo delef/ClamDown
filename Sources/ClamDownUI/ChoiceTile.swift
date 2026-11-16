@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A tile that picks one of several choices, such as a menu bar icon style: a picture over a caption, ringed in the
-/// accent colour while it is the chosen one.
+/// One of several pictured choices, such as a menu bar icon style, drawn as System Settings draws Icon & Widget
+/// Style: a picture ringed in the accent colour while it is the chosen one, and its name under it.
 public struct CDChoiceTile<Content: View>: View {
     private let title: String
     private let isSelected: Bool
@@ -20,13 +20,19 @@ public struct CDChoiceTile<Content: View>: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 content
-                    .frame(height: 20)
-                Text(title).font(.caption)
+                    .frame(width: 60, height: 32)
+                    .background(shape.fill(.quaternary))
+                    .padding(3)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: CDMetric.choiceTileRadius + 3, style: .continuous)
+                            .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2.5)
+                    }
+                Text(title)
+                    .font(.callout)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
             }
-            .frame(width: 72, height: 58)
-            .background(shape.fill(isSelected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05)))
-            .overlay(shape.strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 1.5))
-            .contentShape(shape)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

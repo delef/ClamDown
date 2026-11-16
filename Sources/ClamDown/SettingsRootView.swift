@@ -14,7 +14,7 @@ struct SettingsRootView: View {
     var body: some View {
         CDSettingsShell(
             items: SettingsPane.allCases.map {
-                CDSidebarItem(id: $0, title: $0.title, symbol: $0.symbol, startsGroup: $0.startsGroup)
+                CDSidebarItem(id: $0, title: $0.title, symbol: $0.symbol, color: $0.color, startsGroup: $0.startsGroup)
             },
             selection: $selection,
             brand: { brand },
@@ -56,6 +56,20 @@ struct SettingsRootView: View {
         case .appearance: AppearancePage(controller: controller)
         case .helper: HelperPage(controller: controller, openSetup: openSetup)
         case .about: AboutPage(updater: updater)
+        }
+    }
+}
+
+extension SettingsPane {
+    /// The colour of the pane's icon in the sidebar and at the top of its page.
+    var color: Color {
+        switch self {
+        case .general, .about: .gray
+        case .sleep: .indigo
+        case .protection: .green
+        case .cooling: .cyan
+        case .appearance: Color(white: 0.15)
+        case .helper: .blue
         }
     }
 }

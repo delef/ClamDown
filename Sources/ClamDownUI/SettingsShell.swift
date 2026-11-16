@@ -5,13 +5,16 @@ public struct CDSidebarItem<ID: Hashable>: Identifiable {
     public let id: ID
     public let title: String
     public let symbol: String
+    /// The fill of the item's icon, as each pane of System Settings has a colour of its own.
+    public let color: Color
     /// True when a separator and a gap come before this item, starting a new group.
     public let startsGroup: Bool
 
-    public init(id: ID, title: String, symbol: String, startsGroup: Bool = false) {
+    public init(id: ID, title: String, symbol: String, color: Color = .gray, startsGroup: Bool = false) {
         self.id = id
         self.title = title
         self.symbol = symbol
+        self.color = color
         self.startsGroup = startsGroup
     }
 }
@@ -76,8 +79,12 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
                             .listRowSeparator(.hidden)
                     }
                     ForEach(group) { item in
-                        Label(item.title, systemImage: item.symbol)
-                            .tag(item.id)
+                        Label {
+                            Text(item.title)
+                        } icon: {
+                            CDSettingsIcon(symbol: item.symbol, color: item.color)
+                        }
+                        .tag(item.id)
                     }
                 }
             }

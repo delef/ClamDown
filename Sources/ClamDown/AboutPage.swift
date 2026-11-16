@@ -37,13 +37,13 @@ struct AboutPage: View {
                                 """),
                             isOn: $updater.checksAutomatically)
             }
-            CDSection(String(localized: "Links")) {
+            CDSection(String(localized: "Links"),
+                      footer: String(localized: "Apache License 2.0 \u{00B7} Updates by Sparkle")) {
                 LinkRow(String(localized: "Website"), destination: AboutInfo.website)
                 LinkRow(String(localized: "Release Notes"), destination: AboutInfo.releaseNotes)
                 LinkRow(String(localized: "Source Code"), destination: AboutInfo.sourceCode)
                 LinkRow(String(localized: "Report a Problem"), destination: info.reportProblemURL)
             }
-            CDFootnote(String(localized: "Apache License 2.0 \u{00B7} Updates by Sparkle"))
         })
         .onAppear { updater.refreshStatus() }
     }
@@ -57,7 +57,7 @@ struct AboutPage: View {
         VStack(spacing: 6) {
             CDAppIcon(size: 96, glow: true)
                 .padding(.bottom, 8)
-            Text("ClamDown").font(.title.bold())
+            Text("ClamDown").font(.title2.bold())
             Text("Keeps a closed MacBook awake for your coding agents.")
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {

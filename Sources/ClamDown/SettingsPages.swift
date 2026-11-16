@@ -32,7 +32,7 @@ struct GeneralPage: View {
     private let pane = SettingsPane.general
 
     var body: some View {
-        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
             CDSection(String(localized: "Startup")) {
                 LaunchAtLoginRow(controller: controller)
                 CDSwitchRow(String(localized: "Show Dock Icon"),
@@ -97,7 +97,7 @@ struct SleepPage: View {
     private let pane = SettingsPane.sleep
 
     var body: some View {
-        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
             CDSection(String(localized: "Keep Awake")) {
                 CDRow(String(localized: "Switch Off After"),
                       detail: String(localized: """
@@ -143,7 +143,7 @@ struct ProtectionPage: View {
     private let pane = SettingsPane.protection
 
     var body: some View {
-        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
             CDSection(String(localized: "Battery")) {
                 CDSwitchRow(String(localized: "Switch Off at Low Battery"),
                             detail: String(localized: """
@@ -220,7 +220,7 @@ struct CoolingPage: View {
     private let pane = SettingsPane.cooling
 
     var body: some View {
-        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
             CDSection(String(localized: "Fans")) {
                 if let reason = unsupportedReason {
                     // The stored choice stays as it is; on this Mac it cannot do anything.
@@ -450,25 +450,40 @@ struct AppearancePage: View {
     private let pane = SettingsPane.appearance
 
     var body: some View {
-        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
-            CDSection(String(localized: "Menu Bar")) {
-                CDRow(String(localized: "Icon Style"), detail: String(localized: "The icon fills in while ClamDown is on."))
-                HStack(spacing: 8) {
-                    ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
-                        CDChoiceTile(style.title, isSelected: controller.settings.menuBarIcon == style) {
-                            var updated = controller.settings
-                            updated.menuBarIcon = style
-                            Task { await controller.updateSettings(updated) }
-                        } content: {
-                            HStack(spacing: 6) {
-                                MenuBarIconGlyph(symbol: style.offSymbol)
-                                MenuBarIconGlyph(symbol: style.onSymbol)
-                            }
-                        }
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
+            CDSection(String(localized: "Menu Bar"),
+                      footer: String(localized: "The icon fills in while ClamDown is on.")) {
+                // As Icon & Widget Style in System Settings: the tiles are the row's control. A window near its
+                // smallest width has no room for the title beside five tiles, so there they go under it.
+                ViewThatFits(in: .horizontal) {
+                    CDRow(String(localized: "Icon Style")) { iconStyles }
+                    VStack(alignment: .leading, spacing: 10) {
+                        CDRow(String(localized: "Icon Style"))
+                        iconStyles
                     }
                 }
             }
         }
+    }
+
+    private var iconStyles: some View {
+        HStack(spacing: 12) {
+            ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                CDChoiceTile(style.title, isSelected: controller.settings.menuBarIcon == style) {
+                    var updated = controller.settings
+                    updated.menuBarIcon = style
+                    Task { await controller.updateSettings(updated) }
+                } content: {
+                    HStack(spacing: 6) {
+                        MenuBarIconGlyph(symbol: style.offSymbol)
+                        MenuBarIconGlyph(symbol: style.onSymbol)
+                    }
+                }
+            }
+        }
+        // Their own width whatever the row offers: a row hands its control a share of the width first, and tiles
+        // given less than they need cut their names off.
+        .fixedSize()
     }
 }
 
@@ -481,7 +496,7 @@ struct HelperPage: View {
     private let pane = SettingsPane.helper
 
     var body: some View {
-        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol) {
+        CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
             CDSection(String(localized: "Helper")) {
                 CDValueRow(String(localized: "Status"), value: statusText, tone: statusTone)
                 if let notice = controller.notice {
