@@ -103,7 +103,7 @@ private struct LinkRow: View {
             HStack {
                 Text(title).foregroundStyle(.primary)
                 Spacer(minLength: CDMetric.rowSpacing)
-                Image(systemName: "arrow.up.right").foregroundStyle(.secondary)
+                Image(systemName: "arrow.up.right").foregroundStyle(.secondary).accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
