@@ -33,26 +33,17 @@ public enum TurnOnStep: Equatable, Sendable {
     case settingUpHelper
     /// The helper is registered and macOS has not started it yet.
     case waitingForHelper
-    /// launchd refused to start a helper registered moments ago. macOS usually asks for approval a few seconds
-    /// later; registering it again would only start that wait over.
-    case waitingForMacOS
 
     public var text: String {
         switch self {
         case .starting: String(localized: "Turning on…")
         case .settingUpHelper: String(localized: "Setting up the helper…")
         case .waitingForHelper: String(localized: "Waiting for the helper to start…")
-        case .waitingForMacOS: String(localized: "macOS has not started the helper")
         }
     }
 
     /// One sentence under `text` where there is room for it.
-    public var detail: String {
-        switch self {
-        case .waitingForMacOS: String(localized: "If macOS wants your permission, it asks in a few seconds.")
-        default: String(localized: "This can take up to half a minute.")
-        }
-    }
+    public var detail: String { String(localized: "This can take up to half a minute.") }
 }
 
 /// Whether an allowed helper really runs. macOS can report it allowed while launchd never starts it.
@@ -91,6 +82,10 @@ public final class ClamDownController: ObservableObject {
     @Published public private(set) var helperAvailability: HelperAvailability = .ready
     /// The last Turn On that stopped for approval, so the setup assistant's "Turn On Now" can finish it.
     public private(set) var pendingTurnOn: TurnOnRequest?
+    /// True while launchd will not start the helper although SMAppService reads it as allowed: seen when ClamDown is
+    /// switched off in Login Items & Extensions. `state` is then `.needsApproval` until launchd starts the helper.
+    @Published public private(set) var launchdRefusesHelper = false
+    private var recheckingRefusal = false
     /// Called on every Turn On or reinstall that stops because the helper needs approval.
     /// The app answers by opening the setup assistant; System Settings no longer opens by itself.
     public var onHelperNeedsApproval: (@MainActor () -> Void)?
@@ -295,7 +290,9 @@ public final class ClamDownController: ObservableObject {
         finishOff()
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
-        let helperStillAllowed = helperAvailability == .ready
+        // SMAppService reads "allowed" also while launchd refuses the helper, so launchd has the last word.
+        var helperStillAllowed = helperAvailability == .ready
+        if helperStillAllowed, await launchFailed() { helperStillAllowed = false }
         announce(helperStillAllowed ? String(localized: "Turned off because the helper stopped the mode.") : Self.helperLost)
         leaveWakeReport(why: helperStillAllowed
             ? String(localized: "The helper stopped the mode.")
@@ -429,7 +426,23 @@ public final class ClamDownController: ObservableObject {
         let current = registrar.availability()
         if current != helperAvailability { helperAvailability = current }
         // The user approved the helper without pressing Turn On again: nothing is waiting on them any more.
-        if current == .ready, state == .needsApproval { state = .off }
+        // SMAppService reads "allowed" also while launchd refuses the helper, so then launchd decides.
+        guard current == .ready, state == .needsApproval else { return }
+        if launchdRefusesHelper {
+            Task { await recheckRefusedHelper() }
+        } else {
+            state = .off
+        }
+    }
+
+    /// Asks launchd again about a helper it refused. Once launchd no longer refuses it, nothing waits on the user.
+    public func recheckRefusedHelper() async {
+        guard launchdRefusesHelper, !recheckingRefusal else { return }
+        recheckingRefusal = true
+        defer { recheckingRefusal = false }
+        guard !(await launchFailed()) else { return }
+        launchdRefusesHelper = false
+        if state == .needsApproval { state = .off }
     }
 
     /// True when ClamDown cannot work until the user does something: the helper is not ready, or switching on failed.
@@ -516,7 +529,7 @@ public final class ClamDownController: ObservableObject {
         }
         switch await startMode() {
         case .started:
-            break
+            launchdRefusesHelper = false
         case .stopped(let preparation):
             // The Turn On that found the helper not allowed is remembered, as when it is found before the start.
             pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
@@ -579,7 +592,7 @@ public final class ClamDownController: ObservableObject {
         case .settled(let outcome):
             return outcome
         case .launchFailed where registeredThisTurnOn:
-            return await waitForMacOS()
+            return refusedByLaunchd()
         case .launchFailed, .silent:
             break
         }
@@ -606,7 +619,7 @@ public final class ClamDownController: ObservableObject {
         let second: Look = await launchFailed() ? .launchFailed : await lookForHelper(Self.helperStartLooks)
         switch second {
         case .settled(let outcome): return outcome
-        case .launchFailed: return await waitForMacOS()
+        case .launchFailed: return refusedByLaunchd()
         case .silent: return .stopped(.failed(XPCHelperClient.noAnswer))
         }
     }
@@ -630,22 +643,15 @@ public final class ClamDownController: ObservableObject {
         return .silent
     }
 
-    /// launchd refused a helper registered in this Turn On. macOS asks for approval some seconds later, or the
-    /// helper starts after all; if neither happens, the user is told so instead of being left waiting.
-    private func waitForMacOS() async -> ModeStart {
-        advance(to: .waitingForMacOS)
-        for _ in 0..<Self.helperStartLooks {
-            await pause(Self.helperStartPause)
-            if let outcome = await tryHelperOnce() { return outcome }
-        }
-        refreshHelperAvailability()
-        return .stopped(.failed(Self.macOSDidNotStartHelper))
+    /// launchd refused a helper registered in this Turn On, while SMAppService still reads it as allowed. Seen when
+    /// ClamDown is switched off in Login Items & Extensions, and for some seconds after macOS replaced the helper,
+    /// before it asks for approval. Neither waiting nor registering again helps: the user is sent to Login Items,
+    /// and the Turn On is remembered until launchd starts the helper.
+    private func refusedByLaunchd() -> ModeStart {
+        turnOnLog.info("launchd refuses the helper: needs Login Items")
+        launchdRefusesHelper = true
+        return .stopped(.needsApproval)
     }
-
-    static let macOSDidNotStartHelper = String(localized: """
-        macOS did not start the helper. Choose Reinstall Helper in the menu, or check that ClamDown is allowed in \
-        System Settings > General > Login Items & Extensions.
-        """)
 
     /// One look: nil while the helper is still allowed and silent.
     private func tryHelperOnce() async -> ModeStart? {

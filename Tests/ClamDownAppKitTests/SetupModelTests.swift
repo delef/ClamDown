@@ -191,6 +191,21 @@ import Testing
         #expect(rig.controller.offAt == rig.clock.now.addingTimeInterval(7200))
     }
 
+    /// The Turn On that sent the user to System Settings finishes by itself once the helper works.
+    @Test func rememberedTurnOnFinishesWhenTheHelperStartsWorking() async {
+        let rig = Rig(availability: [.requiresApproval])
+        await rig.controller.turnOn(for: .seconds(7200))
+        let model = makeModel(rig, mode: .helperOnly, step: .helper)
+        #expect(rig.controller.state == .needsApproval)
+
+        rig.registrar.nowAnswers(.ready)
+        await model.refreshHelper()
+
+        #expect(rig.controller.state == .on)
+        #expect(rig.controller.offAt == rig.clock.now.addingTimeInterval(7200))
+        #expect(rig.controller.pendingTurnOn == nil)
+    }
+
     @Test func closingDropsRememberedTurnOn() async {
         let rig = Rig(availability: [.requiresApproval])
         await rig.controller.turnOn(for: .seconds(7200))

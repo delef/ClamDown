@@ -169,10 +169,15 @@ private struct HelperStep: View {
                             .controlSize(.large)
                             .keyboardShortcut(.defaultAction)
                     } else if model.helper == .ready, model.helperRun == .startFailed {
-                        Button("Reinstall Helper") { Task { await controller.reinstallHelper() } }
-                            .cdButtonStyle(.primary)
-                            .controlSize(.large)
-                            .keyboardShortcut(.defaultAction)
+                        // Usually ClamDown is switched off in Login Items; a stuck helper looks the same to launchd.
+                        HStack(spacing: 8) {
+                            Button("Reinstall") { Task { await controller.reinstallHelper() } }
+                                .cdButtonStyle(.secondary)
+                            Button("Open Login Items") { controller.openHelperApproval() }
+                                .cdButtonStyle(.primary)
+                                .keyboardShortcut(.defaultAction)
+                        }
+                        .controlSize(.large)
                     } else if let buttonTitle {
                         Button(buttonTitle) { Task { await model.allowHelper() } }
                             .cdButtonStyle(.primary)
@@ -214,10 +219,12 @@ private struct HelperStep: View {
             case .answers:
                 return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: String(localized: "Allowed"))
             case .startFailed:
-                return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger,
-                             title: String(localized: "macOS did not start the helper"),
-                             detail: String(localized: "Reinstall it. If that does not help, restart the Mac."),
-                             detailTone: .danger)
+                return .init(symbol: "clock.fill", tint: CDColor.warning,
+                             title: String(localized: "macOS does not let the helper start"),
+                             detail: String(localized: """
+                                 Turn on ClamDown in System Settings > General > Login Items & Extensions. \
+                                 If it is on there, reinstall the helper.
+                                 """))
             case .silent, nil:
                 return .init(symbol: "circle.dashed", tint: .secondary, title: String(localized: "Starting the helper…"),
                              busy: true)

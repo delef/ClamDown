@@ -77,13 +77,16 @@ public final class SetupModel: ObservableObject {
     }
 
     /// Reads the helper's state again. Returns true at the moment it starts to work, so the window can come forward.
+    /// A Turn On that stopped to send the user to System Settings then finishes by itself.
     @discardableResult
     public func refreshHelper() async -> Bool {
         let worked = helperWorks
         controller.refreshHelperAvailability()
         adopt(controller.helperAvailability)
         await checkRun()
-        return !worked && helperWorks
+        let startedWorking = !worked && helperWorks
+        if startedWorking, controller.pendingTurnOn != nil { await turnOnNow() }
+        return startedWorking
     }
 
     /// Asks an allowed helper whether it runs, until it has answered once.

@@ -19,7 +19,7 @@ public struct TurnOnProgressWindow: Equatable, Sendable {
     /// Feed every change of the Turn On step, with whether ClamDown is on and whether the window is open now.
     public mutating func update(step: TurnOnStep?, isOn: Bool, windowOpen: Bool) -> Action {
         switch step {
-        case .settingUpHelper, .waitingForHelper, .waitingForMacOS:
+        case .settingUpHelper, .waitingForHelper:
             if owned, !windowOpen { owned = false }
             guard !opened, !windowOpen else { return .none }
             opened = true

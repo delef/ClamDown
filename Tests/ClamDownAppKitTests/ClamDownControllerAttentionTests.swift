@@ -59,6 +59,18 @@ import Testing
         #expect(rig.controller.needsAttention)
     }
 
+    /// Switched off in Login Items while on: macOS stops the helper, launchd refuses to start it again, and
+    /// SMAppService still reads "allowed". The user is told it is the approval, not that the helper stopped.
+    @Test func helperRefusedByLaunchdIsNamedWhenHeartbeatFails() async {
+        let rig = Rig()
+        await rig.controller.toggle()
+        rig.helper.with { $0.heartbeatResult = .failure(HelperClientError.connection("gone")) }
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        await rig.controller.sendHeartbeat()
+        #expect(rig.controller.state == .off)
+        #expect(rig.controller.notice == "Turned off because macOS no longer allows the helper. Open Setup to allow it again.")
+    }
+
     @Test func plainSentenceForDeniedHelperStart() async {
         let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
         rig.registrar.registerError = NSError(domain: "SMAppServiceErrorDomain", code: 1)
