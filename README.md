@@ -67,7 +67,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 - Under any curve sits a safety floor that ClamDown never goes under: from 70 °C the fans rise in a straight line to full speed at 95 °C. The fans run at the faster of the curve and the floor.
 - The case has its own rule, because it can feel hot while the chips are only warm: the fans also follow the airflow sensors, from 0 % at 38 °C to full speed at 44 °C. Both temperatures can be changed on the Cooling page. The fans run at the fastest of the curve, the floor and the case rule.
 - The fans go to full speed when a CPU core sits at its limit, when the battery reaches 45 °C (until it has been under 43 °C for 30 seconds), or when macOS reports the Mac as hot.
-- If ClamDown cannot control the fans, it hands them back to macOS and tries again by itself. When it has stopped, it tells you once: a line in the menu and one notification.
+- If ClamDown cannot control the fans, it hands them back to macOS and tries again by itself. When it has stopped, it tells you once: a line in the menu and, with notifications on, one notification.
 - On battery, it switches on Low Power Mode for the battery profile (setting, on by default) and puts your previous value back when it switches off.
 - It switches itself off and lets the Mac sleep when:
   - the battery falls to the cut-off (default 10%, setting: 5–50% or off), or
@@ -117,7 +117,7 @@ When ClamDown cannot work until you do something, for example after macOS took t
 - **Fans.** The helper hands the fans back to macOS whenever the mode switches off for any reason, you switch Fan Control off, the lid opens (with "Only With Lid Closed"), no temperature can be read, or it cannot set a fan; after an error it tries again by itself. It records that it holds the fans before it touches them, so a helper restart after a crash hands them back too. It applies the safety floor itself, so a wrong curve from the app cannot take the fans below it, and it never sets a fan outside that fan's own minimum and maximum speed. Fan speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load do not make the fans hunt.
 - **Reboots.** The helper runs at load and resets any leftover state every time it starts.
 - **Original settings.** The first time ClamDown switches on, the helper records your sleep and Low Power Mode settings and never replaces that record. Remove Helper in Settings > Helper puts them back first; if they cannot be put back, the helper stays installed.
-- **Narrow helper.** The helper can only keep the Mac from sleeping or let it sleep again, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode and Fan Control are on. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
+- **Narrow helper.** The helper can only keep the Mac from sleeping or let it sleep again, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode and Fan Control are on; if handing the fans back to macOS fails, it runs them at full speed until the hand-back works. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
 
 ## Security note
 
