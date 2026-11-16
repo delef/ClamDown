@@ -195,6 +195,9 @@
     "ClamDown can open in the menu bar when you log in, so it is ready when you need it." : {
 
     },
+    "ClamDown did not turn on" : {
+
+    },
     "ClamDown did not turn on." : {
 
     },
@@ -202,6 +205,9 @@
 
     },
     "ClamDown is not controlling the fans. macOS has them." : {
+
+    },
+    "ClamDown is on" : {
 
     },
     "ClamDown is still setting up the helper. Try again in a moment." : {
@@ -402,6 +408,9 @@
     "Icon Style" : {
 
     },
+    "If macOS wants your permission, it asks in a few seconds." : {
+
+    },
     "Installs the helper from this version again. Use it when the helper is stuck." : {
 
     },
@@ -598,6 +607,9 @@
     "Reinstall Helper" : {
 
     },
+    "Reinstall it. If that does not help, restart the Mac." : {
+
+    },
     "Release Notes" : {
 
     },
@@ -652,9 +664,6 @@
     "Setup Assistant" : {
 
     },
-    "Setup takes about a minute." : {
-
-    },
     "Show Dock Icon" : {
 
     },
@@ -677,6 +686,9 @@
 
     },
     "Start with your Mac" : {
+
+    },
+    "Starting the helper…" : {
 
     },
     "Startup" : {
@@ -798,6 +810,9 @@
 
     },
     "The timer ended." : {
+
+    },
+    "This can take up to half a minute." : {
 
     },
     "Try Again" : {
@@ -931,6 +946,15 @@
 
     },
     "macOS did not allow the helper to start. Allow ClamDown in Login Items, then try again." : {
+
+    },
+    "macOS did not start the helper" : {
+
+    },
+    "macOS did not start the helper. Choose Reinstall Helper in the menu, or check that ClamDown is allowed in System Settings > General > Login Items & Extensions." : {
+
+    },
+    "macOS has not started the helper" : {
 
     },
     "macOS is not showing ClamDown's notifications yet." : {

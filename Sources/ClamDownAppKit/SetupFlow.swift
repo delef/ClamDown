@@ -15,6 +15,8 @@ public enum SetupEntry: Sendable {
     case launch
     /// Turn On found that the helper needs approval.
     case turnOnNeedsApproval
+    /// Turn On is setting up the helper or waiting for it to start.
+    case turnOnProgress
     case menu
     case settings
 }
@@ -37,7 +39,7 @@ public enum SetupFlow {
         case .launch:
             guard !completed, helper != .ready else { return nil }
             return SetupPresentation(mode: .full, step: .welcome)
-        case .turnOnNeedsApproval:
+        case .turnOnNeedsApproval, .turnOnProgress:
             return SetupPresentation(mode: completed ? .helperOnly : .full, step: .helper)
         case .menu:
             return completed ? SetupPresentation(mode: .helperOnly, step: .helper)
@@ -68,8 +70,10 @@ public enum SetupFlow {
     }
 
     /// Only the helper step holds the user back: nothing works without the helper.
-    public static func canContinue(from step: SetupStep, helper: HelperAvailability) -> Bool {
-        step != .helper || helper == .ready
+    /// The Helper step needs a helper that macOS allows and that has answered: macOS can report it allowed
+    /// while launchd never starts it.
+    public static func canContinue(from step: SetupStep, helper: HelperAvailability, helperAnswers: Bool) -> Bool {
+        step != .helper || (helper == .ready && helperAnswers)
     }
 
     private static func neighbor(of step: SetupStep, mode: SetupMode, offset: Int) -> SetupStep? {

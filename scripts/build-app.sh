@@ -39,6 +39,13 @@ app="$ROOT/build/ClamDown.app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Library/LaunchDaemons" "$app/Contents/Frameworks"
 cp "$bin/ClamDown" "$bin/ClamDownHelper" "$app/Contents/MacOS/"
+# SwiftPM records the deployment target as the SDK the binaries were built with ("sdk 13.0"). macOS then draws the
+# app as one built for macOS 13, and prominent buttons lose Liquid Glass. Record the SDK they were really built with.
+minos="$(/usr/libexec/PlistBuddy -c 'Print LSMinimumSystemVersion' Resources/Info.plist.template)"
+sdk="$(xcrun --sdk macosx --show-sdk-version)"
+for product in ClamDown ClamDownHelper; do
+  vtool -set-build-version macos "$minos" "$sdk" -replace -output "$app/Contents/MacOS/$product" "$app/Contents/MacOS/$product"
+done
 # The linker also records rpaths into this checkout; the bundle needs only @executable_path/../Frameworks.
 otool -l "$app/Contents/MacOS/ClamDown" | awk '/LC_RPATH/ { getline; getline; print $2 }' | while read -r rpath; do
   case "$rpath" in "$ROOT"/*) install_name_tool -delete_rpath "$rpath" "$app/Contents/MacOS/ClamDown" ;; esac

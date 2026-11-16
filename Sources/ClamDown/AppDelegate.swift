@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller: controller, updater: updater, notifications: notifier,
         openSetup: { [weak self] in self?.showSetup(.settings) })
     private var observers: Set<AnyCancellable> = []
+    private var turnOnWindow = TurnOnProgressWindow()
     private var helperTimer: Timer?
     private var showDockIcon = false
 
@@ -67,7 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lid: SystemLid(),
             idle: SystemIdle(),
             displays: SystemDisplays(),
-            sleeper: LiveSystemSleeper()
+            sleeper: LiveSystemSleeper(),
+            jobReader: LaunchctlJobReader(label: label)
         )
         super.init()
     }
@@ -113,6 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &observers)
         controller.onHelperNeedsApproval = { [weak self] in self?.showSetup(.turnOnNeedsApproval) }
+        // Read on the next turn of the run loop, when the state that goes with the step is set too.
+        controller.$turnOnStep
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] step in self?.followTurnOn(step) }
+            .store(in: &observers)
         controller.onWakeReport = { [weak self] text in self?.deliverWakeReport(text) }
         observeSleepAndWake()
         controller.refreshHelperAvailability()
@@ -134,6 +142,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         helperTimer?.invalidate()
         helperTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.controller.refreshHelperAvailability() }
+        }
+    }
+
+    /// Shows a slow Turn On in the setup assistant, and closes the window once ClamDown is on, after a moment in
+    /// which it says so. See `TurnOnProgressWindow`.
+    private func followTurnOn(_ step: TurnOnStep?) {
+        switch turnOnWindow.update(step: step, isOn: controller.state.isOn, windowOpen: setupWindow.isOpen) {
+        case .none:
+            break
+        case .open:
+            showSetup(.turnOnProgress)
+        case .close:
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.2))
+                guard let self, self.controller.state.isOn, self.controller.turnOnStep == nil else { return }
+                self.setupWindow.close()
+            }
         }
     }
 

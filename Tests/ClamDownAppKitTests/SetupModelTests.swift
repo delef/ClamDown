@@ -14,11 +14,34 @@ import Testing
                    store: store, notifications: notifications)
     }
 
-    @Test func continueIsBlockedUntilHelperIsReady() {
+    @Test func continueIsBlockedUntilHelperIsReady() async {
         let model = makeModel(Rig(availability: [.requiresApproval, .ready]), step: .helper)
         #expect(!model.canContinue)
-        model.refreshHelper()
+        await model.refreshHelper()
         #expect(model.canContinue)
+    }
+
+    /// Seen on a real Mac: the user allowed the helper, macOS said "allowed", and launchd still never started it.
+    /// The step said "Allowed" and setup ended with everything apparently on. Only a helper that answers counts.
+    @Test func anAllowedHelperThatNeverAnswersIsNotReady() async {
+        let rig = Rig(availability: [.ready])
+        rig.helper.with { $0.statusError = HelperClientError.connection("The helper did not answer.") }
+        let store = FakeSetupStore()
+        let model = makeModel(rig, step: .helper, store: store)
+        #expect(await model.refreshHelper() == false)
+        #expect(model.helperRun == .silent)
+        #expect(!model.canContinue)
+        #expect(!store.completed)
+
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        await model.refreshHelper()
+        #expect(model.helperRun == .startFailed)
+
+        rig.helper.with { $0.statusError = nil }
+        #expect(await model.refreshHelper() == true)
+        #expect(model.helperRun == .answers)
+        #expect(model.canContinue)
+        #expect(store.completed)
     }
 
     @Test func advanceStopsAtHelperStepUntilReady() {
@@ -28,9 +51,12 @@ import Testing
         #expect(model.step == .helper)
     }
 
-    @Test func advanceWalksAllStepsAndMarksCompleteAtDone() {
+    @Test func advanceWalksAllStepsAndMarksCompleteAtDone() async {
         let store = FakeSetupStore()
         let model = makeModel(Rig(), store: store)
+        // The window asks the helper once a second; until it has answered, the Helper step cannot be passed.
+        await model.refreshHelper()
+        store.completed = false
         var seen = [model.step]
         for _ in 0..<3 {
             model.advance()
@@ -73,15 +99,15 @@ import Testing
         #expect(store.completed)
     }
 
-    @Test func refreshReportsTheMomentHelperBecomesReady() {
+    @Test func refreshReportsTheMomentHelperBecomesReady() async {
         let store = FakeSetupStore()
         let model = makeModel(Rig(availability: [.requiresApproval, .requiresApproval, .ready, .ready]),
                               step: .helper, store: store)
-        #expect(model.refreshHelper() == false)
+        #expect(await model.refreshHelper() == false)
         #expect(!store.completed)
-        #expect(model.refreshHelper() == true)
+        #expect(await model.refreshHelper() == true)
         #expect(store.completed)
-        #expect(model.refreshHelper() == false)
+        #expect(await model.refreshHelper() == false)
     }
 
     @Test func allowingNotificationsTurnsTheSettingOn() async {

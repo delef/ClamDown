@@ -20,6 +20,14 @@ import Testing
         #expect(!SetupFlow.completesSilently(completed: false, helper: .requiresApproval))
     }
 
+    /// A Turn On that sets up or waits for the helper shows it on the Helper step, as one that needs approval does.
+    @Test func turnOnProgressOpensHelperStep() {
+        #expect(SetupFlow.presentation(for: .turnOnProgress, completed: true, helper: .ready)
+            == SetupPresentation(mode: .helperOnly, step: .helper))
+        #expect(SetupFlow.presentation(for: .turnOnProgress, completed: false, helper: .ready)
+            == SetupPresentation(mode: .full, step: .helper))
+    }
+
     @Test func turnOnOpensHelperStep() {
         #expect(SetupFlow.presentation(for: .turnOnNeedsApproval, completed: false, helper: .requiresApproval)
             == SetupPresentation(mode: .full, step: .helper))
@@ -55,10 +63,12 @@ import Testing
     }
 
     @Test func continueWaitsForHelper() {
-        #expect(!SetupFlow.canContinue(from: .helper, helper: .requiresApproval))
-        #expect(!SetupFlow.canContinue(from: .helper, helper: .notRegistered))
-        #expect(SetupFlow.canContinue(from: .helper, helper: .ready))
-        #expect(SetupFlow.canContinue(from: .notifications, helper: .notRegistered))
+        #expect(!SetupFlow.canContinue(from: .helper, helper: .requiresApproval, helperAnswers: false))
+        #expect(!SetupFlow.canContinue(from: .helper, helper: .notRegistered, helperAnswers: false))
+        #expect(SetupFlow.canContinue(from: .helper, helper: .ready, helperAnswers: true))
+        #expect(SetupFlow.canContinue(from: .notifications, helper: .notRegistered, helperAnswers: false))
+        // Seen on a real Mac: macOS reported the helper allowed while launchd never started it.
+        #expect(!SetupFlow.canContinue(from: .helper, helper: .ready, helperAnswers: false))
     }
 
     @Test func storeRemembersCompletion() throws {

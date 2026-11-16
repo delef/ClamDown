@@ -101,6 +101,7 @@ extension CDSettingsPage where Header == CDSettingsPageHeader {
 public struct CDSection<Content: View>: View {
     private let title: String?
     private let content: Content
+    @Environment(\.colorSchemeContrast) private var contrast
 
     public init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
@@ -117,7 +118,7 @@ public struct CDSection<Content: View>: View {
             _VariadicView.Tree(CDCardRows()) { content }
                 .background(card.fill(CDColor.cardBackground))
                 .clipShape(card)
-                .overlay(card.strokeBorder(CDColor.cardBorder))
+                .overlay(card.strokeBorder(CDColor.cardBorder(contrast)))
         }
     }
 }

@@ -89,6 +89,59 @@ import Testing
         #expect(rig.pauser.waits == [.seconds(2), .seconds(2), .seconds(1), .seconds(2), .seconds(2)])
     }
 
+    /// Seen on a real Mac: launchd fails to start the old job (its app was replaced) within milliseconds,
+    /// so the helper is registered afresh at once instead of after two quick looks.
+    @Test func anOldJobThatLaunchdCannotStartIsRegisteredAfreshAtOnce() async {
+        let rig = Rig(helperFingerprint: "this build", installedFingerprint: "this build")
+        rig.helper.with { $0.enableError = Self.noAnswer }
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        rig.pauser.whilePaused = { [registrar = rig.registrar, helper = rig.helper, jobs = rig.jobs] _ in
+            if registrar.unregisterCount == 1 {
+                jobs.says(.running)
+                helper.with { $0.enableError = nil }
+            }
+        }
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .on)
+        #expect(rig.registrar.unregisterCount == 1)
+        #expect(rig.pauser.waits == [.seconds(1)])  // only the pause macOS needs between removing and registering
+    }
+
+    /// Seen on a real Mac: macOS refuses to start a helper this Turn On has just registered ("Launch Constraint
+    /// Violation") and asks for approval about ten seconds later. Registering it again would only start that over,
+    /// so the window says that macOS has not started it and waits for macOS.
+    @Test func aFreshRegistrationThatLaunchdRefusesWaitsForMacOS() async {
+        let rig = Rig(availability: [.ready, .ready, .ready, .ready, .ready, .requiresApproval],
+                      helperFingerprint: "new", installedFingerprint: "old")
+        rig.helper.with { $0.enableError = Self.noAnswer }
+        rig.jobs.says(.spawnFailed(reason: nil))
+        var steps: [TurnOnStep?] = []
+        rig.pauser.whilePaused = { [controller = rig.controller] _ in steps.append(controller.turnOnStep) }
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .needsApproval)
+        #expect(rig.registrar.unregisterCount == 1)  // the update's own replacement, nothing more
+        #expect(rig.registrar.registerCount == 1)
+        #expect(steps.dropFirst().allSatisfy { $0 == .waitingForMacOS })
+        #expect(rig.controller.turnOnStep == nil)
+    }
+
+    /// macOS neither starts the helper nor asks for approval: the user is told after the usual wait, not left hanging.
+    @Test func aHelperMacOSNeverStartsIsReported() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
+        rig.helper.with { $0.enableError = Self.noAnswer }
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .failed(ClamDownController.macOSDidNotStartHelper))
+        #expect(rig.registrar.registerCount == 1)
+        #expect(rig.pauser.waits == [.seconds(1)] + Array(repeating: .seconds(2), count: ClamDownController.helperStartLooks))
+    }
+
     @Test func helperThatNeverAnswersIsReportedAfterOneFreshRegistration() async {
         let rig = Rig()
         rig.helper.with { $0.enableError = Self.noAnswer }

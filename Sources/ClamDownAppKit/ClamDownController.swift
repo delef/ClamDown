@@ -29,14 +29,35 @@ public enum TurnOnStep: Equatable, Sendable {
     case settingUpHelper
     /// The helper is registered and macOS has not started it yet.
     case waitingForHelper
+    /// launchd refused to start a helper registered moments ago. macOS usually asks for approval a few seconds
+    /// later; registering it again would only start that wait over.
+    case waitingForMacOS
 
     public var text: String {
         switch self {
         case .starting: String(localized: "Turning on…")
         case .settingUpHelper: String(localized: "Setting up the helper…")
         case .waitingForHelper: String(localized: "Waiting for the helper to start…")
+        case .waitingForMacOS: String(localized: "macOS has not started the helper")
         }
     }
+
+    /// One sentence under `text` where there is room for it.
+    public var detail: String {
+        switch self {
+        case .waitingForMacOS: String(localized: "If macOS wants your permission, it asks in a few seconds.")
+        default: String(localized: "This can take up to half a minute.")
+        }
+    }
+}
+
+/// Whether an allowed helper really runs. macOS can report it allowed while launchd never starts it.
+public enum HelperRunCheck: Equatable, Sendable {
+    case answers
+    /// launchd says it could not start the helper.
+    case startFailed
+    /// No answer yet, and launchd says nothing that rules out a late start.
+    case silent
 }
 
 /// A Turn On that stopped because the helper needs approval. A nil duration means "until switched off".
@@ -90,6 +111,11 @@ public final class ClamDownController: ObservableObject {
     private let idle: IdleReading?
     private let displays: DisplayReading?
     private let sleeper: SystemSleeping?
+    /// Asks launchd whether it could start the helper. Nil, or an unknown answer, leaves only the waiting.
+    private let jobReader: HelperJobReading?
+    /// True once this Turn On has registered the helper. launchd refusing a registration that new is macOS's
+    /// decision, and registering again would not change it.
+    private var registeredThisTurnOn = false
     /// Waits for the Mac to fall asleep after ClamDown asked for it, and asks again when it did not.
     private(set) var sleepWatch: Task<Void, Never>?
     /// What to tell the user when they open the lid after ClamDown let the Mac sleep.
@@ -162,6 +188,7 @@ public final class ClamDownController: ObservableObject {
         idle: IdleReading? = nil,
         displays: DisplayReading? = nil,
         sleeper: SystemSleeping? = nil,
+        jobReader: HelperJobReading? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         pause: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
         wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
@@ -182,6 +209,7 @@ public final class ClamDownController: ObservableObject {
         self.idle = idle
         self.displays = displays
         self.sleeper = sleeper
+        self.jobReader = jobReader
         self.now = now
         self.pause = pause
         self.wait = wait
@@ -461,6 +489,7 @@ public final class ClamDownController: ObservableObject {
         guard !helperBusy else { return }
         helperBusy = true
         turnOnStep = .starting
+        registeredThisTurnOn = false
         defer {
             helperBusy = false
             turnOnStep = nil
@@ -536,11 +565,21 @@ public final class ClamDownController: ObservableObject {
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
         }
         advance(to: .waitingForHelper)
-        if let outcome = await lookForHelper(Self.helperQuickLooks) { return outcome }
+        // launchd may know already that the helper cannot start, and then the quick looks are skipped.
+        let first: Look = await launchFailed() ? .launchFailed : await lookForHelper(Self.helperQuickLooks)
+        switch first {
+        case .settled(let outcome):
+            return outcome
+        case .launchFailed where registeredThisTurnOn:
+            return await waitForMacOS()
+        case .launchFailed, .silent:
+            break
+        }
 
         advance(to: .settingUpHelper)
         do {
             try await reregisterHelper()
+            registeredThisTurnOn = true
         } catch {
             refreshHelperAvailability()
             return .stopped(.failed(String(localized: "The helper did not answer, and registering it again failed: \(Self.describe(error))")))
@@ -556,27 +595,80 @@ public final class ClamDownController: ObservableObject {
         } catch {
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
         }
-        if let outcome = await lookForHelper(Self.helperStartLooks) { return outcome }
-        return .stopped(.failed(XPCHelperClient.noAnswer))
+        let second: Look = await launchFailed() ? .launchFailed : await lookForHelper(Self.helperStartLooks)
+        switch second {
+        case .settled(let outcome): return outcome
+        case .launchFailed: return await waitForMacOS()
+        case .silent: return .stopped(.failed(XPCHelperClient.noAnswer))
+        }
     }
 
-    /// Looks at the helper every two seconds. Nil when it stayed allowed and silent to the end.
-    private func lookForHelper(_ looks: Int) async -> ModeStart? {
+    private enum Look {
+        /// The helper answered, or macOS changed its mind about allowing it.
+        case settled(ModeStart)
+        /// launchd says it could not start the helper.
+        case launchFailed
+        /// Still allowed, still silent, to the end.
+        case silent
+    }
+
+    /// Looks at the helper every two seconds.
+    private func lookForHelper(_ looks: Int) async -> Look {
         for _ in 0..<looks {
             await pause(Self.helperStartPause)
-            let availability = registrar.availability()
-            guard availability == .ready else {
-                helperAvailability = availability
-                return .stopped(Self.preparation(for: availability))
-            }
-            do {
-                try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
-                return .started
-            } catch {
-                guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
-            }
+            if let outcome = await tryHelperOnce() { return .settled(outcome) }
+            if await launchFailed() { return .launchFailed }
         }
-        return nil
+        return .silent
+    }
+
+    /// launchd refused a helper registered in this Turn On. macOS asks for approval some seconds later, or the
+    /// helper starts after all; if neither happens, the user is told so instead of being left waiting.
+    private func waitForMacOS() async -> ModeStart {
+        advance(to: .waitingForMacOS)
+        for _ in 0..<Self.helperStartLooks {
+            await pause(Self.helperStartPause)
+            if let outcome = await tryHelperOnce() { return outcome }
+        }
+        refreshHelperAvailability()
+        return .stopped(.failed(Self.macOSDidNotStartHelper))
+    }
+
+    static let macOSDidNotStartHelper = String(localized: """
+        macOS did not start the helper. Choose Reinstall Helper in the menu, or check that ClamDown is allowed in \
+        System Settings > General > Login Items & Extensions.
+        """)
+
+    /// One look: nil while the helper is still allowed and silent.
+    private func tryHelperOnce() async -> ModeStart? {
+        let availability = registrar.availability()
+        guard availability == .ready else {
+            helperAvailability = availability
+            return .stopped(Self.preparation(for: availability))
+        }
+        do {
+            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+            return .started
+        } catch {
+            guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
+            return nil
+        }
+    }
+
+    /// Asks the helper for its state. Any answer, even an error of its own, means it runs.
+    public func checkHelperRuns() async -> HelperRunCheck {
+        do {
+            _ = try await helper.isEnabled()
+            return .answers
+        } catch {
+            guard Self.isSilence(error) else { return .answers }
+        }
+        return await launchFailed() ? .startFailed : .silent
+    }
+
+    private func launchFailed() async -> Bool {
+        guard let jobReader, case .spawnFailed = await jobReader.state() else { return false }
+        return true
     }
 
     /// True when the request never reached a helper, as opposed to a helper that answered with a failure.
@@ -785,6 +877,7 @@ public final class ClamDownController: ObservableObject {
             advance(to: .settingUpHelper)
             do {
                 try registrar.register()
+                registeredThisTurnOn = true
             } catch {
                 let afterAttempt = registrar.availability()
                 // Registering can throw when approval is pending; that is not a failure.
@@ -833,6 +926,7 @@ public final class ClamDownController: ObservableObject {
         advance(to: .settingUpHelper)
         do {
             try await reregisterHelper()
+            registeredThisTurnOn = true
         } catch {
             refreshHelperAvailability()
             return .failed(String(localized: "Could not update the helper: \(Self.describe(error))"))

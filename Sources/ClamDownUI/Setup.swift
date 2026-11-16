@@ -121,7 +121,8 @@ public struct CDStepScreen<Content: View>: View {
     private let content: Content
     @State private var stepHeight: CGFloat = 0
 
-    public init(icon: CDStepIcon, title: String, text: String, topInset: CGFloat = 58,
+    /// `topInset` keeps the content clear of the window's title bar; below it the content sits in the middle.
+    public init(icon: CDStepIcon, title: String, text: String, topInset: CGFloat = 28,
                 @ViewBuilder content: () -> Content) {
         self.icon = icon
         self.title = title
@@ -132,7 +133,7 @@ public struct CDStepScreen<Content: View>: View {
 
     public var body: some View {
         GeometryReader { proxy in
-            let fits = stepHeight <= proxy.size.height + 0.5
+            let fits = stepHeight + topInset <= proxy.size.height + 0.5
             ScrollView(.vertical, showsIndicators: !fits) {
                 VStack(spacing: 0) {
                     CDStepHeader(icon: icon, title: title, text: text)
@@ -141,14 +142,16 @@ public struct CDStepScreen<Content: View>: View {
                         .padding(.top, 22)
                 }
                 .padding(.horizontal, 36)
-                .padding(.top, topInset)
-                .padding(.bottom, 16)
+                .padding(.vertical, 16)
                 .frame(maxWidth: .infinity)
                 .background {
                     GeometryReader { inner in
                         Color.clear.preference(key: CDStepHeightKey.self, value: inner.size.height)
                     }
                 }
+                // A step that fits sits in the middle of the space under the title bar; a taller one scrolls.
+                .frame(minHeight: fits ? max(proxy.size.height - topInset, 0) : nil)
+                .padding(.top, topInset)
             }
             .scrollDisabled(fits)
             .onPreferenceChange(CDStepHeightKey.self) { stepHeight = $0 }
@@ -162,7 +165,7 @@ private struct CDStepHeightKey: PreferenceKey {
 }
 
 extension CDStepScreen where Content == EmptyView {
-    public init(icon: CDStepIcon, title: String, text: String, topInset: CGFloat = 58) {
+    public init(icon: CDStepIcon, title: String, text: String, topInset: CGFloat = 28) {
         self.init(icon: icon, title: title, text: text, topInset: topInset) { EmptyView() }
     }
 }
@@ -216,9 +219,11 @@ public struct CDMenuBarStrip<Icon: View>: View {
     }
 }
 
-/// A card for the facts of a setup step: a regular material, never glass.
+/// A card for the facts of a setup step, never glass. It has the fill and edge of a settings card and a soft
+/// shadow: a material would take on the gradient behind it and the card would fade into it.
 public struct CDStatusCard<Content: View>: View {
     private let content: Content
+    @Environment(\.colorSchemeContrast) private var contrast
 
     public init(@ViewBuilder content: () -> Content) {
         self.content = content()
@@ -228,23 +233,29 @@ public struct CDStatusCard<Content: View>: View {
         let shape = RoundedRectangle(cornerRadius: CDMetric.setupCardRadius, style: .continuous)
         VStack(spacing: 0) { content }
             .frame(maxWidth: .infinity)
-            .background(.regularMaterial, in: shape)
-            .overlay { shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5) }
+            .background {
+                shape.fill(CDColor.cardBackground)
+                    .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+            }
+            .overlay { shape.strokeBorder(CDColor.cardBorder(contrast)) }
     }
 }
 
 /// One line of a status card: a symbol that changes with the state, a title, an optional detail, an action.
+/// `busy` shows a spinner in place of the symbol while work is under way.
 public struct CDStatusLine<Action: View>: View {
     private let symbol: String
+    private let busy: Bool
     private let tint: Color
     private let title: String
     private let detail: String?
     private let detailTone: CDTone
     private let action: Action
 
-    public init(symbol: String, tint: Color, title: String, detail: String? = nil, detailTone: CDTone = .secondary,
-                @ViewBuilder action: () -> Action) {
+    public init(symbol: String, busy: Bool = false, tint: Color, title: String, detail: String? = nil,
+                detailTone: CDTone = .secondary, @ViewBuilder action: () -> Action) {
         self.symbol = symbol
+        self.busy = busy
         self.tint = tint
         self.title = title
         self.detail = detail
@@ -254,7 +265,13 @@ public struct CDStatusLine<Action: View>: View {
 
     public var body: some View {
         HStack(spacing: 12) {
-            CDStatusSymbol(symbol: symbol, tint: tint)
+            if busy {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 26, height: 26)
+            } else {
+                CDStatusSymbol(symbol: symbol, tint: tint)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).fontWeight(.semibold)
                 if let detail {
@@ -273,8 +290,11 @@ public struct CDStatusLine<Action: View>: View {
 }
 
 extension CDStatusLine where Action == EmptyView {
-    public init(symbol: String, tint: Color, title: String, detail: String? = nil, detailTone: CDTone = .secondary) {
-        self.init(symbol: symbol, tint: tint, title: title, detail: detail, detailTone: detailTone) { EmptyView() }
+    public init(symbol: String, busy: Bool = false, tint: Color, title: String, detail: String? = nil,
+                detailTone: CDTone = .secondary) {
+        self.init(symbol: symbol, busy: busy, tint: tint, title: title, detail: detail, detailTone: detailTone) {
+            EmptyView()
+        }
     }
 }
 
@@ -307,6 +327,7 @@ public struct CDStepDots: View {
     private let count: Int
     private let current: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
 
     public init(count: Int, current: Int) {
         self.count = count
@@ -318,7 +339,8 @@ public struct CDStepDots: View {
             HStack(spacing: 7) {
                 ForEach(0..<max(count, 0), id: \.self) { index in
                     Capsule()
-                        .fill(index == current ? Color.accentColor : Color.primary.opacity(0.18))
+                        .fill(index == current ? Color.accentColor
+                                               : Color.primary.opacity(contrast == .increased ? 0.45 : 0.18))
                         .frame(width: index == current ? 18 : 7, height: 7)
                 }
             }

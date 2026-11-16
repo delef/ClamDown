@@ -9,6 +9,8 @@ public final class SetupModel: ObservableObject {
     @Published public private(set) var helper: HelperAvailability
     /// A plain sentence when registering the helper failed. Cleared by the next attempt and by a ready helper.
     @Published public private(set) var helperError: String?
+    /// Whether the allowed helper runs. Nil while macOS does not allow it. `refreshHelper()` keeps it current.
+    @Published public private(set) var helperRun: HelperRunCheck?
     @Published public private(set) var notifications: NotificationPermission = .notAsked
     /// Each is true while that button's work runs, so it cannot be pressed twice. They are separate on purpose:
     /// the notification prompt can wait for an answer for minutes, and must not disable the other buttons.
@@ -38,8 +40,12 @@ public final class SetupModel: ObservableObject {
 
     /// False on the last step, and on the Helper step until the helper is ready.
     public var canContinue: Bool {
-        SetupFlow.next(after: step, mode: mode) != nil && SetupFlow.canContinue(from: step, helper: helper)
+        SetupFlow.next(after: step, mode: mode) != nil
+            && SetupFlow.canContinue(from: step, helper: helper, helperAnswers: helperRun == .answers)
     }
+
+    /// Allowed by macOS and answering: the only state in which the helper can do its work.
+    public var helperWorks: Bool { helper == .ready && helperRun == .answers }
 
     public var canGoBack: Bool { SetupFlow.previous(before: step, mode: mode) != nil }
 
@@ -62,6 +68,7 @@ public final class SetupModel: ObservableObject {
         helperError = nil
         let result = await controller.prepareHelper()
         adopt(controller.helperAvailability)
+        await checkRun()
         switch result {
         case .ready: break
         case .needsApproval: controller.openHelperApproval()
@@ -69,11 +76,27 @@ public final class SetupModel: ObservableObject {
         }
     }
 
-    /// Reads the helper's state again. Returns true at the moment it becomes ready, so the window can come forward.
+    /// Reads the helper's state again. Returns true at the moment it starts to work, so the window can come forward.
     @discardableResult
-    public func refreshHelper() -> Bool {
+    public func refreshHelper() async -> Bool {
+        let worked = helperWorks
         controller.refreshHelperAvailability()
-        return adopt(controller.helperAvailability)
+        adopt(controller.helperAvailability)
+        await checkRun()
+        return !worked && helperWorks
+    }
+
+    /// Asks an allowed helper whether it runs, until it has answered once.
+    private func checkRun() async {
+        guard helper == .ready else {
+            helperRun = nil
+            return
+        }
+        guard helperRun != .answers else { return }
+        let run = await controller.checkHelperRuns()
+        if run != helperRun { helperRun = run }
+        // A working helper is the whole point of setup, so reaching it counts as finished however the user got there.
+        if run == .answers, !store.completed { store.completed = true }
     }
 
     /// Reads the notification permission. Never shows a prompt.
@@ -118,15 +141,8 @@ public final class SetupModel: ObservableObject {
         controller.dropPendingTurnOn()
     }
 
-    /// A ready helper is the whole point of setup, so reaching it counts as finished however the user got there.
-    @discardableResult
-    private func adopt(_ availability: HelperAvailability) -> Bool {
-        let becameReady = availability == .ready && helper != .ready
+    private func adopt(_ availability: HelperAvailability) {
         if availability != helper { helper = availability }
-        if availability == .ready {
-            helperError = nil
-            if !store.completed { store.completed = true }
-        }
-        return becameReady
+        if availability == .ready { helperError = nil }
     }
 }

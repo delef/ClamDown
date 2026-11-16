@@ -54,6 +54,16 @@ public enum CDColor {
                                                                       : NSColor.black.withAlphaComponent(0.07)
     })
 
+    /// The card hairline for the user's contrast setting. With Increase Contrast on, black or white at 25 %, so a
+    /// card's edge stays visible where its fill is close to what it sits on.
+    public static func cardBorder(_ contrast: ColorSchemeContrast) -> Color {
+        guard contrast == .increased else { return cardBorder }
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor.white.withAlphaComponent(0.25)
+                                                                          : NSColor.black.withAlphaComponent(0.25)
+        })
+    }
+
     /// Navy to teal, from the top leading corner to the bottom trailing one.
     public static var brandGradient: LinearGradient {
         LinearGradient(colors: [brandNavy, brandTeal], startPoint: .topLeading, endPoint: .bottomTrailing)

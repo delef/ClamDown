@@ -45,13 +45,21 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
             loginItem: loginItem
         )
         let window = window ?? makeWindow()
-        window.contentViewController = NSHostingController(rootView: root)
+        let hosting = NSHostingController(rootView: root)
+        // The window keeps its own size. Otherwise the hosting controller adds the title bar to the view's
+        // height, and the bottom of the window is left without the background.
+        hosting.sizingOptions = []
+        window.contentViewController = hosting
         window.setContentSize(SetupView.size)
         window.center()
         self.window = window
         isOpen = true
         onVisibilityChange(true)
         bringForward()
+    }
+
+    func close() {
+        window?.close()
     }
 
     func bringForward() {

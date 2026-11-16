@@ -22,6 +22,7 @@ struct Rig {
     let sleeper = FakeSleeper()
     let clock = FakeClock()
     let time = ManualTime()
+    let jobs = FakeJobReader()
 
     init(
         availability: [HelperAvailability] = [.ready],
@@ -55,6 +56,7 @@ struct Rig {
             idle: idle,
             displays: displays,
             sleeper: sleeper,
+            jobReader: jobs,
             now: { [clock] in clock.now },
             pause: { [registrar, pauser] duration in
                 registrar.pause(duration)

@@ -25,14 +25,15 @@ struct SetupView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             footer
         }
-        .frame(width: Self.size.width, height: Self.size.height)
-        .background { CDSetupBackground() }
-        .ignoresSafeArea(.container, edges: .top)
+        // The window sets the size (`SetupWindowController`); the view fills all of it, title bar included.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { CDSetupBackground().ignoresSafeArea() }
+        .ignoresSafeArea()
         .task {
             await model.refreshNotifications()
             // macOS sends no notice when the helper is allowed in System Settings, so ask once a second.
             while !Task.isCancelled {
-                if model.refreshHelper() { bringForward() }
+                if await model.refreshHelper() { bringForward() }
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -46,7 +47,7 @@ struct SetupView: View {
     @ViewBuilder private var stepBody: some View {
         switch model.step {
         case .welcome: WelcomeStep()
-        case .helper: HelperStep(model: model)
+        case .helper: HelperStep(model: model, controller: controller)
         case .notifications: NotificationsStep(model: model)
         case .startup: StartupStep(controller: controller, loginItem: loginItem, loginError: previewLoginError)
         case .done: DoneStep(controller: controller)
@@ -89,8 +90,8 @@ struct SetupView: View {
                     turnOnNow()
                 }
                     .cdButtonStyle(.primary)
-                    .keyboardShortcut(model.helper == .ready ? .defaultAction : nil)
-                    .disabled(model.helper != .ready || model.isTurningOn)
+                    .keyboardShortcut(model.helperWorks ? .defaultAction : nil)
+                    .disabled(!model.helperWorks || model.isTurningOn || controller.turnOnStep != nil)
             }
         } else {
             if model.canGoBack {
@@ -141,17 +142,13 @@ private struct WelcomeStep: View {
                 It locks the screen, drives the fans, and switches itself off before a low battery \
                 or heat becomes a problem.
                 """)
-        ) {
-            Text("Setup takes about a minute.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-        }
+        )
     }
 }
 
 private struct HelperStep: View {
     @ObservedObject var model: SetupModel
+    @ObservedObject var controller: ClamDownController
 
     var body: some View {
         CDStepScreen(
@@ -164,9 +161,19 @@ private struct HelperStep: View {
                 """)
         ) {
             CDStatusCard {
-                CDStatusLine(symbol: status.symbol, tint: status.tint, title: status.title,
+                CDStatusLine(symbol: status.symbol, busy: status.busy, tint: status.tint, title: status.title,
                              detail: status.detail, detailTone: status.detailTone) {
-                    if let buttonTitle {
+                    if turnOnFailure != nil, controller.turnOnStep == nil {
+                        Button("Try Again") { Task { await controller.toggle() } }
+                            .cdButtonStyle(.primary)
+                            .controlSize(.large)
+                            .keyboardShortcut(.defaultAction)
+                    } else if model.helper == .ready, model.helperRun == .startFailed {
+                        Button("Reinstall Helper") { Task { await controller.reinstallHelper() } }
+                            .cdButtonStyle(.primary)
+                            .controlSize(.large)
+                            .keyboardShortcut(.defaultAction)
+                    } else if let buttonTitle {
                         Button(buttonTitle) { Task { await model.allowHelper() } }
                             .cdButtonStyle(.primary)
                             .controlSize(.large)
@@ -178,14 +185,43 @@ private struct HelperStep: View {
         }
     }
 
+    /// Why the last Turn On failed while the helper itself is allowed. Approval has its own line below.
+    private var turnOnFailure: String? {
+        guard case .failed(let message) = controller.state, model.helper == .ready else { return nil }
+        return message
+    }
+
     private var status: StatusInfo {
+        // A Turn On under way: the window may have opened for it, so it says what is going on.
+        if let step = controller.turnOnStep, step != .starting {
+            return .init(symbol: "circle.dashed", tint: .secondary, title: step.text, detail: step.detail, busy: true)
+        }
+        if controller.state.isOn {
+            return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: String(localized: "ClamDown is on"))
+        }
+        if let turnOnFailure {
+            return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger,
+                         title: String(localized: "ClamDown did not turn on"), detail: turnOnFailure, detailTone: .danger)
+        }
         if let error = model.helperError {
             return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger, title: String(localized: "The helper is not set up"),
                          detail: error, detailTone: .danger)
         }
         switch model.helper {
         case .ready:
-            return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: String(localized: "Allowed"))
+            // Allowed is not enough: macOS can allow a helper that launchd then never starts.
+            switch model.helperRun {
+            case .answers:
+                return .init(symbol: "checkmark.circle.fill", tint: CDColor.success, title: String(localized: "Allowed"))
+            case .startFailed:
+                return .init(symbol: "exclamationmark.triangle.fill", tint: CDColor.danger,
+                             title: String(localized: "macOS did not start the helper"),
+                             detail: String(localized: "Reinstall it. If that does not help, restart the Mac."),
+                             detailTone: .danger)
+            case .silent, nil:
+                return .init(symbol: "circle.dashed", tint: .secondary, title: String(localized: "Starting the helper…"),
+                             busy: true)
+            }
         case .requiresApproval:
             return .init(symbol: "clock.fill", tint: CDColor.warning, title: String(localized: "Waiting for you"),
                          detail: String(localized: """
@@ -197,6 +233,7 @@ private struct HelperStep: View {
     }
 
     private var buttonTitle: String? {
+        if controller.turnOnStep != nil || controller.state.isOn { return nil }
         if model.helperError != nil { return String(localized: "Try Again") }
         switch model.helper {
         case .ready: return nil
@@ -289,7 +326,7 @@ private struct StartupStep: View {
                     if !protection.isEmpty {
                         CDStatusCard {
                             ForEach(Array(protection.enumerated()), id: \.offset) { index, item in
-                                if index > 0 { Divider().padding(.horizontal, 16) }
+                                if index > 0 { Divider().padding(.horizontal, CDMetric.cardInset) }
                                 ProtectionRow(icon: item.icon, text: item.text)
                             }
                         }
@@ -355,6 +392,7 @@ private struct StatusInfo {
     let title: String
     var detail: String?
     var detailTone: CDTone = .secondary
+    var busy = false
 }
 
 private struct ProtectionRow: View {
@@ -372,7 +410,8 @@ private struct ProtectionRow: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(CDColor.success)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        // The row height of a settings card: a list read at arm's length must not be cramped.
+        .padding(.horizontal, CDMetric.cardInset)
+        .padding(.vertical, CDMetric.cardRowPadding)
     }
 }

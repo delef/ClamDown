@@ -19,6 +19,8 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         var heartbeatCount = 0
         var enabled = false
         var enableError: Error?
+        /// Thrown by `isEnabled()`: a helper launchd cannot start never answers it.
+        var statusError: Error?
         var disableError: Error?
         var restoreError: Error?
         var lowPowerError: Error?
@@ -82,7 +84,12 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         }
     }
 
-    func isEnabled() async throws -> Bool { with { $0.enabled } }
+    func isEnabled() async throws -> Bool {
+        try with { state in
+            if let error = state.statusError { throw error }
+            return state.enabled
+        }
+    }
 
     func setFanPolicy(_ policy: FanPolicy) async throws {
         try with { state in
@@ -441,4 +448,22 @@ struct FakeSensors: SensorReading {
     init(_ reading: HardwareReading) { self.reading = reading }
 
     func read() throws -> HardwareReading { reading }
+}
+
+/// What launchd says about the helper's job. Unknown by default: the controller then waits as it always did.
+final class FakeJobReader: HelperJobReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: HelperJobState = .unknown
+    private var reads = 0
+
+    var readCount: Int { lock.withLock { reads } }
+
+    func says(_ state: HelperJobState) { lock.withLock { current = state } }
+
+    func state() async -> HelperJobState {
+        lock.withLock {
+            reads += 1
+            return current
+        }
+    }
 }
