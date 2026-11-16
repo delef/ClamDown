@@ -38,7 +38,10 @@ struct SetupView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await model.refreshNotifications() }
+            Task {
+                await model.refreshNotifications()
+                await model.returnedToTheApp()
+            }
         }
         // The reason a Turn On failed belongs to the screen it was pressed on.
         .onChange(of: model.step) { _ in turnOnProblem = nil }
@@ -173,7 +176,7 @@ private struct HelperStep: View {
                         HStack(spacing: 8) {
                             Button("Reinstall") { Task { await controller.reinstallHelper() } }
                                 .cdButtonStyle(.secondary)
-                            Button("Open Login Items") { controller.openHelperApproval() }
+                            Button("Open Login Items") { model.openLoginItems() }
                                 .cdButtonStyle(.primary)
                                 .keyboardShortcut(.defaultAction)
                         }

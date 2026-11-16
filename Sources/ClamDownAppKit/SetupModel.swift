@@ -24,6 +24,8 @@ public final class SetupModel: ObservableObject {
     /// True after the user went to System Settings from the Notifications step. If the permission then turns up
     /// allowed, they asked for notifications there, the same as with the "Allow Notifications" button.
     private var wentToNotificationSettings = false
+    /// True after the user went to Login Items because launchd would not start the helper.
+    private var wentToLoginItems = false
 
     public init(presentation: SetupPresentation, controller: ClamDownController, store: SetupStoring,
                 notifications: NotificationAuthorizing) {
@@ -100,6 +102,27 @@ public final class SetupModel: ObservableObject {
         if run != helperRun { helperRun = run }
         // A working helper is the whole point of setup, so reaching it counts as finished however the user got there.
         if run == .answers, !store.completed { store.completed = true }
+    }
+
+    /// "Open Login Items" while launchd will not start the helper: usually ClamDown is switched off there.
+    public func openLoginItems() {
+        wentToLoginItems = true
+        controller.openHelperApproval()
+    }
+
+    /// Call when the app becomes active. After a trip to Login Items, launchd still keeps the old job, which cannot
+    /// start, even once ClamDown is turned on there. So the helper is registered afresh once, by finishing the
+    /// remembered Turn On or, without one, by reinstalling it.
+    public func returnedToTheApp() async {
+        guard wentToLoginItems, helper == .ready, helperRun == .startFailed, !controller.state.isOn else { return }
+        wentToLoginItems = false
+        if controller.pendingTurnOn != nil {
+            await turnOnNow()
+        } else {
+            await controller.reinstallHelper()
+        }
+        helperRun = nil
+        await checkRun()
     }
 
     /// Reads the notification permission. Never shows a prompt.

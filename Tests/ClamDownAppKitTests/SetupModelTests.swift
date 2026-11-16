@@ -207,6 +207,49 @@ import Testing
         #expect(rig.controller.pendingTurnOn == nil)
     }
 
+    /// ClamDown was switched off in Login Items. After the user turns it on there, launchd still keeps the old job,
+    /// which cannot start, so coming back to the app registers the helper afresh once and finishes the Turn On.
+    @Test func comingBackFromLoginItemsFinishesTheTurnOn() async {
+        let rig = Rig(helperFingerprint: "this build", installedFingerprint: "this build")
+        rig.helper.with { $0.statusError = HelperClientError.connection("The helper did not answer.") }
+        rig.helper.with { $0.enableError = HelperClientError.connection("The helper did not answer.") }
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        await rig.controller.turnOn(for: .seconds(7200))
+        let model = makeModel(rig, mode: .helperOnly, step: .helper)
+        await model.refreshHelper()
+        #expect(model.helperRun == .startFailed)
+
+        model.openLoginItems()
+        #expect(rig.registrar.openApprovalCount == 1)
+        // The user turns ClamDown on in Login Items; only a fresh registration replaces the old job.
+        rig.pauser.whilePaused = { [registrar = rig.registrar, helper = rig.helper, jobs = rig.jobs] _ in
+            guard registrar.unregisterCount == 2 else { return }
+            jobs.says(.running)
+            helper.with {
+                $0.statusError = nil
+                $0.enableError = nil
+            }
+        }
+        await model.returnedToTheApp()
+
+        #expect(rig.controller.state == .on)
+        #expect(rig.controller.offAt == rig.clock.now.addingTimeInterval(7200))
+        #expect(model.helperRun == .answers)
+    }
+
+    @Test func comingBackWithoutGoingToLoginItemsChangesNothing() async {
+        let rig = Rig(helperFingerprint: "this build", installedFingerprint: "this build")
+        rig.helper.with { $0.statusError = HelperClientError.connection("The helper did not answer.") }
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        let model = makeModel(rig, mode: .helperOnly, step: .helper)
+        await model.refreshHelper()
+
+        await model.returnedToTheApp()
+
+        #expect(rig.registrar.unregisterCount == 0)
+        #expect(model.helperRun == .startFailed)
+    }
+
     @Test func closingDropsRememberedTurnOn() async {
         let rig = Rig(availability: [.requiresApproval])
         await rig.controller.turnOn(for: .seconds(7200))
