@@ -21,6 +21,8 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         var enableError: Error?
         /// Thrown by `isEnabled()`: a helper launchd cannot start never answers it.
         var statusError: Error?
+        /// Requests wait without an answer, as XPC does for a helper launchd keeps failing to start.
+        var hangs = false
         var disableError: Error?
         var restoreError: Error?
         var lowPowerError: Error?
@@ -55,6 +57,7 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
     }
 
     func enable(lowPowerOnBattery: Bool) async throws {
+        try await hangIfAsked()
         try with { state in
             state.enableCalls.append(lowPowerOnBattery)
             if let error = state.enableError { throw error }
@@ -84,8 +87,15 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         }
     }
 
+    /// Waits until cancelled when `hangs` is set; the caller's time limit cancels it.
+    private func hangIfAsked() async throws {
+        guard with({ $0.hangs }) else { return }
+        try await Task.sleep(for: .seconds(600))
+    }
+
     func isEnabled() async throws -> Bool {
-        try with { state in
+        try await hangIfAsked()
+        return try with { state in
             if let error = state.statusError { throw error }
             return state.enabled
         }

@@ -85,6 +85,10 @@ public final class ClamDownController: ObservableObject {
     /// True while launchd will not start the helper although SMAppService reads it as allowed: seen when ClamDown is
     /// switched off in Login Items & Extensions. `state` is then `.needsApproval` until launchd starts the helper.
     @Published public private(set) var launchdRefusesHelper = false
+    /// How long a request to the helper may go unanswered. XPC holds a request to a helper launchd keeps failing to
+    /// start without ever answering it. A late request that still arrives is undone by the helper's own watchdog,
+    /// which switches the mode off when no heartbeat follows.
+    var helperAnswerLimit: Duration = .seconds(5)
     private var recheckingRefusal = false
     /// Called on every Turn On or reinstall that stops because the helper needs approval.
     /// The app answers by opening the setup assistant; System Settings no longer opens by itself.
@@ -424,7 +428,10 @@ public final class ClamDownController: ObservableObject {
     /// changes it in System Settings, so the app calls this on a timer.
     public func refreshHelperAvailability() {
         let current = registrar.availability()
-        if current != helperAvailability { helperAvailability = current }
+        if current != helperAvailability {
+            turnOnLog.info("SMAppService: \(String(describing: current), privacy: .public)")
+            helperAvailability = current
+        }
         // The user approved the helper without pressing Turn On again: nothing is waiting on them any more.
         // SMAppService reads "allowed" also while launchd refuses the helper, so then launchd decides.
         guard current == .ready, state == .needsApproval else { return }
@@ -576,18 +583,23 @@ public final class ClamDownController: ObservableObject {
     /// request fails. So a silent helper is looked at again, registered afresh once, and looked at for longer:
     /// it may start late, or macOS may ask for approval, and then the user is led to that.
     private func startMode() async -> ModeStart {
-        let start = ContinuousClock.now
-        do {
-            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
-            return .started
-        } catch {
-            turnOnLog.info("first request: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
-            // The helper answered with a failure of its own: waiting changes nothing.
-            guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
+        // launchd may know already that the helper cannot start; a request would then only wait.
+        let refusedAtOnce = await launchFailed()
+        if !refusedAtOnce {
+            let start = ContinuousClock.now
+            do {
+                try await enableHelper()
+                return .started
+            } catch {
+                turnOnLog.info("first request: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
+                // The helper answered with a failure of its own: waiting changes nothing.
+                guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
+            }
         }
         advance(to: .waitingForHelper)
-        // launchd may know already that the helper cannot start, and then the quick looks are skipped.
-        let first: Look = await launchFailed() ? .launchFailed : await lookForHelper(Self.helperQuickLooks)
+        // Then the quick looks are skipped too.
+        let refused = refusedAtOnce ? true : await launchFailed()
+        let first: Look = refused ? .launchFailed : await lookForHelper(Self.helperQuickLooks)
         switch first {
         case .settled(let outcome):
             return outcome
@@ -611,7 +623,7 @@ public final class ClamDownController: ObservableObject {
         guard availability == .ready else { return .stopped(Self.preparation(for: availability)) }
         advance(to: .waitingForHelper)
         do {
-            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+            try await enableHelper()
             return .started
         } catch {
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
@@ -653,6 +665,38 @@ public final class ClamDownController: ObservableObject {
         return .stopped(.needsApproval)
     }
 
+    private func enableHelper() async throws {
+        let lowPower = settings.autoLowPowerOnBattery
+        try await askHelper { try await $0.enable(lowPowerOnBattery: lowPower) }
+    }
+
+    /// Sends one request to the helper and waits at most `helperAnswerLimit` for its answer. No answer in time
+    /// reads as silence, the same as a connection that failed.
+    private func askHelper<Answer: Sendable>(
+        _ request: @escaping @Sendable (HelperControlling) async throws -> Answer
+    ) async throws -> Answer {
+        let helper = self.helper
+        let limit = helperAnswerLimit
+        return try await withCheckedThrowingContinuation { continuation in
+            let once = AnswerOnce(continuation)
+            let work = Task {
+                do {
+                    once.resume(with: .success(try await request(helper)))
+                } catch {
+                    once.resume(with: .failure(error))
+                }
+            }
+            Task {
+                try? await Task.sleep(for: limit)
+                // First, so that the cancelled request's own error comes too late to count.
+                if once.resume(with: .failure(HelperClientError.connection(XPCHelperClient.noAnswer))) {
+                    turnOnLog.info("no answer within \(String(describing: limit), privacy: .public)")
+                }
+                work.cancel()
+            }
+        }
+    }
+
     /// One look: nil while the helper is still allowed and silent.
     private func tryHelperOnce() async -> ModeStart? {
         let availability = registrar.availability()
@@ -663,7 +707,7 @@ public final class ClamDownController: ObservableObject {
         }
         let start = ContinuousClock.now
         do {
-            try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+            try await enableHelper()
             turnOnLog.info("look: helper answered after \(String(describing: ContinuousClock.now - start), privacy: .public)")
             return .started
         } catch {
@@ -675,8 +719,10 @@ public final class ClamDownController: ObservableObject {
 
     /// Asks the helper for its state. Any answer, even an error of its own, means it runs.
     public func checkHelperRuns() async -> HelperRunCheck {
+        // A request to a helper launchd refuses would only wait for the time limit.
+        if await launchFailed() { return .startFailed }
         do {
-            _ = try await helper.isEnabled()
+            _ = try await askHelper { try await $0.isEnabled() }
             return .answers
         } catch {
             guard Self.isSilence(error) else { return .answers }
@@ -1032,5 +1078,26 @@ public final class ClamDownController: ObservableObject {
             return String(localized: "macOS did not allow the helper to start. Allow ClamDown in Login Items, then try again.")
         }
         return String(localized: "macOS could not set up the helper (error \(systemError.code)).")
+    }
+}
+
+/// Resumes a request's continuation once: with its answer, or with silence when the time limit comes first.
+private final class AnswerOnce<Answer: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Answer, Error>?
+
+    init(_ continuation: CheckedContinuation<Answer, Error>) {
+        self.continuation = continuation
+    }
+
+    /// True when this call was the one that resumed it.
+    @discardableResult
+    func resume(with result: Result<Answer, Error>) -> Bool {
+        let taken = lock.withLock {
+            defer { continuation = nil }
+            return continuation
+        }
+        taken?.resume(with: result)
+        return taken != nil
     }
 }

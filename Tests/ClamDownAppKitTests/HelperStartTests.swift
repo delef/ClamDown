@@ -179,6 +179,56 @@ import Testing
         #expect(!rig.controller.launchdRefusesHelper)
     }
 
+    /// A helper launchd refuses is reported from launchd's answer, without a request that would wait for it.
+    @Test func whetherTheHelperRunsIsAskedOfLaunchdFirst() async {
+        let rig = Rig()
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        rig.helper.with { $0.hangs = true }
+        rig.controller.helperAnswerLimit = .seconds(600)
+
+        #expect(await rig.controller.checkHelperRuns() == .startFailed)
+    }
+
+    /// Seen on a real Mac: a request to a helper that launchd keeps failing to start got no answer at all, and the
+    /// setup assistant said "Starting the helper…" for good. A request now gives up after a limit.
+    @Test func aRequestThatGetsNoAnswerGivesUp() async {
+        let rig = Rig()
+        rig.helper.with { $0.hangs = true }
+        rig.controller.helperAnswerLimit = .milliseconds(20)
+
+        #expect(await rig.controller.checkHelperRuns() == .silent)
+    }
+
+    @Test func aTurnOnWhoseRequestsGetNoAnswerEnds() async {
+        let rig = Rig()
+        rig.helper.with { $0.hangs = true }
+        rig.controller.helperAnswerLimit = .milliseconds(20)
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .failed("The helper did not answer."))
+        #expect(rig.controller.turnOnStep == nil)
+    }
+
+    /// launchd already refuses the registered helper: no request is sent, the helper is registered afresh.
+    @Test func aHelperLaunchdAlreadyRefusesIsNotAskedFirst() async {
+        let rig = Rig(helperFingerprint: "this build", installedFingerprint: "this build")
+        rig.helper.with { $0.hangs = true }
+        rig.controller.helperAnswerLimit = .seconds(600)
+        rig.jobs.says(.spawnFailed(reason: "78: EX_CONFIG"))
+        rig.pauser.whilePaused = { [registrar = rig.registrar, helper = rig.helper, jobs = rig.jobs] _ in
+            if registrar.unregisterCount == 1 {
+                jobs.says(.running)
+                helper.with { $0.hangs = false }
+            }
+        }
+
+        await rig.controller.toggle()
+
+        #expect(rig.controller.state == .on)
+        #expect(rig.registrar.unregisterCount == 1)
+    }
+
     @Test func helperThatNeverAnswersIsReportedAfterOneFreshRegistration() async {
         let rig = Rig()
         rig.helper.with { $0.enableError = Self.noAnswer }

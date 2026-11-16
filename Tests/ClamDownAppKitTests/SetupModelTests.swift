@@ -37,6 +37,7 @@ import Testing
         await model.refreshHelper()
         #expect(model.helperRun == .startFailed)
 
+        rig.jobs.says(.running)
         rig.helper.with { $0.statusError = nil }
         #expect(await model.refreshHelper() == true)
         #expect(model.helperRun == .answers)
