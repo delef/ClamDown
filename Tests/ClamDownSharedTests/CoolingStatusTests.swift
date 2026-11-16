@@ -16,6 +16,16 @@ import ClamDownShared
         #expect(status.hottestTemperature == nil)
         #expect(status.hottestGroup == nil)
         #expect(status.groupTemperatures.isEmpty)
+        #expect(!status.handBackFailed)
+    }
+
+    @Test func aFailedHandBackRoundTrips() throws {
+        let status = CoolingStatus(cpuTemperature: 70, fans: [], isControlling: true,
+                                   problem: "Could not hand the fans back to macOS: busy.", control: .stopped,
+                                   handBackFailed: true)
+        let decoded = try JSONDecoder().decode(CoolingStatus.self, from: JSONEncoder().encode(status))
+        #expect(decoded == status)
+        #expect(decoded.handBackFailed)
     }
 
     @Test func sensorGroupsRoundTrip() throws {

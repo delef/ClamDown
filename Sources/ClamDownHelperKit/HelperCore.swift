@@ -489,7 +489,8 @@ public actor HelperCore {
             systemThermalLevel: thermal?.thermalLevel(),
             hottestTemperature: reading?.hottestTemperature,
             hottestGroup: reading?.hottestGroup,
-            groupTemperatures: reading?.groupTemperatures ?? [:]
+            groupTemperatures: reading?.groupTemperatures ?? [:],
+            handBackFailed: fansHeld && releaseProblem != nil
         )
     }
 

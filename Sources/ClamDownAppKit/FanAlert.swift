@@ -23,7 +23,7 @@ public struct FanAlert: Equatable, Sendable {
         guard let status else { return .none }
         switch status.control {
         case .stopped:
-            let new = Self.line(reason: status.problem)
+            let new = Self.line(reason: status.problem, fansAtFullSpeed: status.handBackFailed)
             guard new != line else { return .none }
             let first = line == nil
             line = new
@@ -44,8 +44,12 @@ public struct FanAlert: Equatable, Sendable {
 
     /// "ClamDown is not controlling the fans. macOS has them. <reason>"
     /// The helper's reason follows as its own sentence, so a translation needs no grammar from it.
-    public static func line(reason: String?) -> String {
-        let stopped = String(localized: "ClamDown is not controlling the fans. macOS has them.")
+    /// `fansAtFullSpeed` is true when the hand-back to macOS failed: the helper still holds the fans and runs them
+    /// at full speed until the hand-back succeeds, so macOS does not have them.
+    public static func line(reason: String?, fansAtFullSpeed: Bool = false) -> String {
+        let stopped = fansAtFullSpeed
+            ? String(localized: "ClamDown is not controlling the fans. The fans run at full speed.")
+            : String(localized: "ClamDown is not controlling the fans. macOS has them.")
         guard let reason = sentence(from: reason) else { return stopped }
         return String.sentences(stopped, reason)
     }

@@ -245,11 +245,15 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
     public var hottestGroup: SensorGroup?
     /// The hottest value of each group that could be read.
     public var groupTemperatures: [SensorGroup: Double]
+    /// True while handing the fans back to macOS fails: the helper still holds them and runs them at full speed
+    /// until the hand-back works. An older helper does not send it.
+    public var handBackFailed: Bool
 
     public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], isControlling: Bool,
                 problem: String?, override: FanOverride? = nil, control: FanControlState = .idle,
                 systemThermalLevel: ThermalLevel? = nil, hottestTemperature: Double? = nil,
-                hottestGroup: SensorGroup? = nil, groupTemperatures: [SensorGroup: Double] = [:]) {
+                hottestGroup: SensorGroup? = nil, groupTemperatures: [SensorGroup: Double] = [:],
+                handBackFailed: Bool = false) {
         self.cpuTemperature = cpuTemperature
         self.hottestCPUTemperature = hottestCPUTemperature
         self.fans = fans
@@ -261,11 +265,12 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
         self.hottestTemperature = hottestTemperature
         self.hottestGroup = hottestGroup
         self.groupTemperatures = groupTemperatures
+        self.handBackFailed = handBackFailed
     }
 
     private enum CodingKeys: String, CodingKey {
         case cpuTemperature, hottestCPUTemperature, fans, isControlling, problem, override, control, systemThermalLevel
-        case hottestTemperature, hottestGroup, groupTemperatures
+        case hottestTemperature, hottestGroup, groupTemperatures, handBackFailed
     }
 
     /// An older helper sends none of the newer fields, and a later one may send values this build does not know:
@@ -287,6 +292,7 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
         groupTemperatures = Dictionary(uniqueKeysWithValues: (groups ?? [:]).compactMap { name, celsius in
             SensorGroup(rawValue: name).map { ($0, celsius) }
         })
+        handBackFailed = (try? container.decodeIfPresent(Bool.self, forKey: .handBackFailed)) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -303,5 +309,6 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
         try container.encodeIfPresent(hottestGroup, forKey: .hottestGroup)
         try container.encode(Dictionary(uniqueKeysWithValues: groupTemperatures.map { ($0.key.rawValue, $0.value) }),
                              forKey: .groupTemperatures)
+        try container.encode(handBackFailed, forKey: .handBackFailed)
     }
 }

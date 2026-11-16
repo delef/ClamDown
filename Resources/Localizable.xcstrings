@@ -198,6 +198,9 @@
     "ClamDown did not turn on." : {
 
     },
+    "ClamDown is not controlling the fans. The fans run at full speed." : {
+
+    },
     "ClamDown is not controlling the fans. macOS has them." : {
 
     },
@@ -322,6 +325,9 @@
 
     },
     "Fan control paused. ClamDown takes the fans again in a moment; macOS has them until then." : {
+
+    },
+    "Fan control paused. ClamDown takes the fans again in a moment; they run at full speed until then." : {
 
     },
     "Fan curve over the hottest temperature" : {

@@ -400,12 +400,16 @@ struct CoolingPage: View {
         guard let status else { return nil }
         switch status.control {
         case .retrying:
-            let paused = String(localized: """
-                Fan control paused. ClamDown takes the fans again in a moment; macOS has them until then.
-                """)
+            let paused = status.handBackFailed
+                ? String(localized: """
+                    Fan control paused. ClamDown takes the fans again in a moment; they run at full speed until then.
+                    """)
+                : String(localized: """
+                    Fan control paused. ClamDown takes the fans again in a moment; macOS has them until then.
+                    """)
             return FanAlert.sentence(from: status.problem).map { String.sentences(paused, $0) } ?? paused
         case .stopped:
-            return FanAlert.line(reason: status.problem)
+            return FanAlert.line(reason: status.problem, fansAtFullSpeed: status.handBackFailed)
         case .idle, .controlling:
             return nil
         }

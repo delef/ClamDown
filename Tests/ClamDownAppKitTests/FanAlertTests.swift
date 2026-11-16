@@ -6,9 +6,11 @@ import Testing
     static let reason = "Fan 2 does not reach the speed it was set to."
     static let line = "ClamDown is not controlling the fans. macOS has them. Fan 2 does not reach the speed it was set to."
 
-    static func status(_ control: FanControlState, holding: Bool = false, reason: String? = reason) -> CoolingStatus {
+    static func status(_ control: FanControlState, holding: Bool = false, reason: String? = reason,
+                       handBackFailed: Bool = false) -> CoolingStatus {
         CoolingStatus(cpuTemperature: 70, fans: [], isControlling: holding,
-                      problem: control == .retrying || control == .stopped ? reason : nil, control: control)
+                      problem: control == .retrying || control == .stopped ? reason : nil, control: control,
+                      handBackFailed: handBackFailed)
     }
 
     @Test func stopShowsALineAndNotifiesOnce() {
@@ -127,6 +129,17 @@ import Testing
     @Test func rawErrorTextOnSeveralLinesReadsAsOne() {
         #expect(FanAlert.line(reason: "Could not set the fan speed:\n  kern 5\tresult 132\n")
             == "\(Self.stopped) Could not set the fan speed: kern 5 result 132.")
+    }
+
+    /// The hand-back failed: the helper still holds the fans and runs them at full speed, so macOS does not have them.
+    @Test func aFailedHandBackSaysTheFansRunAtFullSpeed() {
+        var alert = FanAlert()
+        let reason = "Could not hand the fans back to macOS: SMC call for Ftst failed."
+        let line = "ClamDown is not controlling the fans. The fans run at full speed. \(reason)"
+        #expect(alert.update(Self.status(.stopped, holding: true, reason: reason, handBackFailed: true))
+            == .show(line: line, notify: true))
+        #expect(FanAlert.line(reason: nil, fansAtFullSpeed: true)
+            == "ClamDown is not controlling the fans. The fans run at full speed.")
     }
 
     @Test func noReasonLeavesItOut() {

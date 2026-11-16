@@ -906,6 +906,7 @@ import ClamDownShared
         let status = await core.coolingStatus()
         #expect(status.problem?.hasPrefix("Could not hand the fans back to macOS") == true)
         #expect(status.control == .retrying)
+        #expect(status.handBackFailed)
         fans.set(temperature: 70)
         await core.updateFans(now: at(6))
         await core.updateFans(now: at(9))
@@ -917,6 +918,7 @@ import ClamDownShared
         await core.updateFans(now: at(12))
         #expect(!fans.isHeld)
         #expect(store.saved?.fansManual == nil)
+        #expect(await !core.coolingStatus().handBackFailed)
         await ticks(core, from: 15, to: 27)
         #expect(fans.heldWrites.count == 3)
         #expect(fans.targets.count == 1)  // the full-speed path never took the fans over
