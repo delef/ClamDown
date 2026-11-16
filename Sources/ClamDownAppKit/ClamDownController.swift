@@ -2,6 +2,10 @@ import ClamDownSensors
 import ClamDownShared
 import Combine
 import Foundation
+import os
+
+/// What a Turn On did and when, for Console: `log stream --predicate 'subsystem == "app.clamdown"'`.
+let turnOnLog = Logger(subsystem: "app.clamdown", category: "turn-on")
 
 public enum SwitchState: Equatable {
     case off
@@ -488,11 +492,13 @@ public final class ClamDownController: ObservableObject {
     private func performTurnOn(duration: Duration?) async {
         guard !helperBusy else { return }
         helperBusy = true
+        turnOnLog.info("turn on")
         turnOnStep = .starting
         registeredThisTurnOn = false
         defer {
             helperBusy = false
             turnOnStep = nil
+            turnOnLog.info("turn on ended: \(String(describing: self.state), privacy: .public)")
         }
         notice = nil
         // The user is back and acting, so an undelivered "why the Mac slept" is old news.
@@ -557,10 +563,12 @@ public final class ClamDownController: ObservableObject {
     /// request fails. So a silent helper is looked at again, registered afresh once, and looked at for longer:
     /// it may start late, or macOS may ask for approval, and then the user is led to that.
     private func startMode() async -> ModeStart {
+        let start = ContinuousClock.now
         do {
             try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
             return .started
         } catch {
+            turnOnLog.info("first request: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
             // The helper answered with a failure of its own: waiting changes nothing.
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
         }
@@ -643,13 +651,17 @@ public final class ClamDownController: ObservableObject {
     private func tryHelperOnce() async -> ModeStart? {
         let availability = registrar.availability()
         guard availability == .ready else {
+            turnOnLog.info("look: availability \(String(describing: availability), privacy: .public)")
             helperAvailability = availability
             return .stopped(Self.preparation(for: availability))
         }
+        let start = ContinuousClock.now
         do {
             try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
+            turnOnLog.info("look: helper answered after \(String(describing: ContinuousClock.now - start), privacy: .public)")
             return .started
         } catch {
+            turnOnLog.info("look: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
             return nil
         }
@@ -667,7 +679,10 @@ public final class ClamDownController: ObservableObject {
     }
 
     private func launchFailed() async -> Bool {
-        guard let jobReader, case .spawnFailed = await jobReader.state() else { return false }
+        guard let jobReader else { return false }
+        let state = await jobReader.state()
+        turnOnLog.info("launchd: \(String(describing: state), privacy: .public)")
+        guard case .spawnFailed = state else { return false }
         return true
     }
 
@@ -878,8 +893,10 @@ public final class ClamDownController: ObservableObject {
             do {
                 try registrar.register()
                 registeredThisTurnOn = true
+                turnOnLog.info("registered")
             } catch {
                 let afterAttempt = registrar.availability()
+                turnOnLog.info("registration refused: \((error as NSError).code, privacy: .public), availability \(String(describing: afterAttempt), privacy: .public)")
                 // Registering can throw when approval is pending; that is not a failure.
                 // An unavailable helper keeps its own message below, which says more than the registration error.
                 if afterAttempt != .requiresApproval, !afterAttempt.isUnavailable {
@@ -940,6 +957,7 @@ public final class ClamDownController: ObservableObject {
     /// Moves a running Turn On to its next step. Preparing the helper for the setup assistant is not a Turn On.
     private func advance(to step: TurnOnStep) {
         guard turnOnStep != nil else { return }
+        turnOnLog.info("step \(String(describing: step), privacy: .public)")
         turnOnStep = step
     }
 
@@ -970,8 +988,10 @@ public final class ClamDownController: ObservableObject {
             await pause(quietTime)
             do {
                 try registrar.register()
+                turnOnLog.info("registered again after \(String(describing: quietTime), privacy: .public)")
                 return
             } catch {
+                turnOnLog.info("registration refused: \((error as NSError).code, privacy: .public)")
                 if registrar.availability() == .requiresApproval { return }
                 refusal = error
             }
