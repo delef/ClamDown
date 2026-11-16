@@ -20,13 +20,18 @@ public struct MenuPresentation: Equatable {
     public let recovery: MenuRecovery?
     /// True while ClamDown keeps the Mac awake.
     public let isOn: Bool
+    /// True while a Turn On runs. The switch cannot be pressed then, and the icon blinks.
+    public let isTurningOn: Bool
+    public var toggleEnabled: Bool { !isTurningOn }
     /// A line while ClamDown has stopped controlling the fans. It carries no attention mark: the Mac still stays
     /// awake and macOS cools it.
     public let coolingLine: String?
 
     public init(symbolName: String, toggleTitle: String, statusLine: String?, needsAttention: Bool = false,
-                recovery: MenuRecovery? = nil, isOn: Bool = false, coolingLine: String? = nil) {
+                recovery: MenuRecovery? = nil, isOn: Bool = false, coolingLine: String? = nil,
+                isTurningOn: Bool = false) {
         self.isOn = isOn
+        self.isTurningOn = isTurningOn
         self.coolingLine = coolingLine
         self.symbolName = symbolName
         self.toggleTitle = toggleTitle
@@ -36,8 +41,14 @@ public struct MenuPresentation: Equatable {
     }
 
     public init(state: SwitchState, notice: String?, icon: MenuBarIconStyle = .lid, helperReady: Bool = true,
-                coolingLine: String? = nil) {
+                coolingLine: String? = nil, turnOnStep: TurnOnStep? = nil) {
         let setup: MenuRecovery? = helperReady ? nil : .finishSetup
+        if let turnOnStep, !state.isOn {
+            // What went wrong before is old news while the next try runs.
+            self.init(symbolName: icon.offSymbol, toggleTitle: String(localized: "Turning On…"),
+                      statusLine: turnOnStep.text, isTurningOn: true)
+            return
+        }
         switch state {
         case .on:
             self.init(symbolName: icon.onSymbol, toggleTitle: String(localized: "Turn Off"), statusLine: notice,
@@ -59,6 +70,7 @@ public struct MenuPresentation: Equatable {
     /// What VoiceOver reads for the menu bar item: the app, whether it is on, and whether it needs the user.
     /// The icon alone says this only by its shape, and the menu bar item is the app's only way in.
     public var accessibilityLabel: String {
+        if isTurningOn { return String(localized: "ClamDown, turning on") }
         let state = isOn ? String(localized: "on") : String(localized: "off")
         return needsAttention
             ? String(localized: "ClamDown, \(state), needs attention")

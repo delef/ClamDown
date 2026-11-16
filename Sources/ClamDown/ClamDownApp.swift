@@ -19,19 +19,33 @@ struct ClamDownApp: App {
 
 private struct MenuBarIcon: View {
     @ObservedObject var controller: ClamDownController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// While a Turn On runs, the icon swaps between its off and on look, so a closed menu still shows that
+    /// something is under way. A loop, not an animation: the menu bar draws the label as a still image.
+    @State private var blinkOn = false
 
     var body: some View {
-        let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
-                                            icon: controller.settings.menuBarIcon,
-                                            helperReady: controller.helperAvailability == .ready)
+        let icon = controller.settings.menuBarIcon
+        let presentation = MenuPresentation(state: controller.state, notice: controller.notice, icon: icon,
+                                            helperReady: controller.helperAvailability == .ready,
+                                            turnOnStep: controller.turnOnStep)
+        let symbol = presentation.isTurningOn && blinkOn && !reduceMotion ? icon.onSymbol : presentation.symbolName
         Group {
             if presentation.needsAttention {
-                Image(nsImage: MenuBarIconImage.attention(symbol: presentation.symbolName))
+                Image(nsImage: MenuBarIconImage.attention(symbol: symbol))
             } else {
-                Image(nsImage: MenuBarIconImage.base(symbol: presentation.symbolName) ?? NSImage())
+                Image(nsImage: MenuBarIconImage.base(symbol: symbol) ?? NSImage())
             }
         }
         .accessibilityLabel(presentation.accessibilityLabel)
+        .task(id: presentation.isTurningOn) {
+            blinkOn = false
+            // Runs only while a Turn On does, so an idle app is not woken.
+            while presentation.isTurningOn, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(600))
+                blinkOn.toggle()
+            }
+        }
     }
 }
 
@@ -49,11 +63,13 @@ private struct MenuContent: View {
         let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
                                             icon: controller.settings.menuBarIcon,
                                             helperReady: controller.helperAvailability == .ready,
-                                            coolingLine: controller.fanControlLine)
+                                            coolingLine: controller.fanControlLine,
+                                            turnOnStep: controller.turnOnStep)
         Button(presentation.toggleTitle) {
             Task { await controller.toggle() }
         }
-        if !controller.state.isOn {
+        .disabled(!presentation.toggleEnabled)
+        if !controller.state.isOn, !presentation.isTurningOn {
             Menu("Turn On For") {
                 ForEach(Self.durations, id: \.self) { timer in
                     Button(timer.title) {

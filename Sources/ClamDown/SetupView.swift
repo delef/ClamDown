@@ -85,7 +85,9 @@ struct SetupView: View {
             } else {
                 Button("Done") { close() }
                     .cdButtonStyle(.secondary)
-                Button("Turn On Now") { turnOnNow() }
+                Button(controller.turnOnStep == nil ? String(localized: "Turn On Now") : String(localized: "Turning On…")) {
+                    turnOnNow()
+                }
                     .cdButtonStyle(.primary)
                     .keyboardShortcut(model.helper == .ready ? .defaultAction : nil)
                     .disabled(model.helper != .ready || model.isTurningOn)

@@ -41,9 +41,9 @@ import Testing
     @Test func helperThatStartsLateIsWaitedFor() async {
         let rig = Rig()
         rig.helper.with { $0.enableError = Self.noAnswer }
-        var notices: [String?] = []
+        var steps: [TurnOnStep?] = []
         rig.pauser.whilePaused = { [controller = rig.controller, helper = rig.helper, pauser = rig.pauser] _ in
-            notices.append(controller.notice)
+            steps.append(controller.turnOnStep)
             if pauser.waits.count == 2 { helper.with { $0.enableError = nil } }
         }
 
@@ -51,7 +51,8 @@ import Testing
 
         #expect(rig.controller.state == .on)
         #expect(rig.pauser.waits == [.seconds(2), .seconds(2)])
-        #expect(notices == ["Waiting for the helper to start…", "Waiting for the helper to start…"])
+        #expect(steps == [.waitingForHelper, .waitingForHelper])
+        #expect(rig.controller.turnOnStep == nil)
         #expect(rig.controller.notice == nil)
     }
 

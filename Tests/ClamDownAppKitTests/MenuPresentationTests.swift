@@ -18,6 +18,31 @@ import Testing
         #expect(p.symbolName == "clamdown.lid" && p.toggleTitle == "Turn On")
     }
 
+    /// After a click in the menu the menu closes; the icon blinks and the reopened menu says what is happening.
+    @Test func turningOnSaysTheStepAndCannotBePressedAgain() {
+        for state in [SwitchState.off, .needsApproval, .failed("boom")] {
+            let p = MenuPresentation(state: state, notice: "old news", helperReady: false, turnOnStep: .waitingForHelper)
+            #expect(p.isTurningOn)
+            #expect(p.toggleTitle == "Turning On…")
+            #expect(!p.toggleEnabled)
+            #expect(p.statusLine == "Waiting for the helper to start…")
+            #expect(!p.needsAttention)
+            #expect(p.recovery == nil)
+            #expect(p.symbolName == "clamdown.lid")
+            #expect(p.accessibilityLabel == "ClamDown, turning on")
+        }
+        #expect(MenuPresentation(state: .off, notice: nil, turnOnStep: .starting).statusLine == "Turning on…")
+        #expect(MenuPresentation(state: .off, notice: nil, turnOnStep: .settingUpHelper).statusLine
+            == "Setting up the helper…")
+    }
+
+    @Test func theSwitchCanBePressedWhenNothingIsUnderWay() {
+        for state in [SwitchState.off, .on, .needsApproval, .failed("boom")] {
+            let p = MenuPresentation(state: state, notice: nil)
+            #expect(p.toggleEnabled && !p.isTurningOn)
+        }
+    }
+
     @Test func attentionBadge() {
         #expect(MenuPresentation(state: .off, notice: nil, helperReady: false).needsAttention)
         #expect(MenuPresentation(state: .failed("boom"), notice: nil).needsAttention)

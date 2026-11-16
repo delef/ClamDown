@@ -243,6 +243,9 @@
     "ClamDown, %@, needs attention" : {
 
     },
+    "ClamDown, turning on" : {
+
+    },
     "Continue" : {
 
     },
@@ -634,6 +637,9 @@
     "Serious" : {
 
     },
+    "Setting up the helper…" : {
+
+    },
     "Settings" : {
 
     },
@@ -834,6 +840,12 @@
 
     },
     "Turned off because the timer ended." : {
+
+    },
+    "Turning On…" : {
+
+    },
+    "Turning on…" : {
 
     },
     "Turns off at %@" : {

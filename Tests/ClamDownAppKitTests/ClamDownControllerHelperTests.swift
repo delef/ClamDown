@@ -11,6 +11,35 @@ import Testing
         #expect(rig.controller.state == .on)
     }
 
+    /// Replacing the helper takes seconds with nothing else to see, so the menu says what is going on.
+    @Test func replacingTheHelperShowsTheStep() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
+        var steps: [TurnOnStep?] = []
+        rig.pauser.whilePaused = { [controller = rig.controller] _ in steps.append(controller.turnOnStep) }
+        await rig.controller.toggle()
+        #expect(steps == [.settingUpHelper])
+        #expect(rig.controller.turnOnStep == nil)
+        #expect(rig.controller.state == .on)
+    }
+
+    /// The setup assistant prepares the helper without turning on, so the menu must not say "Turning On…".
+    @Test func preparingTheHelperAloneIsNotTurningOn() async {
+        let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")
+        var steps: [TurnOnStep?] = []
+        rig.pauser.whilePaused = { [controller = rig.controller] _ in steps.append(controller.turnOnStep) }
+        _ = await rig.controller.prepareHelper()
+        #expect(steps == [nil])
+        #expect(rig.controller.turnOnStep == nil)
+    }
+
+    /// A Turn On that ends in a failure or a wait for approval leaves the step behind.
+    @Test func aTurnOnThatStopsClearsTheStep() async {
+        let rig = Rig(availability: [.requiresApproval])
+        await rig.controller.toggle()
+        #expect(rig.controller.state == .needsApproval)
+        #expect(rig.controller.turnOnStep == nil)
+    }
+
     /// macOS refuses a registration that follows a removal at once, and then leaves no helper registered.
     @Test func updatePausesBetweenRemovingAndRegistering() async {
         let rig = Rig(helperFingerprint: "new", installedFingerprint: "old")

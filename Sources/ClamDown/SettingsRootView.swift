@@ -39,6 +39,7 @@ struct SettingsRootView: View {
     }
 
     private var statusLine: String {
+        if let step = controller.turnOnStep, !controller.state.isOn { return step.text }
         guard controller.state.isOn else { return String(localized: "Off") }
         if let offAt = controller.offAt {
             return String(localized: "On until \(offAt.formatted(date: .omitted, time: .shortened))")

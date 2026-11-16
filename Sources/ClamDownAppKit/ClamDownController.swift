@@ -21,6 +21,24 @@ public enum HelperPreparation: Equatable, Sendable {
     case failed(String)
 }
 
+/// What a Turn On is doing while it runs. Getting the helper going can take half a minute, and after a click in
+/// the menu the menu closes, so the icon and the reopened menu show that something is under way.
+public enum TurnOnStep: Equatable, Sendable {
+    case starting
+    /// Registering the helper, or replacing one from another build.
+    case settingUpHelper
+    /// The helper is registered and macOS has not started it yet.
+    case waitingForHelper
+
+    public var text: String {
+        switch self {
+        case .starting: String(localized: "Turning on…")
+        case .settingUpHelper: String(localized: "Setting up the helper…")
+        case .waitingForHelper: String(localized: "Waiting for the helper to start…")
+        }
+    }
+}
+
 /// A Turn On that stopped because the helper needs approval. A nil duration means "until switched off".
 public struct TurnOnRequest: Equatable, Sendable {
     public let duration: Duration?
@@ -36,6 +54,8 @@ public final class ClamDownController: ObservableObject {
     @Published public private(set) var state: SwitchState = .off
     /// One line for the menu: why the switch is off, or what went wrong.
     @Published public private(set) var notice: String?
+    /// Set while a Turn On runs, nil otherwise.
+    @Published public private(set) var turnOnStep: TurnOnStep?
     /// A second menu line while the helper has stopped controlling the fans. The mode itself still works.
     @Published public private(set) var fanControlLine: String?
     @Published public private(set) var settings: Settings
@@ -440,7 +460,11 @@ public final class ClamDownController: ObservableObject {
     private func performTurnOn(duration: Duration?) async {
         guard !helperBusy else { return }
         helperBusy = true
-        defer { helperBusy = false }
+        turnOnStep = .starting
+        defer {
+            helperBusy = false
+            turnOnStep = nil
+        }
         notice = nil
         // The user is back and acting, so an undelivered "why the Mac slept" is old news.
         pendingWakeReport = nil
@@ -511,10 +535,10 @@ public final class ClamDownController: ObservableObject {
             // The helper answered with a failure of its own: waiting changes nothing.
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
         }
-        notice = String(localized: "Waiting for the helper to start…")
-        defer { notice = nil }
+        advance(to: .waitingForHelper)
         if let outcome = await lookForHelper(Self.helperQuickLooks) { return outcome }
 
+        advance(to: .settingUpHelper)
         do {
             try await reregisterHelper()
         } catch {
@@ -525,6 +549,7 @@ public final class ClamDownController: ObservableObject {
         helperAvailability = availability
         recordInstalledBuild(after: availability)
         guard availability == .ready else { return .stopped(Self.preparation(for: availability)) }
+        advance(to: .waitingForHelper)
         do {
             try await helper.enable(lowPowerOnBattery: settings.autoLowPowerOnBattery)
             return .started
@@ -757,6 +782,7 @@ public final class ClamDownController: ObservableObject {
     private func prepareHelperExclusively() async -> HelperPreparation {
         var availability = registrar.availability()
         if availability.canAttemptRegistration {
+            advance(to: .settingUpHelper)
             do {
                 try registrar.register()
             } catch {
@@ -804,6 +830,7 @@ public final class ClamDownController: ObservableObject {
     /// Reinstalls the helper when the registered one comes from another build, so launchd runs this build's binary.
     private func syncHelperIfNeeded() async -> HelperPreparation {
         guard let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint else { return .ready }
+        advance(to: .settingUpHelper)
         do {
             try await reregisterHelper()
         } catch {
@@ -814,6 +841,12 @@ public final class ClamDownController: ObservableObject {
         helperAvailability = availability
         recordInstalledBuild(after: availability)
         return Self.preparation(for: availability)
+    }
+
+    /// Moves a running Turn On to its next step. Preparing the helper for the setup assistant is not a Turn On.
+    private func advance(to step: TurnOnStep) {
+        guard turnOnStep != nil else { return }
+        turnOnStep = step
     }
 
     /// Records this build as the registered helper once registering it went through, even while approval is pending.
