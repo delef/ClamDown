@@ -49,6 +49,12 @@ public enum SetupFlow {
         }
     }
 
+    /// True when a window that is already open on `open` should switch to `new`: only to show a helper problem
+    /// on the Helper step. Anything else leaves the open window where the user is.
+    public static func replaces(open: SetupPresentation, with new: SetupPresentation) -> Bool {
+        new.step == .helper && open.step != .helper
+    }
+
     /// True when a launch finds a working helper and no finished setup: an existing user, who is never shown the assistant.
     public static func completesSilently(completed: Bool, helper: HelperAvailability) -> Bool {
         !completed && helper == .ready

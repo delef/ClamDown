@@ -79,4 +79,20 @@ import Testing
         UserDefaultsSetupStore(defaults: defaults).completed = true
         #expect(UserDefaultsSetupStore(defaults: defaults).completed)
     }
+
+    /// The window was open on another step, for example the welcome screen of a setup run from Settings. A helper
+    /// problem moves it to the Helper step instead of leaving the user at the start.
+    @Test func aHelperProblemMovesAnOpenWindowToTheHelperStep() {
+        let helperOnly = SetupPresentation(mode: .helperOnly, step: .helper)
+        #expect(SetupFlow.replaces(open: SetupPresentation(mode: .full, step: .welcome), with: helperOnly))
+        #expect(SetupFlow.replaces(open: SetupPresentation(mode: .full, step: .done), with: helperOnly))
+    }
+
+    /// Already on the Helper step, or asked for the whole assistant: the open window stays as it is.
+    @Test func anOpenWindowStaysWhereItIsOtherwise() {
+        #expect(!SetupFlow.replaces(open: SetupPresentation(mode: .full, step: .helper),
+                                    with: SetupPresentation(mode: .helperOnly, step: .helper)))
+        #expect(!SetupFlow.replaces(open: SetupPresentation(mode: .helperOnly, step: .helper),
+                                    with: SetupPresentation(mode: .full, step: .welcome)))
+    }
 }

@@ -24,12 +24,15 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     /// is being opened, still true while it closes, and false for an open window of a hidden app.
     private(set) var isOpen = false
 
-    /// Opens the assistant. An assistant that is already open keeps its place and only comes forward.
+    /// Opens the assistant. One that is already open keeps its place and comes forward, unless a helper problem
+    /// moves it to the Helper step (`SetupFlow.replaces`).
     func show(_ presentation: SetupPresentation) {
-        guard !isOpen else {
+        if isOpen, let model, !SetupFlow.replaces(open: SetupPresentation(mode: model.mode, step: model.step),
+                                                   with: presentation) {
             bringForward()
             return
         }
+        // The Turn On that may have opened it stays remembered: closed() is not called on the replaced model.
         show(SetupModel(presentation: presentation, controller: controller, store: store, notifications: notifications),
              controller: controller)
     }
