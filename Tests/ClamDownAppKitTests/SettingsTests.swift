@@ -242,6 +242,13 @@ import ClamDownShared
         #expect(try mode(#"{"fanControlEnabled":true}"#) == .lidClosed)
         #expect(try mode(#"{"fanControlEnabled":true,"fansOnlyWhenLidClosed":false}"#) == .always)
         #expect(try mode(#"{"fanControl":"always","fanControlEnabled":false}"#) == .always)
+        // 0.1.2 stored its fan mode next to the same flag.
+        #expect(try mode(#"{"fanMode":"curve","fansOnlyWhenLidClosed":false}"#) == .always)
+        #expect(try mode(#"{"fanMode":"fullSpeed","fansOnlyWhenLidClosed":false}"#) == .always)
+        #expect(try mode(#"{"fanMode":"curve","fansOnlyWhenLidClosed":true}"#) == .lidClosed)
+        #expect(try mode(#"{"fanMode":"system","fansOnlyWhenLidClosed":false}"#) == .never)
+        #expect(try mode(#"{"fansOnlyWhenLidClosed":false}"#) == .always)
+        #expect(try mode(#"{}"#) == .lidClosed)
         #expect(try mode(#"{"fanControl":"sometimes","fanControlEnabled":false}"#) == .never)
     }
 

@@ -274,20 +274,25 @@ public struct Settings: Codable, Equatable, Sendable {
     /// Fan control that also ran with the lid open becomes Always, the nearest mode.
     private mutating func migrateFanControl(from decoder: Decoder) {
         guard let legacy = try? decoder.container(keyedBy: LegacyKeys.self) else { return }
+        // 0.1.2 and the 0.1.3 builds before the mode both stored this next to their own fan switch.
+        let lidOpenToo = (try? legacy.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) == false
+        let driven: FanControlMode = lidOpenToo ? .always : .lidClosed
         if let enabled = try? legacy.decodeIfPresent(Bool.self, forKey: .fanControlEnabled) {
-            let lidOpenToo = (try? legacy.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) == false
-            fanControl = !enabled ? .never : lidOpenToo ? .always : .lidClosed
+            fanControl = enabled ? driven : .never
             return
         }
-        guard let mode = try? legacy.decodeIfPresent(String.self, forKey: .fanMode) else { return }
+        guard let mode = try? legacy.decodeIfPresent(String.self, forKey: .fanMode) else {
+            fanControl = driven
+            return
+        }
         switch mode {
         case "system":
-            fanControlEnabled = false
+            fanControl = .never
         case "curve":
-            fanControlEnabled = true
+            fanControl = driven
             fanCurveMode = .standard
         case "fullSpeed":
-            fanControlEnabled = true
+            fanControl = driven
             fanCurveMode = .advanced
             fanAdvancedPoints = [40, 50, 60, 70, 80].map { FanPoint(temperature: $0, speed: 100) }
         default:
