@@ -89,6 +89,11 @@ public final class ClamDownController: ObservableObject {
     /// start without ever answering it. A late request that still arrives is undone by the helper's own watchdog,
     /// which switches the mode off when no heartbeat follows.
     var helperAnswerLimit: Duration = .seconds(5)
+    /// A heartbeat can wait behind a fan take-over on the helper's actor (up to 5 seconds a fan), so it gets longer;
+    /// too short a limit would read a busy helper as a lost one and end the mode.
+    var heartbeatLimit: Duration = .seconds(30)
+    /// A switch-off runs up to two pmset commands, each stopped by the helper after 10 seconds.
+    var switchOffLimit: Duration = .seconds(30)
     private var recheckingRefusal = false
     /// Called on every Turn On or reinstall that stops because the helper needs approval.
     /// The app answers by opening the setup assistant; System Settings no longer opens by itself.
@@ -173,12 +178,31 @@ public final class ClamDownController: ObservableObject {
     private let wait: @Sendable (Duration) async -> Void
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
-    /// Runs while fan control is Always, keeping a fan-only session alive in the helper while the mode is off.
+    /// Runs while fan control is Always, or while a fan-only session may still be running, keeping that session
+    /// alive in the helper while the mode is off, or ending it.
     private var idleCoolingTask: Task<Void, Never>?
     /// The policy of the fan-only session the helper last accepted. Nil while none runs.
     private var idleFanPolicy: FanPolicy?
+    /// True from the moment a fan-only policy is sent until the helper has acknowledged an empty one (or a Turn On
+    /// ended the session). A send that timed out may still have reached the helper, so this, not `idleFanPolicy`,
+    /// decides whether the fans must be handed back.
+    private var idleSessionMayExist = false
     private var tendingIdleCooling = false
+    /// A change arrived while a round was running; another round follows it.
+    private var tendAgain = false
     private var shuttingDown = false
+    /// Between `systemWillSleep` and `systemDidWake`: no fan-only session may start.
+    private var sleeping = false
+    /// Updates a helper from another build in the background, once per run, for Always. Turn On and the other helper
+    /// actions wait for it instead of being turned away by `helperBusy`.
+    private var backgroundHelperSync: Task<HelperPreparation, Never>?
+    private var backgroundHelperSyncTried = false
+    /// True after the mode's fan policy did not reach the helper; the heartbeat sends it again.
+    private var fanPolicyUnconfirmed = false
+    /// The notice that said so, cleared once the policy gets through.
+    private var fanFailureNotice: String?
+    /// Keeps macOS from napping the app while Always runs, so the session's timer is not delayed past the helper's limit.
+    private let coolingActivity: ProcessActivityHolding?
 
     public init(
         helper: HelperControlling,
@@ -198,6 +222,7 @@ public final class ClamDownController: ObservableObject {
         displays: DisplayReading? = nil,
         sleeper: SystemSleeping? = nil,
         jobReader: HelperJobReading? = nil,
+        coolingActivity: ProcessActivityHolding? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         pause: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
         wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
@@ -219,6 +244,7 @@ public final class ClamDownController: ObservableObject {
         self.displays = displays
         self.sleeper = sleeper
         self.jobReader = jobReader
+        self.coolingActivity = coolingActivity
         self.now = now
         self.pause = pause
         self.wait = wait
@@ -230,8 +256,9 @@ public final class ClamDownController: ObservableObject {
         monitor.start { [weak self] in
             Task { @MainActor in await self?.handleSystemChange() }
         }
-        if !state.isOn, let leftover = try? await helper.isEnabled(), leftover {
-            try? await helper.disable()
+        // Time-limited: a helper launchd will not start never answers, and Always must still get going.
+        if !state.isOn, let leftover = try? await askHelper({ try await $0.isEnabled() }), leftover {
+            _ = try? await askHelper(limit: switchOffLimit) { try await $0.disable() }
         }
         await tendIdleCooling()
     }
@@ -289,11 +316,12 @@ public final class ClamDownController: ObservableObject {
         guard state.isOn else { return }
         let stillOn: Bool
         do {
-            stillOn = try await helper.heartbeat()
+            stillOn = try await askHelper(limit: heartbeatLimit) { try await $0.heartbeat() }
         } catch {
             stillOn = false
         }
         if stillOn {
+            if fanPolicyUnconfirmed { await applyFanPolicy() }
             await watchFanControl()
             return
         }
@@ -314,9 +342,9 @@ public final class ClamDownController: ObservableObject {
     public func systemWillSleep() {
         stopSleepWatch()
         // A sleeping Mac must not keep its fans where ClamDown set them. The session starts again after the wake.
-        if idleFanPolicy != nil, !state.isOn {
-            idleFanPolicy = nil
-            Task { [weak self] in await self?.sendIdleFanPolicy(nil) }
+        sleeping = true
+        if idleSessionMayExist, !state.isOn {
+            Task { [weak self] in await self?.tendIdleCooling() }
         }
         // Time asleep is not time hot: the hold starts again after the wake.
         batteryHeat.reset()
@@ -332,6 +360,7 @@ public final class ClamDownController: ObservableObject {
 
     /// Call when the Mac or its screens wake. Tells the user why ClamDown let the Mac sleep, once, when the lid is open.
     public func systemDidWake() {
+        sleeping = false
         if settings.fanControl == .always {
             Task { [weak self] in await self?.tendIdleCooling() }
         }
@@ -403,8 +432,7 @@ public final class ClamDownController: ObservableObject {
     public func shutdown() async {
         shuttingDown = true
         monitor.stop()
-        idleCoolingTask?.cancel()
-        idleCoolingTask = nil
+        stopIdleCoolingLoop()
         if state.isOn { await turnOff() }
         await endIdleCooling()
     }
@@ -416,6 +444,7 @@ public final class ClamDownController: ObservableObject {
 
     /// Installs the helper from this app build again. Use it when the helper gets stuck.
     public func reinstallHelper() async {
+        await waitForBackgroundHelperSync()
         guard !helperBusy else { return }
         helperBusy = true
         defer { helperBusy = false }
@@ -493,6 +522,7 @@ public final class ClamDownController: ObservableObject {
     /// Puts the original power settings back, then removes the helper. Turn On sets it up again.
     /// If the settings cannot be put back, the helper stays, because only it can still change them.
     public func removeHelper() async {
+        await waitForBackgroundHelperSync()
         guard !helperBusy else { return }
         helperBusy = true
         defer { helperBusy = false }
@@ -530,6 +560,7 @@ public final class ClamDownController: ObservableObject {
     // MARK: - Switching
 
     private func performTurnOn(duration: Duration?) async {
+        await waitForBackgroundHelperSync()
         guard !helperBusy else { return }
         helperBusy = true
         turnOnLog.info("turn on")
@@ -557,6 +588,9 @@ public final class ClamDownController: ObservableObject {
         switch await startMode() {
         case .started:
             launchdRefusesHelper = false
+            // The helper ended any fan-only session when the mode switched on; the mode's policy follows below.
+            idleSessionMayExist = false
+            idleFanPolicy = nil
         case .stopped(let preparation):
             // The Turn On that found the helper not allowed is remembered, as when it is found before the start.
             pendingTurnOn = preparation == .needsApproval ? TurnOnRequest(duration: duration) : nil
@@ -575,11 +609,22 @@ public final class ClamDownController: ObservableObject {
 
     /// The helper drops the fan policy on every switch-off, so it is sent on every switch-on and setting change.
     /// A failure leaves the fans with macOS and the mode on: keeping the Mac awake matters more.
+    /// One that did not get through is sent again with the next heartbeat.
     private func applyFanPolicy() async {
+        let policy = settings.fanPolicy
         do {
-            try await helper.setFanPolicy(settings.fanPolicy)
+            try await askHelper { try await $0.setFanPolicy(policy) }
+            fanPolicyUnconfirmed = false
+            if let shown = fanFailureNotice, notice == shown { notice = nil }
+            fanFailureNotice = nil
         } catch {
-            notice = String(localized: "Could not control the fans: \(Self.describe(error))")
+            let retry = fanPolicyUnconfirmed
+            fanPolicyUnconfirmed = true
+            // A retry that fails too says nothing new.
+            guard !retry else { return }
+            let text = String(localized: "Could not control the fans: \(Self.describe(error))")
+            notice = text
+            fanFailureNotice = text
         }
     }
 
@@ -693,10 +738,11 @@ public final class ClamDownController: ObservableObject {
     /// Sends one request to the helper and waits at most `helperAnswerLimit` for its answer. No answer in time
     /// reads as silence, the same as a connection that failed.
     private func askHelper<Answer: Sendable>(
+        limit: Duration? = nil,
         _ request: @escaping @Sendable (HelperControlling) async throws -> Answer
     ) async throws -> Answer {
         let helper = self.helper
-        let limit = helperAnswerLimit
+        let limit = limit ?? helperAnswerLimit
         return try await withCheckedThrowingContinuation { continuation in
             let once = AnswerOnce(continuation)
             let work = Task {
@@ -773,7 +819,7 @@ public final class ClamDownController: ObservableObject {
 
     private func turnOff() async {
         do {
-            try await helper.disable()
+            try await askHelper(limit: switchOffLimit) { try await $0.disable() }
         } catch {
             // The helper may still be keeping the Mac awake, so the switch keeps showing "on".
             notice = String(localized: "Could not turn off: \(Self.describe(error))")
@@ -784,7 +830,7 @@ public final class ClamDownController: ObservableObject {
 
     private func autoOff(_ reason: AutoOffReason) async {
         do {
-            try await helper.disable()
+            try await askHelper(limit: switchOffLimit) { try await $0.disable() }
         } catch {
             // Another switch-off may have finished while this one waited for the helper.
             guard state.isOn else { return }
@@ -959,49 +1005,67 @@ public final class ClamDownController: ObservableObject {
     /// With Always, the fans follow the curve while ClamDown is off too: the app keeps a fan-only session alive in
     /// the helper by sending the policy again every `heartbeatInterval`. It needs a helper that is set up and
     /// allowed; registering or approving one is left to Turn On and the setup assistant. A helper from another
-    /// build is updated first, as Turn On does, because an older one drives the fans only while the mode is on.
+    /// build is updated first, once per run, because an older one drives the fans only while the mode is on.
+    /// When the session is not wanted (another mode, the mode on, the Mac going to sleep, the app quitting), a session
+    /// that may exist is ended. Rounds never overlap: a call during a round asks for one more round after it.
     public func tendIdleCooling() async {
-        guard settings.fanControl == .always, !shuttingDown else {
-            idleCoolingTask?.cancel()
-            idleCoolingTask = nil
-            await endIdleCooling()
+        guard !tendingIdleCooling else {
+            tendAgain = true
             return
         }
-        if idleCoolingTask == nil { startIdleCoolingLoop() }
-        // While on, the mode's own policy drives the fans, and the switch-off ends it.
-        guard !state.isOn else {
-            idleFanPolicy = nil
-            return
-        }
-        guard !helperBusy, !tendingIdleCooling else { return }
         tendingIdleCooling = true
         defer { tendingIdleCooling = false }
+        repeat {
+            tendAgain = false
+            await tendIdleCoolingOnce()
+        } while tendAgain && !Task.isCancelled
+    }
+
+    private var wantsIdleCooling: Bool {
+        settings.fanControl == .always && !shuttingDown && !state.isOn && !sleeping
+    }
+
+    private func tendIdleCoolingOnce() async {
+        guard wantsIdleCooling else {
+            // While on, the mode's own policy drives the fans; the helper ended any fan-only session at the switch-on.
+            if state.isOn { idleFanPolicy = nil } else { await endIdleCooling() }
+            if (settings.fanControl != .always || shuttingDown) && !idleSessionMayExist { stopIdleCoolingLoop() }
+            return
+        }
+        startIdleCoolingLoop()
+        // A Turn On, an install or a removal is running; it decides what happens to the helper.
+        guard !helperBusy else { return }
         refreshHelperAvailability()
         guard helperAvailability == .ready, !launchdRefusesHelper else {
             await endIdleCooling()
             return
         }
-        if let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint {
-            guard await prepareHelper() == .ready else { return }
-        }
+        guard await helperIsFromThisBuild() else { return }
         let policy = settings.fanPolicy
-        guard await sendIdleFanPolicy(policy) else {
+        idleSessionMayExist = true
+        let sent = await sendIdleFanPolicy(policy)
+        // A Turn On, a setting change, a sleep or a quit may have come while the helper answered.
+        guard wantsIdleCooling, settings.fanPolicy == policy else {
+            tendAgain = true
+            return
+        }
+        guard sent else {
             idleFanPolicy = nil
             return
         }
-        // A Turn On or a setting change may have come while the helper answered; each tends the session itself.
-        guard !state.isOn, settings.fanControl == .always, settings.fanPolicy == policy else { return }
         idleFanPolicy = policy
         await watchFanControl()
     }
 
-    /// Hands the fans of a fan-only session back to macOS. Leaves a running mode alone.
+    /// Hands the fans of a fan-only session back to macOS. Leaves a running mode alone. A hand-back the helper did
+    /// not confirm is tried again on the next round; the helper's own limit ends the session in any case.
     private func endIdleCooling() async {
-        guard idleFanPolicy != nil else { return }
+        guard idleSessionMayExist else { return }
         idleFanPolicy = nil
         guard !state.isOn else { return }
         present(fanAlert.reset())
-        await sendIdleFanPolicy(nil)
+        // A Turn On may have ended the session while the helper answered; then it is gone already.
+        if await sendIdleFanPolicy(nil) || state.isOn { idleSessionMayExist = false }
     }
 
     /// Sends the fan-only session's policy, or an empty one that ends it. True when the helper took it.
@@ -1017,7 +1081,28 @@ public final class ClamDownController: ObservableObject {
         }
     }
 
+    /// True when the helper comes from this build, after updating it in the background if needed. Tried once per
+    /// run: a failed update waits for the next Turn On, which updates the helper anyway, instead of re-registering
+    /// every round.
+    private func helperIsFromThisBuild() async -> Bool {
+        guard let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint else { return true }
+        guard !backgroundHelperSyncTried else { return false }
+        backgroundHelperSyncTried = true
+        let sync = Task { await self.prepareHelper() }
+        backgroundHelperSync = sync
+        let result = await sync.value
+        backgroundHelperSync = nil
+        return result == .ready
+    }
+
+    /// Lets a helper update the idle loop started finish, so the user's action runs after it instead of being dropped.
+    private func waitForBackgroundHelperSync() async {
+        if let sync = backgroundHelperSync { _ = await sync.value }
+    }
+
     private func startIdleCoolingLoop() {
+        guard idleCoolingTask == nil else { return }
+        coolingActivity?.begin()
         let interval = heartbeatInterval
         idleCoolingTask = Task { [weak self, wait] in
             while !Task.isCancelled {
@@ -1026,6 +1111,13 @@ public final class ClamDownController: ObservableObject {
                 await self?.tendIdleCooling()
             }
         }
+    }
+
+    private func stopIdleCoolingLoop() {
+        guard let task = idleCoolingTask else { return }
+        task.cancel()
+        idleCoolingTask = nil
+        coolingActivity?.end()
     }
 
     /// Registers the helper when needed and replaces one that comes from another build, without turning the mode on.

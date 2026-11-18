@@ -23,6 +23,12 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
         var statusError: Error?
         /// Requests wait without an answer, as XPC does for a helper launchd keeps failing to start.
         var hangs = false
+        /// `setFanPolicy` records the call, as a helper that received it, then waits without an answer.
+        var fanPolicyHangs = false
+        /// `heartbeat()` waits without an answer.
+        var heartbeatHangs = false
+        /// `disable()` waits without an answer.
+        var disableHangs = false
         var disableError: Error?
         var restoreError: Error?
         var lowPowerError: Error?
@@ -66,6 +72,7 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
     }
 
     func disable() async throws {
+        if with({ $0.disableHangs }) { try await Task.sleep(for: .seconds(600)) }
         try with { state in
             state.disableCount += 1
             if let error = state.disableError { throw error }
@@ -81,7 +88,8 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
     }
 
     func heartbeat() async throws -> Bool {
-        try with { state in
+        if with({ $0.heartbeatHangs }) { try await Task.sleep(for: .seconds(600)) }
+        return try with { state in
             state.heartbeatCount += 1
             return try state.heartbeatResult.get()
         }
@@ -102,10 +110,12 @@ final class FakeHelper: HelperControlling, @unchecked Sendable {
     }
 
     func setFanPolicy(_ policy: FanPolicy) async throws {
-        try with { state in
+        let hangs = try with { state in
             state.fanPolicyCalls.append(policy)
             if let error = state.fanPolicyError { throw error }
+            return state.fanPolicyHangs
         }
+        if hangs { try await Task.sleep(for: .seconds(600)) }
     }
 
     var coolingCount: Int { with { $0.coolingCount } }
@@ -377,10 +387,15 @@ func drainMainActor() async {
 final class FakePauser {
     private(set) var waits: [Duration] = []
     var whilePaused: ((Duration) -> Void)?
+    /// When set, a pause lets other tasks run, as a real one does: work started meanwhile gets its turn.
+    var yields = false
 
-    func pause(_ duration: Duration) {
+    /// True when the caller should let other tasks run, as a real pause would.
+    @discardableResult
+    func pause(_ duration: Duration) -> Bool {
         waits.append(duration)
         whilePaused?(duration)
+        return yields
     }
 }
 

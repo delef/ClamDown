@@ -11,6 +11,7 @@ struct Rig {
     let monitor: FakeMonitor
     let notifier = FakeNotifier()
     let activity = FakeActivity()
+    let coolingActivity = FakeActivity()
     let store: FakeSettingsStore
     let installed: FakeInstalledHelper
     let lid = FakeLidMonitor()
@@ -57,10 +58,11 @@ struct Rig {
             displays: displays,
             sleeper: sleeper,
             jobReader: jobs,
+            coolingActivity: coolingActivity,
             now: { [clock] in clock.now },
             pause: { [registrar, pauser] duration in
                 registrar.pause(duration)
-                await pauser.pause(duration)
+                if await pauser.pause(duration) { for _ in 0..<100 { await Task.yield() } }
             },
             wait: { [time] duration in await time.wait(duration) }
         )

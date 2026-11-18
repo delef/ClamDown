@@ -69,7 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             idle: SystemIdle(),
             displays: SystemDisplays(),
             sleeper: LiveSystemSleeper(),
-            jobReader: LaunchctlJobReader(label: label)
+            jobReader: LaunchctlJobReader(label: label),
+            coolingActivity: AppNapActivity.cooling()
         )
         super.init()
     }
