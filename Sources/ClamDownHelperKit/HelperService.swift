@@ -3,7 +3,7 @@ import ClamDownShared
 
 public final class HelperService: NSObject, ClamDownHelperXPC {
     private let core: HelperCore
-    /// This connection, as the owner of a mode it switches on.
+    /// This connection, as the owner of a mode it switches on or a fan-only session it starts.
     public let connection = UUID()
 
     public init(core: HelperCore) {
@@ -43,7 +43,10 @@ public final class HelperService: NSObject, ClamDownHelperXPC {
 
     public func setFanPolicy(_ policy: Data, reply: @escaping @Sendable (String?) -> Void) {
         let core = core
-        Self.run(reply) { try await core.setFanPolicy(JSONDecoder().decode(FanPolicy.self, from: policy)) }
+        let connection = connection
+        Self.run(reply) {
+            try await core.setFanPolicy(JSONDecoder().decode(FanPolicy.self, from: policy), owner: connection)
+        }
     }
 
     public func coolingStatus(reply: @escaping @Sendable (Data?) -> Void) {

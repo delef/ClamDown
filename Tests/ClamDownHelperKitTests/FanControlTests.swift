@@ -54,10 +54,82 @@ import ClamDownShared
         return rig
     }
 
-    @Test func policyNeedsTheModeOn() async {
-        let (core, fans, _) = make()
-        await #expect(throws: HelperError.notEnabled) { try await core.setFanPolicy(curve) }
-        #expect(fans.targets.isEmpty)
+    private var lidOpenCurve: FanPolicy {
+        var policy = curve
+        policy.onlyWhenLidClosed = false
+        return policy
+    }
+
+    /// Always: with the mode off the fans follow the policy, and the take-over is on disk before they move.
+    @Test func aPolicyWhileOffStartsAFanOnlySession() async throws {
+        let (core, fans, store) = make(fans: FakeFans(lidClosed: false))
+        try await core.setFanPolicy(lidOpenCurve, owner: UUID())
+        #expect(fans.targets == [[3000]])
+        #expect(store.saved == SavedState(fansManual: true))
+        #expect(await !core.isEnabled)
+    }
+
+    @Test func anEmptyPolicyEndsTheFanOnlySession() async throws {
+        let (core, fans, store) = make(fans: FakeFans(lidClosed: false))
+        try await core.setFanPolicy(lidOpenCurve)
+        try await core.setFanPolicy(FanPolicy(points: []))
+        #expect(!fans.isHeld)
+        #expect(store.saved == nil)
+        await core.updateFans()
+        #expect(!fans.isHeld)
+    }
+
+    /// The app sends the policy again to keep the session; without it, macOS gets the fans back.
+    @Test func aFanOnlySessionEndsWhenTheAppStopsSendingThePolicy() async throws {
+        let store = FakeStore(initial: nil)
+        let fans = FakeFans(lidClosed: false)
+        let core = HelperCore(runner: FakeRunner(), store: store, originals: FakeOriginalStore(), fans: fans,
+                              watchdogTimeout: .seconds(90))
+        let t0 = SuspendingClock.now
+        try await core.setFanPolicy(lidOpenCurve, now: t0)
+        try await core.setFanPolicy(lidOpenCurve, now: t0 + .seconds(60))
+        #expect(await !core.checkWatchdog(now: t0 + .seconds(120)))
+        await core.updateFans(now: t0 + .seconds(120))
+        #expect(fans.isHeld)
+        _ = await core.checkWatchdog(now: t0 + .seconds(160))
+        await core.updateFans(now: t0 + .seconds(160))
+        #expect(!fans.isHeld)
+        #expect(store.saved == nil)
+    }
+
+    @Test func aFanOnlySessionEndsWithItsConnection() async throws {
+        let (core, fans, _) = make(fans: FakeFans(lidClosed: false))
+        let app = UUID()
+        try await core.setFanPolicy(lidOpenCurve, owner: app)
+        try await core.connectionClosed(UUID())
+        await core.updateFans()
+        #expect(fans.isHeld)
+        try await core.connectionClosed(app)
+        #expect(!fans.isHeld)
+        await core.updateFans()
+        #expect(!fans.isHeld)
+    }
+
+    /// Sending the same policy again keeps the session and does not start a stopped fan control afresh.
+    @Test func theSamePolicyAgainChangesNothing() async throws {
+        let (core, fans, _) = make(fans: FakeFans(lidClosed: false))
+        try await core.setFanPolicy(lidOpenCurve)
+        try await core.setFanPolicy(lidOpenCurve)
+        #expect(fans.targets == [[3000]])
+    }
+
+    /// Turn On keeps the fans where the session has them; the switch-off ends the session with the mode.
+    @Test func theModeTakesOverAFanOnlySessionAndEndsIt() async throws {
+        let (core, fans, store) = make(fans: FakeFans(lidClosed: false))
+        try await core.setFanPolicy(lidOpenCurve)
+        try await core.enable(lowPowerOnBattery: false)
+        #expect(fans.isHeld)
+        #expect(store.saved?.fansManual == true && store.saved?.sleepDisabled == false)
+        try await core.disable()
+        #expect(!fans.isHeld)
+        await core.updateFans()
+        #expect(!fans.isHeld)
+        #expect(store.saved == nil)
     }
 
     @Test func curveSetsSpeedAndRecordsTheTakeOverFirst() async throws {
@@ -661,10 +733,15 @@ import ClamDownShared
         #expect(status.problem == nil)
     }
 
+    /// A changed policy starts afresh; the same one sent again (as Always does to keep its session) does not.
     @Test func newPolicyRestartsAtOnce() async throws {
         let (core, fans, _) = try await stopped()
         fans.failSet(false)
-        try await core.setFanPolicy(curve, now: at(63))
+        try await core.setFanPolicy(curve, now: at(62))
+        #expect(await core.coolingStatus().control == .stopped)
+        var changed = curve
+        changed.caseRamp = .standard
+        try await core.setFanPolicy(changed, now: at(63))
         #expect(fans.targets == [[3000]])
         #expect(await core.coolingStatus().control == .controlling)
     }

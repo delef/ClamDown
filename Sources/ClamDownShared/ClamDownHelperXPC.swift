@@ -13,7 +13,9 @@ import Foundation
     func heartbeat(reply: @escaping @Sendable (Bool) -> Void)
     /// Replies true while the mode is on.
     func status(reply: @escaping @Sendable (Bool) -> Void)
-    /// `policy` is a JSON-encoded `FanPolicy`. Works only while the mode is on; switching off drops it.
+    /// `policy` is a JSON-encoded `FanPolicy`. Switching the mode off drops it. While the mode is off it starts a
+    /// fan-only session, which lasts while the same connection sends it again at least every 90 seconds;
+    /// a policy with no points ends it.
     func setFanPolicy(_ policy: Data, reply: @escaping @Sendable (String?) -> Void)
     /// Replies with a JSON-encoded `CoolingStatus`, or nil when it cannot be built.
     func coolingStatus(reply: @escaping @Sendable (Data?) -> Void)

@@ -20,7 +20,8 @@ public enum HelperError: Error, Equatable, CustomStringConvertible {
 }
 
 /// The helper's whole job: switch `disablesleep` and the battery profile's Low Power Mode,
-/// drive the fans while the mode is on, remember what to put back, and undo everything when asked.
+/// drive the fans while the mode is on (and, when the app asks, while it is off), remember what to put back,
+/// and undo everything when asked.
 public actor HelperCore {
     private let runner: PmsetRunning
     private let store: SavedStateStoring
@@ -53,7 +54,13 @@ public actor HelperCore {
     private var saved: SavedState?
 
     /// The app's fan wishes for this session. Nil until the app sends them; dropped on switch-off.
+    /// While the mode is off the app may still send them: a fan-only session, kept alive by sending them again.
     private var fanPolicy: FanPolicy?
+    /// The app connection that started a fan-only session, while one runs. Its closing ends the session.
+    private var fanOwner: UUID?
+    /// When the app last sent the fan-only session's policy. Without a new one within the watchdog timeout,
+    /// the session ends and macOS gets the fans back.
+    private var lastFanPolicy: SuspendingClock.Instant?
     /// True from the moment ClamDown starts taking the fans until macOS has them back.
     private var fansHeld = false
     /// The speeds last set, in fan order. Nil while macOS has the fans.
@@ -160,8 +167,11 @@ public actor HelperCore {
 
     /// An app connection closed (the app quit, crashed or dropped it). Switches off unless the mode belongs to a
     /// newer connection: an app that reconnected and switched on again must not lose the mode to its old connection.
+    /// A fan-only session ends with the connection that started it, and only with that one.
     public func connectionClosed(_ connection: UUID) throws {
         if enabled, let owner, owner != connection { return }
+        if !enabled, let fanOwner, fanOwner != connection { return }
+        endFanOnlySession()
         try disable()
     }
 
@@ -226,6 +236,8 @@ public actor HelperCore {
         priorSleepDisabled = nil
         priorBatteryLowPower = nil
         fanPolicy = nil
+        fanOwner = nil
+        lastFanPolicy = nil
         health.restart()
         fanIdle = true
         hotCore = .hotCore()
@@ -245,8 +257,12 @@ public actor HelperCore {
     /// Resets the machine when no heartbeat arrived within the timeout. True when it did reset.
     /// A failed reset leaves the mode enabled, so the next tick tries again.
     /// `SuspendingClock` does not advance while the Mac sleeps, so a manual sleep is not a missed heartbeat.
+    /// A fan-only session the app stopped sending its policy to ends here too; the next fan tick hands the fans back.
     public func checkWatchdog(now: SuspendingClock.Instant = .now) -> Bool {
         guard enabled else {
+            if fanPolicy != nil, let last = lastFanPolicy, last.duration(to: now) > watchdogTimeout {
+                endFanOnlySession()
+            }
             sleepIfOwed(now: now)
             return false
         }
@@ -342,16 +358,38 @@ public actor HelperCore {
 
     // MARK: - Fans
 
-    /// Stores the app's fan wishes for this session and applies them at once. A new policy starts afresh,
-    /// even after fan control has stopped.
-    public func setFanPolicy(_ policy: FanPolicy, now: SuspendingClock.Instant = .now) throws {
-        guard enabled else { throw HelperError.notEnabled }
-        fanPolicy = policy.repaired()
+    /// Stores the app's fan wishes and applies them at once. A new policy starts afresh, even after fan control has
+    /// stopped; the same policy again changes nothing, so the app can send it as often as it likes.
+    /// While the mode is off this starts or keeps alive a fan-only session owned by `owner`: the fans follow the
+    /// policy until the app stops sending it, its connection closes, or the mode switches on and off again.
+    /// A policy with no points ends it.
+    public func setFanPolicy(_ policy: FanPolicy, owner: UUID? = nil, now: SuspendingClock.Instant = .now) throws {
+        let repaired = policy.repaired()
+        if !enabled {
+            guard !repaired.isOff else {
+                endFanOnlySession()
+                updateFans(now: now)
+                return
+            }
+            fanOwner = owner
+            lastFanPolicy = now
+        }
+        guard repaired != fanPolicy else { return }
+        fanPolicy = repaired
         health.restart()
         updateFans(now: now)
     }
 
-    /// Call every few seconds. Sets the fan speeds while the mode is on and the policy asks for it;
+    /// Forgets a fan-only session. The fans go back to macOS on the next fan tick.
+    private func endFanOnlySession() {
+        guard !enabled else { return }
+        fanPolicy = nil
+        fanOwner = nil
+        lastFanPolicy = nil
+    }
+
+    /// Call every few seconds. Sets the fan speeds while the mode is on or a fan-only session runs, and the policy
+    /// asks for it;
     /// in every other case it hands the fans back to macOS if ClamDown holds them.
     /// The curve and the safety floor follow the hottest sensor of the known groups, or the average CPU
     /// temperature when no group can be read; a core at its limit, a hot battery or a Mac that macOS reports as hot
@@ -360,7 +398,7 @@ public actor HelperCore {
     /// follow its target) hands the fans back to macOS; `FanHealth` says when to take them again.
     public func updateFans(now: SuspendingClock.Instant = .now) {
         guard !terminating else { return }
-        guard enabled, let policy = fanPolicy, !policy.isOff else {
+        guard let policy = fanPolicy, !policy.isOff else {
             hotCore = .hotCore()
             hotBattery = .hotBattery()
             stopDriving()
