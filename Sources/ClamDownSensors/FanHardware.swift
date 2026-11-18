@@ -175,14 +175,17 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         try lock.withLock { try smc.write("Ftst", bytes: [1]) }
     }
 
+    /// Tries even when control reads as unsupported: that reading can change between helper starts, and a take-over
+    /// recorded by an earlier start must still be undone. A Mac without the keys has nothing to undo.
     public func releaseFans() throws {
-        guard supportsControl else { return }
         try lock.withLock {
             var firstError: Error?
-            for index in 0..<fanCount {
+            for index in 0..<fanCount where smc.has("F\(index)Md") {
                 do { try smc.write("F\(index)Md", bytes: [0]) } catch { firstError = firstError ?? error }
             }
-            do { try smc.write("Ftst", bytes: [0]) } catch { firstError = firstError ?? error }
+            if smc.has("Ftst") {
+                do { try smc.write("Ftst", bytes: [0]) } catch { firstError = firstError ?? error }
+            }
             if let firstError { throw firstError }
         }
     }

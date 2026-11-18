@@ -105,6 +105,23 @@ import ClamDownShared
         #expect(fake.writtenKeys == ["F1Md", "Ftst"])
     }
 
+    /// Control can read as unsupported at one helper start (a target key that does not read as a float) after an
+    /// earlier start took the fans; the release must still reach them.
+    @Test func releaseReachesTheFansWhenControlReadsAsUnsupported() throws {
+        let fake = smc(fanModes: [1, 1])
+        fake.values["F0Tg"] = nil
+        let fans = hardware(fake)
+        #expect(!fans.supportsControl)
+        try fans.releaseFans()
+        #expect(fake.writtenKeys == ["F0Md", "F1Md", "Ftst"])
+    }
+
+    @Test func releaseOnAMacWithoutTheKeysWritesNothing() throws {
+        let intel = FakeSMC([("FNum", .byte(1)), ("F0Ac", .float(1800)), ("F0Mn", .float(1200)), ("F0Mx", .float(6000))])
+        try hardware(intel).releaseFans()
+        #expect(intel.writes.isEmpty)
+    }
+
     @Test func intelKeysAreTheFallback() throws {
         let intel = FakeSMC([("FNum", .byte(1)), ("F0Ac", .float(1800)), ("F0Mn", .float(1200)), ("F0Mx", .float(6000)),
                              ("TC0P", SMCValue(type: "sp78", bytes: [0x30, 0x00]))])

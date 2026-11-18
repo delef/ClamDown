@@ -8,6 +8,8 @@ public enum HelperError: Error, Equatable, CustomStringConvertible {
     case unreadableSleepSetting
     /// The fans could not be handed back to macOS, so the original settings are not put back yet.
     case fansStillHeld
+    /// A take-over is on record but the SMC cannot be reached to hand the fans back.
+    case fansUnreachable
 
     /// The text the app shows. No final period: the app adds its own.
     public var description: String {
@@ -15,6 +17,7 @@ public enum HelperError: Error, Equatable, CustomStringConvertible {
         case .notEnabled: "The mode is not on"
         case .unreadableSleepSetting: "pmset did not report the sleep setting"
         case .fansStillHeld: "ClamDown could not hand the fans back to macOS"
+        case .fansUnreachable: "ClamDown cannot reach the fans to hand them back to macOS"
         }
     }
 }
@@ -50,7 +53,7 @@ public actor HelperCore {
     private var priorSleepDisabled: Bool?
     private var lastHeartbeat: SuspendingClock.Instant = .now
     private var owedSleep: OwedSleep?
-    /// What is on disk, so fan changes can be added to it.
+    /// What is on disk, so fan changes can be added to it. Nil while nothing is, or before the file was read.
     private var saved: SavedState?
 
     /// The app's fan wishes for this session. Nil until the app sends them; dropped on switch-off.
@@ -125,7 +128,9 @@ public actor HelperCore {
         }
         // A session that was never undone (its recovery on start failed) left the user's values on disk; the current
         // ones may still be ClamDown's, so they must not become the values to put back.
-        let pending = (try? store.load()) ?? nil
+        // A damaged file reads as the recovery reads it: sleep allowed.
+        let pending: SavedState?
+        do { pending = try store.load() } catch { pending = SavedState(sleepDisabled: false) }
         let priorSleep: Bool
         let prior: Bool?
         if let pending, let pendingSleep = pending.sleepDisabled {
@@ -136,6 +141,8 @@ public actor HelperCore {
             prior = PmsetParser.batteryLowPowerMode(fromCustom: try runner.run(.readCustom))
         }
         let clean = pending?.sleepDisabled == nil
+        // The mode brings its own policy; a fan-only session's must not drive the mode's fans if that one never comes.
+        endFanOnlySession()
         do {
             // Persist what to restore before anything changes, so a crash cannot lose it.
             let state = SavedState(batteryLowPowerMode: prior, sleepDisabled: priorSleep, fansManual: fansHeld ? true : nil)
@@ -147,15 +154,12 @@ public actor HelperCore {
         } catch {
             try? exec(.setSleepDisabled(priorSleep))
             if let prior { try? exec(.setBatteryLowPowerMode(prior)) }
-            // Fans whose hand-back failed earlier are still held, and the next start must know that.
-            if fansHeld {
-                let state = SavedState(fansManual: true)
-                try? store.save(state)
-                saved = state
-            } else {
-                try? store.clear()
-                saved = nil
-            }
+            // A session left by a failed recovery stays on disk, so its values are still put back later; fans whose
+            // hand-back failed earlier are still held, and the next start must know that too.
+            var state = pending.map { SavedState(batteryLowPowerMode: $0.batteryLowPowerMode, sleepDisabled: $0.sleepDisabled) }
+                ?? SavedState()
+            state.fansManual = fansHeld ? true : nil
+            writeSaved(state)
             throw error
         }
         priorSleepDisabled = priorSleep
@@ -178,16 +182,18 @@ public actor HelperCore {
     /// launchd is stopping the helper. Nothing may take the fans again after this, whatever the switch-off does.
     public func shutdown() throws {
         terminating = true
+        // The process exits after this whatever the switch-off does, so the fans go back first.
+        releaseFansIfHeld()
         try disable()
     }
 
-    /// Always tries every step. On any sleep or Low Power Mode failure the state is kept, so a retry can finish the job.
+    /// Always tries every step. On any sleep or Low Power Mode failure the state is kept, so a retry can finish the job;
+    /// the mode then stays on and keeps driving the fans. The fans go back to macOS once the switch-off has worked.
     /// Fans that cannot be handed back do not block the switch-off: `updateFans` keeps retrying,
     /// and the saved state makes the next helper start retry too.
     /// While the mode is off the sleep setting and Low Power Mode are the user's own and stay untouched; only a
     /// session left on disk by a failed recovery is put back, which makes this a retry of that recovery.
     public func disable() throws {
-        releaseFansIfHeld()
         guard enabled else {
             try recoverOnStart()
             return
@@ -204,20 +210,23 @@ public actor HelperCore {
     /// Puts back the values recorded before ClamDown first switched on, then deletes that record. Used before the helper
     /// is removed. The record stays when a step fails, so a retry can finish the job. Without a record this is `disable()`.
     /// An unreadable record counts as none and is deleted with the switch-off: it can never be put back.
+    /// A fan-only session ends here too: the helper is about to go.
     public func restoreOriginalSettings() throws {
+        endFanOnlySession()
         guard let original = (try? originals.load()) ?? nil else {
+            releaseFansIfHeld()
             try disable()
             try? originals.delete()
             return
         }
-        releaseFansIfHeld()
         // Every step is tried. If the fans stay with ClamDown, the record and the saved state stay too, so a retry hands them back.
         var firstError: Error?
-        if fansHeld { firstError = HelperError.fansStillHeld }
-        do { try exec(.setSleepDisabled(original.sleepDisabled ?? false)) } catch { firstError = firstError ?? error }
+        do { try exec(.setSleepDisabled(original.sleepDisabled ?? false)) } catch { firstError = error }
         if let lowPower = original.batteryLowPowerMode {
             do { try exec(.setBatteryLowPowerMode(lowPower)) } catch { firstError = firstError ?? error }
         }
+        releaseFansIfHeld()
+        if fansHeld { firstError = firstError ?? HelperError.fansStillHeld }
         if let firstError { throw firstError }
         markSwitchedOff()
         try originals.delete()
@@ -225,14 +234,9 @@ public actor HelperCore {
 
     /// The state once the mode is off: the session's values are forgotten, and the saved state is kept only while fans are held.
     private func markSwitchedOff() {
-        if fansHeld {
-            let state = SavedState(fansManual: true)
-            try? store.save(state)
-            saved = state
-        } else {
-            try? store.clear()  // a stale file would only cause one needless restore on the next start
-            saved = nil
-        }
+        releaseFansIfHeld()
+        // A stale file would only cause one needless restore on the next start.
+        writeSaved(SavedState(fansManual: fansHeld ? true : nil))
         priorSleepDisabled = nil
         priorBatteryLowPower = nil
         fanPolicy = nil
@@ -334,8 +338,14 @@ public actor HelperCore {
         var firstError: Error?
         var fansStillHeld = false
         // A damaged file may hide a take-over, and handing back fans that macOS already has does no harm.
-        if saved?.fansManual == true || unreadable || fansHeld, let hardware {
-            do { try hardware.releaseFans() } catch { firstError = error; fansStillHeld = true }
+        if saved?.fansManual == true || unreadable || fansHeld {
+            if let hardware {
+                do { try hardware.releaseFans() } catch { firstError = error; fansStillHeld = true }
+            } else if saved?.fansManual == true || fansHeld {
+                // The record stays, so a later start that can open the SMC hands them back.
+                firstError = HelperError.fansUnreachable
+                fansStillHeld = true
+            }
         }
         if let lowPower = saved?.batteryLowPowerMode {
             do { try exec(.setBatteryLowPowerMode(lowPower)) } catch { firstError = firstError ?? error }
@@ -351,7 +361,11 @@ public actor HelperCore {
         priorBatteryLowPower = nil
         fansHeld = fansStillHeld  // lets `updateFans` keep trying to hand them back
         fanTargets = nil
-        if let firstError { throw firstError }
+        if let firstError {
+            // The file stays as it is, for a retry; memory follows it, so a fan take-over is added to it, not written over it.
+            self.saved = saved
+            throw firstError
+        }
         try? store.clear()
         self.saved = nil
     }
@@ -438,6 +452,11 @@ public actor HelperCore {
         // in the reading, in SMC order; otherwise a target could land on the wrong fan or a fan get none.
         guard isComplete(reading, hardware) else {
             fault(reading.fans.isEmpty ? "Could not read the fans." : "Could not read every fan.", now: now)
+            return
+        }
+        // A fan whose range is broken would get a target of its maximum, which can be 0 rpm or under its minimum.
+        if let bad = reading.fans.firstIndex(where: { $0.maximum <= 0 || $0.maximum < $0.minimum }) {
+            fault("Fan \(bad + 1) reports no usable speed range.", now: now)
             return
         }
         knownFanMaxima = reading.fans.map(\.maximum)
@@ -570,13 +589,7 @@ public actor HelperCore {
         fansHeld = false
         fanTargets = nil
         lagWatch = LagWatch()
-        if enabled {
-            try? recordFansHeld(false)
-        } else if saved == SavedState(fansManual: true) {
-            // Left behind by a switch-off whose fan release failed; nothing else is left to restore.
-            try? store.clear()
-            saved = nil
-        }
+        try? recordFansHeld(false)
     }
 
     /// Best effort: sets every fan still in manual mode to its maximum. A fan macOS already has is left to macOS:
@@ -598,11 +611,36 @@ public actor HelperCore {
         }
     }
 
+    /// Adds the take-over to what is on disk, or takes it off, and keeps everything else there: a session a failed
+    /// recovery left behind must survive a fan-only session. Without a copy in memory the file is read first; a damaged
+    /// one stands for "sleep allowed", as the recovery reads it.
     private func recordFansHeld(_ held: Bool) throws {
-        var state = saved ?? SavedState()
+        var state: SavedState
+        if let saved {
+            state = saved
+        } else {
+            do { state = try store.load() ?? SavedState() } catch { state = SavedState(sleepDisabled: false) }
+        }
         state.fansManual = held ? true : nil
-        try store.save(state)
-        saved = state
+        if state == SavedState() {
+            try store.clear()
+            saved = nil
+        } else {
+            try store.save(state)
+            saved = state
+        }
+    }
+
+    /// Writes `state`, or clears the file when it holds nothing. Best effort: used on paths that are already failing
+    /// or finishing.
+    private func writeSaved(_ state: SavedState) {
+        if state == SavedState() {
+            try? store.clear()
+            saved = nil
+        } else {
+            try? store.save(state)
+            saved = state
+        }
     }
 
     private func applyLowPower(_ on: Bool) throws {

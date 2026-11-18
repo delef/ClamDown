@@ -164,10 +164,22 @@ import Testing
     }
 
     @Test func recoverOnStartAfterAFanTakeOverAloneLeavesSleepAlone() async throws {
-        let (core, runner, store) = make(saved: SavedState(fansManual: true), sleep: true)
+        let runner = FakeRunner(batteryLowPower: false, sleepDisabled: true)
+        let store = FakeStore(initial: SavedState(fansManual: true))
+        let fans = FakeFans()
+        let core = HelperCore(runner: runner, store: store, originals: FakeOriginalStore(), fans: fans)
         try await core.recoverOnStart()
         #expect(runner.commands.isEmpty)
+        #expect(fans.releaseCount == 1)
         #expect(store.saved == nil)
+    }
+
+    /// Without an SMC the fans cannot be handed back, so the take-over stays on record for a later start.
+    @Test func recoverOnStartKeepsAFanTakeOverItCannotUndo() async throws {
+        let (core, runner, store) = make(saved: SavedState(fansManual: true), sleep: true)
+        await #expect(throws: HelperError.fansUnreachable) { try await core.recoverOnStart() }
+        #expect(runner.commands.isEmpty)
+        #expect(store.saved == SavedState(fansManual: true))
     }
 
     @Test func recoverOnStartIgnoresUnreadableStateAndStillResetsSleep() async throws {
