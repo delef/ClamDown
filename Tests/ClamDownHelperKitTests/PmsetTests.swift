@@ -59,4 +59,24 @@ AC Power:
             try SystemPmsetRunner(executablePath: "/usr/bin/false").run(.readGlobal)
         }
     }
+
+    @Test func runnerReturnsTheOutput() throws {
+        // echo prints the arguments pmset would get.
+        #expect(try SystemPmsetRunner(executablePath: "/bin/echo").run(.readGlobal) == "-g\n")
+    }
+
+    /// A pmset that never ends is stopped, so it cannot block the helper's actor, its watchdog and the fans.
+    @Test func runnerStopsAPmsetThatHangs() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let script = directory.appendingPathComponent("hang")
+        try "#!/bin/sh\nexec /bin/sleep 30\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let start = ContinuousClock.now
+        #expect(throws: PmsetError.timedOut) {
+            try SystemPmsetRunner(executablePath: script.path, timeout: .milliseconds(200)).run(.readGlobal)
+        }
+        #expect(ContinuousClock.now - start < .seconds(5))
+    }
 }

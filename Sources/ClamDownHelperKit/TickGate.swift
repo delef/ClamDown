@@ -6,18 +6,25 @@ import Foundation
 public final class TickGate: @unchecked Sendable {
     private let lock = NSLock()
     private var busy = false
+    private var skipped = 0
 
     public init() {}
 
     /// True while a tick runs.
     public var isBusy: Bool { lock.withLock { busy } }
+    /// Ticks skipped in a row because the one before was still running. A tick that starts resets it.
+    public var skippedInARow: Int { lock.withLock { skipped } }
 
     /// Starts `body` in a task unless the previous tick is still running. True when it started.
     @discardableResult
     public func start(_ body: @escaping @Sendable () async -> Void) -> Bool {
         let entered = lock.withLock {
-            guard !busy else { return false }
+            guard !busy else {
+                skipped += 1
+                return false
+            }
             busy = true
+            skipped = 0
             return true
         }
         guard entered else { return false }

@@ -3,6 +3,9 @@ import ClamDownHelperKit
 import ClamDownSensors
 import ClamDownShared
 
+/// Skipped ticks in a row after which the helper gives up on its stuck actor and exits.
+private let stuckTickLimit = 20
+
 private func log(_ message: String) {
     FileHandle.standardError.write(Data("ClamDownHelper: \(message)\n".utf8))
 }
@@ -71,9 +74,15 @@ private func runHelper() async -> Never {
     let tickGate = TickGate()
     timer.schedule(deadline: .now() + 3, repeating: 3)
     timer.setEventHandler {
-        tickGate.start {
+        let started = tickGate.start {
             _ = await core.checkWatchdog()
             await core.updateFans()
+        }
+        // A tick stuck this long (20 ticks, a minute) means the helper's actor is stuck, and with it the watchdog
+        // and the fans. Exit, so launchd starts a fresh helper whose recovery puts sleep and the fans back.
+        if !started, tickGate.skippedInARow >= stuckTickLimit {
+            log("a tick has been running for over a minute; exiting so launchd starts the helper again")
+            exit(1)
         }
     }
     timer.resume()

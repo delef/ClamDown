@@ -45,6 +45,19 @@ private final class Counter: @unchecked Sendable {
         #expect(runs.value == 1)
     }
 
+    /// The helper exits after too many skips in a row, so the count must say how long one tick has been stuck.
+    @Test func skippedTicksAreCountedUntilOneStarts() async throws {
+        let gate = TickGate()
+        let latch = Latch()
+        gate.start { await latch.wait() }
+        for _ in 0..<3 { gate.start {} }
+        #expect(gate.skippedInARow == 3)
+        await latch.open()
+        try await settle(gate)
+        #expect(gate.start {})
+        #expect(gate.skippedInARow == 0)
+    }
+
     @Test func theNextTickRunsOnceThePreviousOneHasFinished() async throws {
         let gate = TickGate()
         let runs = Counter()
