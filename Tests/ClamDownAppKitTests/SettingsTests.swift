@@ -116,7 +116,7 @@ import ClamDownShared
 
     @Test func defaultsDriveTheFansOnlyWithTheLidClosed() {
         let s = Settings()
-        #expect(s.fanControlEnabled && s.fanCurveMode == .standard && s.fanAdvancedPoints == nil && s.fansOnlyWhenLidClosed)
+        #expect(s.fanControl == .lidClosed && s.fanCurveMode == .standard && s.fanAdvancedPoints == nil)
         #expect(s.fanPolicy == FanPolicy(points: standardLine, onlyWhenLidClosed: true, caseRamp: .standard))
     }
 
@@ -192,7 +192,7 @@ import ClamDownShared
         s.fanControlEnabled = false
         s.fanCurveMode = .advanced
         s.fanAdvancedPoints = FanCurveEditor.defaultAdvanced
-        s.fansOnlyWhenLidClosed = false
+        s.fanControl = .always
         let decoded = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
         #expect(decoded == s)
     }
@@ -211,6 +211,38 @@ import ClamDownShared
         #expect(s.fanPolicy == FanPolicy(points: own, onlyWhenLidClosed: true, caseRamp: .standard))
         s.fanCurveMode = .standard
         #expect(s.fanPolicy.points == standardLine)
+    }
+
+    @Test func alwaysDrivesTheFansWithTheLidOpen() {
+        var s = Settings()
+        s.fanControl = .always
+        #expect(s.fanPolicy == FanPolicy(points: standardLine, onlyWhenLidClosed: false, caseRamp: .standard))
+        s.fanControl = .never
+        #expect(s.fanPolicy.isOff && !s.fanControlEnabled)
+    }
+
+    /// Switching fan control on keeps a chosen mode and picks With Lid Closed after Never.
+    @Test func switchingFanControlOnKeepsTheChosenMode() {
+        var s = Settings()
+        s.fanControl = .always
+        s.fanControlEnabled = true
+        #expect(s.fanControl == .always)
+        s.fanControlEnabled = false
+        s.fanControlEnabled = true
+        #expect(s.fanControl == .lidClosed)
+    }
+
+    /// 0.1.3 builds before the mode stored a switch and Only With Lid Closed.
+    @Test func olderFanSwitchesBecomeTheMode() throws {
+        func mode(_ json: String) throws -> FanControlMode {
+            try JSONDecoder().decode(Settings.self, from: Data(json.utf8)).fanControl
+        }
+        #expect(try mode(#"{"fanControlEnabled":false,"fansOnlyWhenLidClosed":false}"#) == .never)
+        #expect(try mode(#"{"fanControlEnabled":true,"fansOnlyWhenLidClosed":true}"#) == .lidClosed)
+        #expect(try mode(#"{"fanControlEnabled":true}"#) == .lidClosed)
+        #expect(try mode(#"{"fanControlEnabled":true,"fansOnlyWhenLidClosed":false}"#) == .always)
+        #expect(try mode(#"{"fanControl":"always","fanControlEnabled":false}"#) == .always)
+        #expect(try mode(#"{"fanControl":"sometimes","fanControlEnabled":false}"#) == .never)
     }
 
     @Test func caseRuleDefaultsTo38And44AndGoesToTheHelper() {

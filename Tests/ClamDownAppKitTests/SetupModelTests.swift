@@ -59,11 +59,11 @@ import Testing
         await model.refreshHelper()
         store.completed = false
         var seen = [model.step]
-        for _ in 0..<3 {
+        for _ in 0..<4 {
             model.advance()
             seen.append(model.step)
         }
-        #expect(seen == [.welcome, .helper, .notifications, .startup])
+        #expect(seen == [.welcome, .helper, .notifications, .cooling, .startup])
         #expect(!store.completed)
         model.advance()
         #expect(model.step == .done)

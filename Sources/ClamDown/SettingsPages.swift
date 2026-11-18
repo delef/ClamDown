@@ -228,12 +228,14 @@ struct CoolingPage: View {
                         .disabled(true)
                     CDNote(Self.offNote)
                 } else {
-                    CDSwitchRow(String(localized: "Fan Control"),
-                                detail: String(localized: """
-                                    Off: macOS keeps the fans. ClamDown hands them back when it switches off, quits or \
-                                    crashes.
-                                    """),
-                                isOn: controller.binding(\.fanControlEnabled))
+                    CDRow(String(localized: "Fan Control"),
+                          detail: fanControlDetail) {
+                        Picker("Fan Control", selection: controller.binding(\.fanControl)) {
+                            ForEach(FanControlMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                    }
                     if controller.settings.fanControlEnabled {
                         CDRow(String(localized: "Curve")) { modePicker }
                         curve
@@ -241,13 +243,6 @@ struct CoolingPage: View {
                         if let note = controlNote {
                             CDNote(note, tone: .warning)
                         }
-                        CDSwitchRow(String(localized: "Only With Lid Closed"),
-                                    detail: String(localized: """
-                                        Leaves the fans to macOS while the lid is open, so they stay quiet while you work.
-                                        """),
-                                    isOn: controller.binding(\.fansOnlyWhenLidClosed))
-                    } else {
-                        CDNote(Self.offNote)
                     }
                 }
             }
@@ -282,6 +277,12 @@ struct CoolingPage: View {
     }
 
     private static let offNote = String(localized: "macOS controls the fans. ClamDown does not touch them.")
+    private static let handBackNote = String(localized: "ClamDown hands the fans back when it quits or crashes.")
+
+    private var fanControlDetail: String {
+        let mode = controller.settings.fanControl
+        return mode == .never ? mode.detail : String.sentences(mode.detail, Self.handBackNote)
+    }
 
     private var modePicker: some View {
         Picker("Curve", selection: Binding(

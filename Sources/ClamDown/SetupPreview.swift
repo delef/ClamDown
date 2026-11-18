@@ -18,7 +18,7 @@ import ClamDownUI
 enum SetupPreview {
     enum Scenario: String, CaseIterable {
         case welcome, helperNotSetUp, helperWaiting, helperError, helperAllowed
-        case notificationsNotAsked, notificationsAllowed, notificationsDenied
+        case notificationsNotAsked, notificationsAllowed, notificationsDenied, cooling
         case startup, startupLoginError, done, helperOnlyWaiting, helperOnlyAllowed
 
         private var mode: SetupMode {
@@ -33,6 +33,7 @@ enum SetupPreview {
             case .welcome: .welcome
             case .helperNotSetUp, .helperWaiting, .helperError, .helperAllowed, .helperOnlyWaiting, .helperOnlyAllowed: .helper
             case .notificationsNotAsked, .notificationsAllowed, .notificationsDenied: .notifications
+            case .cooling: .cooling
             case .startup, .startupLoginError: .startup
             case .done: .done
             }

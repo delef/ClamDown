@@ -19,7 +19,8 @@ public protocol HelperControlling: Sendable {
     /// True while the helper still considers the mode on.
     func heartbeat() async throws -> Bool
     func isEnabled() async throws -> Bool
-    /// Tells the helper how to drive the fans for the rest of this session.
+    /// Tells the helper how to drive the fans for the rest of this session. While the mode is off it starts or
+    /// keeps alive a fan-only session; an empty policy ends it.
     func setFanPolicy(_ policy: FanPolicy) async throws
     func coolingStatus() async throws -> CoolingStatus
 }

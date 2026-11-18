@@ -173,6 +173,12 @@ public final class ClamDownController: ObservableObject {
     private let wait: @Sendable (Duration) async -> Void
     private var heartbeatTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
+    /// Runs while fan control is Always, keeping a fan-only session alive in the helper while the mode is off.
+    private var idleCoolingTask: Task<Void, Never>?
+    /// The policy of the fan-only session the helper last accepted. Nil while none runs.
+    private var idleFanPolicy: FanPolicy?
+    private var tendingIdleCooling = false
+    private var shuttingDown = false
 
     public init(
         helper: HelperControlling,
@@ -227,6 +233,7 @@ public final class ClamDownController: ObservableObject {
         if !state.isOn, let leftover = try? await helper.isEnabled(), leftover {
             try? await helper.disable()
         }
+        await tendIdleCooling()
     }
 
     public func toggle() async {
@@ -306,6 +313,11 @@ public final class ClamDownController: ObservableObject {
     /// Call when the Mac is about to sleep.
     public func systemWillSleep() {
         stopSleepWatch()
+        // A sleeping Mac must not keep its fans where ClamDown set them. The session starts again after the wake.
+        if idleFanPolicy != nil, !state.isOn {
+            idleFanPolicy = nil
+            Task { [weak self] in await self?.sendIdleFanPolicy(nil) }
+        }
         // Time asleep is not time hot: the hold starts again after the wake.
         batteryHeat.reset()
         guard var report = pendingWakeReport, !report.slept else { return }
@@ -320,6 +332,9 @@ public final class ClamDownController: ObservableObject {
 
     /// Call when the Mac or its screens wake. Tells the user why ClamDown let the Mac sleep, once, when the lid is open.
     public func systemDidWake() {
+        if settings.fanControl == .always {
+            Task { [weak self] in await self?.tendIdleCooling() }
+        }
         guard let report = pendingWakeReport, report.slept else { return }
         // A power event can wake a Mac that is still closed in a bag. Keep the report for the person who opens it.
         if lid?.lid()?.closed == true { return }
@@ -355,6 +370,7 @@ public final class ClamDownController: ObservableObject {
         }
         if !settings.fanControlEnabled { present(fanAlert.reset()) }
         await handleSystemChange()
+        await tendIdleCooling()
     }
 
     /// Temperatures and fans as the helper reads them. Without the helper, the app reads them itself
@@ -385,8 +401,12 @@ public final class ClamDownController: ObservableObject {
 
     /// Call when the app quits.
     public func shutdown() async {
+        shuttingDown = true
         monitor.stop()
+        idleCoolingTask?.cancel()
+        idleCoolingTask = nil
         if state.isOn { await turnOff() }
+        await endIdleCooling()
     }
 
     /// Opens the Login Items page, where the user approves the helper.
@@ -848,17 +868,21 @@ public final class ClamDownController: ObservableObject {
         pendingWakeReport = WakeReport(at: now(), why: why, away: lid?.lid()?.closed == true)
     }
 
-    /// While the mode is on and fan control is switched on, asks the helper whether it still controls the fans,
-    /// and says so once when it has stopped. Only the helper's answer counts: the app's own sensor reading
-    /// says nothing about control.
+    /// True while the helper is asked to drive the fans: the mode is on with fan control, or a fan-only session runs.
+    private var drivesFans: Bool {
+        settings.fanControlEnabled && (state.isOn || idleFanPolicy != nil)
+    }
+
+    /// While the helper is asked to drive the fans, asks it whether it still controls them, and says so once when
+    /// it has stopped. Only the helper's answer counts: the app's own sensor reading says nothing about control.
     private func watchFanControl() async {
-        guard state.isOn, settings.fanControlEnabled else {
+        guard drivesFans else {
             present(fanAlert.reset())
             return
         }
-        let status = try? await helper.coolingStatus()
+        let status = try? await askHelper { try await $0.coolingStatus() }
         // The mode or the switch may have changed while the helper answered.
-        guard state.isOn, settings.fanControlEnabled else {
+        guard drivesFans else {
             present(fanAlert.reset())
             return
         }
@@ -924,6 +948,84 @@ public final class ClamDownController: ObservableObject {
         state = .off
         // The helper hands the fans back at every switch-off, so a stop belongs to the session that ended.
         present(fanAlert.reset())
+        // The switch-off ended the mode's fan policy; with Always the fans stay ClamDown's.
+        if settings.fanControl == .always {
+            Task { [weak self] in await self?.tendIdleCooling() }
+        }
+    }
+
+    // MARK: - Cooling while off
+
+    /// With Always, the fans follow the curve while ClamDown is off too: the app keeps a fan-only session alive in
+    /// the helper by sending the policy again every `heartbeatInterval`. It needs a helper that is set up and
+    /// allowed; registering or approving one is left to Turn On and the setup assistant. A helper from another
+    /// build is updated first, as Turn On does, because an older one drives the fans only while the mode is on.
+    public func tendIdleCooling() async {
+        guard settings.fanControl == .always, !shuttingDown else {
+            idleCoolingTask?.cancel()
+            idleCoolingTask = nil
+            await endIdleCooling()
+            return
+        }
+        if idleCoolingTask == nil { startIdleCoolingLoop() }
+        // While on, the mode's own policy drives the fans, and the switch-off ends it.
+        guard !state.isOn else {
+            idleFanPolicy = nil
+            return
+        }
+        guard !helperBusy, !tendingIdleCooling else { return }
+        tendingIdleCooling = true
+        defer { tendingIdleCooling = false }
+        refreshHelperAvailability()
+        guard helperAvailability == .ready, !launchdRefusesHelper else {
+            await endIdleCooling()
+            return
+        }
+        if let fingerprint = helperFingerprint, installedHelper.fingerprint != fingerprint {
+            guard await prepareHelper() == .ready else { return }
+        }
+        let policy = settings.fanPolicy
+        guard await sendIdleFanPolicy(policy) else {
+            idleFanPolicy = nil
+            return
+        }
+        // A Turn On or a setting change may have come while the helper answered; each tends the session itself.
+        guard !state.isOn, settings.fanControl == .always, settings.fanPolicy == policy else { return }
+        idleFanPolicy = policy
+        await watchFanControl()
+    }
+
+    /// Hands the fans of a fan-only session back to macOS. Leaves a running mode alone.
+    private func endIdleCooling() async {
+        guard idleFanPolicy != nil else { return }
+        idleFanPolicy = nil
+        guard !state.isOn else { return }
+        present(fanAlert.reset())
+        await sendIdleFanPolicy(nil)
+    }
+
+    /// Sends the fan-only session's policy, or an empty one that ends it. True when the helper took it.
+    @discardableResult
+    private func sendIdleFanPolicy(_ policy: FanPolicy?) async -> Bool {
+        let policy = policy ?? FanPolicy(points: [])
+        do {
+            try await askHelper { try await $0.setFanPolicy(policy) }
+            return true
+        } catch {
+            turnOnLog.info("fan-only session: \(Self.describe(error), privacy: .public)")
+            return false
+        }
+    }
+
+    private func startIdleCoolingLoop() {
+        let interval = heartbeatInterval
+        idleCoolingTask = Task { [weak self, wait] in
+            while !Task.isCancelled {
+                await wait(interval)
+                guard !Task.isCancelled else { return }
+                await self?.tendIdleCooling()
+            }
+        }
     }
 
     /// Registers the helper when needed and replaces one that comes from another build, without turning the mode on.

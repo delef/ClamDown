@@ -92,6 +92,40 @@ public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// When ClamDown drives the fans.
+public enum FanControlMode: String, Codable, CaseIterable, Sendable {
+    /// Never: macOS keeps the fans.
+    case never
+    /// While ClamDown is on and the lid is closed, where macOS would leave the fans near idle.
+    case lidClosed
+    /// Whenever the app runs and the helper is set up: with the lid open too, and while ClamDown is off.
+    case always
+
+    public var title: String {
+        switch self {
+        case .never: String(localized: "Never")
+        case .lidClosed: String(localized: "With Lid Closed")
+        case .always: String(localized: "Always")
+        }
+    }
+
+    /// One sentence on what the mode does, for Settings and the setup assistant.
+    public var detail: String {
+        switch self {
+        case .never:
+            String(localized: "macOS keeps the fans, also with the lid closed.")
+        case .lidClosed:
+            String(localized: """
+                While ClamDown is on and the lid is closed. With the lid open, macOS keeps the fans quiet while you work.
+                """)
+        case .always:
+            String(localized: """
+                With the lid open too, also while ClamDown is off. macOS lets the Mac run hot before its fans speed up.
+                """)
+        }
+    }
+}
+
 /// Which fan curve the Cooling page shows and the fans follow.
 public enum FanCurveMode: String, Codable, CaseIterable, Sendable {
     /// Two points: "speeds up from" at 0 % and "full speed at" at 100 %.
@@ -122,15 +156,13 @@ public struct Settings: Codable, Equatable, Sendable {
     public var sleepAfterProtection = true
 
     // Cooling
-    /// Off leaves the fans to macOS.
-    public var fanControlEnabled = true
+    public var fanControl: FanControlMode = .lidClosed
     public var fanCurveMode: FanCurveMode = .standard
     /// The Standard curve's two temperatures.
     public var fanStartTemperature = StandardCurve.defaultStart
     public var fanFullSpeedTemperature = StandardCurve.defaultFull
     /// The Advanced curve's five points. Nil until Advanced is first chosen.
     public var fanAdvancedPoints: [FanPoint]?
-    public var fansOnlyWhenLidClosed = true
     /// The case rule's two temperatures: the fans speed up with the airflow sensors from the first, full at the second.
     public var caseStartTemperature = CaseRamp.defaultStart
     public var caseFullSpeedTemperature = CaseRamp.defaultFull
@@ -145,9 +177,16 @@ public struct Settings: Codable, Equatable, Sendable {
 
     public init() {}
 
+    /// False leaves the fans to macOS. Switching it on picks Only With Lid Closed, unless a mode that drives the
+    /// fans is already chosen.
+    public var fanControlEnabled: Bool {
+        get { fanControl != .never }
+        set { fanControl = newValue ? (fanControl == .never ? .lidClosed : fanControl) : .never }
+    }
+
     /// What the helper gets for the fans. No points means fan control is off.
     public var fanPolicy: FanPolicy {
-        FanPolicy(points: fanControlEnabled ? fanCurvePoints : [], onlyWhenLidClosed: fansOnlyWhenLidClosed,
+        FanPolicy(points: fanControlEnabled ? fanCurvePoints : [], onlyWhenLidClosed: fanControl != .always,
                   caseRamp: caseRamp)
     }
 
@@ -187,8 +226,8 @@ public struct Settings: Codable, Equatable, Sendable {
         case autoOffTimer, lockScreenWhenLidClosed, turnOffWhenUnplugged, autoLowPowerOnBattery
         case batteryCutoffEnabled, batteryCutoffPercent, thermalCutoff, sleepAfterProtection
         case batteryHeatCutoffEnabled, batteryHeatLimit, batteryHeatHold
-        case fanControlEnabled, fanCurveMode, fanStartTemperature, fanFullSpeedTemperature, fanAdvancedPoints
-        case fansOnlyWhenLidClosed, caseStartTemperature, caseFullSpeedTemperature
+        case fanControl, fanCurveMode, fanStartTemperature, fanFullSpeedTemperature, fanAdvancedPoints
+        case caseStartTemperature, caseFullSpeedTemperature
         case launchAtLogin, showDockIcon, notificationsEnabled, menuBarIcon
     }
 
@@ -196,6 +235,8 @@ public struct Settings: Codable, Equatable, Sendable {
     private enum LegacyKeys: String, CodingKey {
         /// Up to 0.1.2: "system", "curve" or "fullSpeed".
         case fanMode
+        /// 0.1.3 builds before the fan control mode: a switch and Only With Lid Closed.
+        case fanControlEnabled, fansOnlyWhenLidClosed
     }
 
     public init(from decoder: Decoder) throws {
@@ -212,16 +253,15 @@ public struct Settings: Codable, Equatable, Sendable {
         batteryHeatCutoffEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .batteryHeatCutoffEnabled)) ?? batteryHeatCutoffEnabled
         batteryHeatLimit = (try? c.decodeIfPresent(Int.self, forKey: .batteryHeatLimit)) ?? batteryHeatLimit
         batteryHeatHold = (try? c.decodeIfPresent(BatteryHeatHold.self, forKey: .batteryHeatHold)) ?? batteryHeatHold
-        if c.contains(.fanControlEnabled) {
-            fanControlEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .fanControlEnabled)) ?? fanControlEnabled
+        if let mode = try? c.decodeIfPresent(FanControlMode.self, forKey: .fanControl) {
+            fanControl = mode
         } else {
-            migrateFanMode(from: decoder)
+            migrateFanControl(from: decoder)
         }
         fanCurveMode = (try? c.decodeIfPresent(FanCurveMode.self, forKey: .fanCurveMode)) ?? fanCurveMode
         fanAdvancedPoints = Self.validAdvanced((try? c.decodeIfPresent([FanPoint].self, forKey: .fanAdvancedPoints)) ?? fanAdvancedPoints)
         fanStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanStartTemperature)) ?? fanStartTemperature
         fanFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .fanFullSpeedTemperature)) ?? fanFullSpeedTemperature
-        fansOnlyWhenLidClosed = (try? c.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) ?? fansOnlyWhenLidClosed
         caseStartTemperature = (try? c.decodeIfPresent(Int.self, forKey: .caseStartTemperature)) ?? caseStartTemperature
         caseFullSpeedTemperature = (try? c.decodeIfPresent(Int.self, forKey: .caseFullSpeedTemperature)) ?? caseFullSpeedTemperature
         launchAtLogin = (try? c.decodeIfPresent(Bool.self, forKey: .launchAtLogin)) ?? launchAtLogin
@@ -230,10 +270,16 @@ public struct Settings: Codable, Equatable, Sendable {
         menuBarIcon = (try? c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIcon)) ?? menuBarIcon
     }
 
-    /// Turns an older build's fan mode into the switch and the two curves, so nothing changes for the user.
-    private mutating func migrateFanMode(from decoder: Decoder) {
-        guard let legacy = try? decoder.container(keyedBy: LegacyKeys.self),
-              let mode = try? legacy.decodeIfPresent(String.self, forKey: .fanMode) else { return }
+    /// Turns an older build's fan settings into the mode and the two curves, so nothing changes for the user.
+    /// Fan control that also ran with the lid open becomes Always, the nearest mode.
+    private mutating func migrateFanControl(from decoder: Decoder) {
+        guard let legacy = try? decoder.container(keyedBy: LegacyKeys.self) else { return }
+        if let enabled = try? legacy.decodeIfPresent(Bool.self, forKey: .fanControlEnabled) {
+            let lidOpenToo = (try? legacy.decodeIfPresent(Bool.self, forKey: .fansOnlyWhenLidClosed)) == false
+            fanControl = !enabled ? .never : lidOpenToo ? .always : .lidClosed
+            return
+        }
+        guard let mode = try? legacy.decodeIfPresent(String.self, forKey: .fanMode) else { return }
         switch mode {
         case "system":
             fanControlEnabled = false

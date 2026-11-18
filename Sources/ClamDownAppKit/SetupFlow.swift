@@ -1,6 +1,6 @@
 /// One screen of the setup assistant.
 public enum SetupStep: Int, CaseIterable, Sendable {
-    case welcome, helper, notifications, startup, done
+    case welcome, helper, notifications, cooling, startup, done
 }
 
 public enum SetupMode: Equatable, Sendable {

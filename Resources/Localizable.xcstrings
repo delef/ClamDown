@@ -138,6 +138,9 @@
     "Allow…" : {
 
     },
+    "Always" : {
+
+    },
     "Apache License 2.0 · Updates by Sparkle" : {
 
     },
@@ -199,6 +202,9 @@
 
     },
     "ClamDown did not turn on." : {
+
+    },
+    "ClamDown hands the fans back when it quits or crashes." : {
 
     },
     "ClamDown is not controlling the fans. The fans run at full speed." : {
@@ -312,7 +318,10 @@
     "Done" : {
 
     },
-    "Drives the fans from the hottest sensor" : {
+    "Drives the fans with the lid closed" : {
+
+    },
+    "Drives the fans, with the lid open too" : {
 
     },
     "Enabled" : {
@@ -414,6 +423,9 @@
     "Keep Awake" : {
 
     },
+    "Keep the Mac cool" : {
+
+    },
     "Keeps a closed MacBook awake for your coding agents." : {
 
     },
@@ -421,9 +433,6 @@
 
     },
     "Launch at Login" : {
-
-    },
-    "Leaves the fans to macOS while the lid is open, so they stay quiet while you work." : {
 
     },
     "Lets the Mac sleep as soon as the power adapter is disconnected." : {
@@ -528,9 +537,6 @@
     "Off" : {
 
     },
-    "Off: macOS keeps the fans. ClamDown hands them back when it switches off, quits or crashes." : {
-
-    },
     "On" : {
 
     },
@@ -538,9 +544,6 @@
 
     },
     "On until 7:26 PM" : {
-
-    },
-    "Only With Lid Closed" : {
 
     },
     "Open Login Items" : {
@@ -912,10 +915,19 @@
     "When low battery or heat switches ClamDown off and nobody is at the Mac, it goes to sleep at once." : {
 
     },
+    "While ClamDown is on and the lid is closed. With the lid open, macOS keeps the fans quiet while you work." : {
+
+    },
     "Wi-Fi" : {
 
     },
+    "With Lid Closed" : {
+
+    },
     "With the lid closed you cannot see the menu. A notification tells you when ClamDown switched itself off, for example at low battery or when the Mac got hot." : {
+
+    },
+    "With the lid open too, also while ClamDown is off. macOS lets the Mac run hot before its fans speed up." : {
 
     },
     "Without this, a Mac kept awake with the lid closed opens without a password." : {
@@ -946,6 +958,12 @@
 
     },
     "macOS is not showing ClamDown's notifications yet." : {
+
+    },
+    "macOS keeps the fans slow until the chip is very hot, and near idle with the lid closed. ClamDown can speed them up along a curve you choose in Settings." : {
+
+    },
+    "macOS keeps the fans, also with the lid closed." : {
 
     },
     "macOS no longer allowed the helper." : {

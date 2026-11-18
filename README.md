@@ -23,7 +23,7 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 **Everything a closed laptop needs, in one app:**
 
 - **Stays awake with the lid shut.** Agents, terminals, browsers, SSH sessions and downloads keep running.
-- **Keeps it cool.** Watches the hottest of its temperature sensors and drives the fans along a curve you choose while the lid is closed, where macOS would leave them near idle.
+- **Keeps it cool.** Watches the hottest of its temperature sensors and drives the fans along a curve you choose while the lid is closed, where macOS would leave them near idle, or all the time if you like.
 - **Keeps it locked.** Locks the screen the moment the lid closes.
 - **Knows when to stop.** Switches itself off and lets the Mac sleep before a low battery or high heat becomes a problem, or when your timer ends.
 - **Can't get stuck on.** A root helper with a watchdog puts sleep, Low Power Mode and the fans back if the app quits, crashes or stops responding.
@@ -61,7 +61,11 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 - One switch in the menu bar. Filled icon: on. Outline icon: off. "Turn On For" starts a timed session. The icon style is a setting.
 - While on, closing the lid does not sleep the Mac. Running processes and network connections carry on.
 - While on, closing the lid locks the screen (setting, on by default), so the Mac does not open without a password.
-- While on with the lid closed, it drives the fans from the hottest temperature sensor: the CPU, GPU, battery, SSD, Wi-Fi and airflow sensors, whichever is hottest. macOS keeps a closed MacBook's fans near their lowest speed even when the chip is hot. The Fan Control switch (on by default) lets ClamDown raise them along a curve; with it off, macOS keeps the fans. "Only With Lid Closed" (on by default) hands the fans back to macOS while the lid is open. Fan control needs Apple Silicon; on an Intel Mac the Cooling page only shows the readings. The curve comes in two forms:
+- It drives the fans from the hottest temperature sensor: the CPU, GPU, battery, SSD, Wi-Fi and airflow sensors, whichever is hottest. macOS keeps a closed MacBook's fans near their lowest speed even when the chip is hot, and lets an open one run hot before they speed up. Fan control needs Apple Silicon; on an Intel Mac the Cooling page only shows the readings. Fan Control decides when ClamDown raises the fans along a curve, and the setup assistant asks once:
+  - **With Lid Closed** (default): while ClamDown is on and the lid is closed. With the lid open, macOS keeps the fans quiet while you work.
+  - **Always**: with the lid open too, also while ClamDown is off. Cooler, and louder. It needs the app running and the helper set up.
+  - **Never**: macOS keeps the fans.
+- The curve comes in two forms:
   - **Standard:** two points. By default the fans speed up from 40 °C and reach full speed at 70 °C (both settings).
   - **Advanced:** five points you drag on a chart.
 - Under any curve sits a safety floor that ClamDown never goes under: from 70 °C the fans rise in a straight line to full speed at 95 °C. The fans run at the faster of the curve and the floor.
@@ -79,7 +83,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 - When you open the lid after ClamDown let the Mac sleep, it tells you why, in a window that stays until you close it.
 - It posts a notification that names the reason whenever it switches itself off (setting, on by default).
 
-Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. The Cooling page has the Fan Control switch, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
+Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. The Cooling page has the Fan Control choice, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
 
 ## Requirements
 
@@ -114,10 +118,10 @@ When ClamDown cannot work until you do something, for example after macOS took t
 
 - **Cut-offs.** Battery, battery heat and thermal cut-offs switch ClamDown off and let the Mac sleep. The battery rule applies only while running on battery, so a charging Mac at 5% stays awake. Macs without a battery have no battery rule.
 - **Watchdog.** While on, the app sends the helper a heartbeat about every 30 seconds. If the heartbeat stops for about 90 seconds, or the app quits or crashes, the helper puts sleep, Low Power Mode and the fans back as they were, by itself. If the lid is then closed for sleep and the keyboard and pointer have been still for a minute, the helper also puts the Mac to sleep; it stops trying when someone opens the lid, and after five minutes.
-- **Fans.** The helper hands the fans back to macOS whenever the mode switches off for any reason, you switch Fan Control off, the lid opens (with "Only With Lid Closed"), no temperature can be read, or it cannot set a fan; after an error it tries again by itself. It records that it holds the fans before it touches them, so a helper restart after a crash hands them back too. It applies the safety floor itself, so a wrong curve from the app cannot take the fans below it, and it never sets a fan outside that fan's own minimum and maximum speed. Fan speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load do not make the fans hunt.
+- **Fans.** The helper hands the fans back to macOS whenever the mode switches off for any reason, you set Fan Control to Never, the lid opens (with "With Lid Closed"), the app quits or stops checking in while ClamDown is off (with "Always"), the Mac goes to sleep while ClamDown is off, no temperature can be read, or it cannot set a fan; after an error it tries again by itself. It records that it holds the fans before it touches them, so a helper restart after a crash hands them back too. It applies the safety floor itself, so a wrong curve from the app cannot take the fans below it, and it never sets a fan outside that fan's own minimum and maximum speed. Fan speed rises at once and falls by at most 150 rpm every 3 seconds, so short dips in load do not make the fans hunt.
 - **Reboots.** The helper runs at load and resets any leftover state every time it starts.
 - **Original settings.** The first time ClamDown switches on, the helper records your sleep and Low Power Mode settings and never replaces that record. Remove Helper in Settings > Helper puts them back first; if they cannot be put back, the helper stays installed.
-- **Narrow helper.** The helper can only keep the Mac from sleeping or let it sleep again, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode and Fan Control are on; if handing the fans back to macOS fails, it runs them at full speed until the hand-back works. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
+- **Narrow helper.** The helper can only keep the Mac from sleeping or let it sleep again, turn Low Power Mode on or off for the battery profile, read both values, read the temperature sensors and fans, and set fan speeds within each fan's own range while the mode is on, or while the app keeps asking for it with Fan Control set to Always; if handing the fans back to macOS fails, it runs them at full speed until the hand-back works. It accepts connections only from the signed ClamDown app (same Team ID, same bundle identifier).
 
 ## Security note
 

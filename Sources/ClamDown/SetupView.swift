@@ -52,6 +52,7 @@ struct SetupView: View {
         case .welcome: WelcomeStep()
         case .helper: HelperStep(model: model, controller: controller)
         case .notifications: NotificationsStep(model: model)
+        case .cooling: CoolingStep(controller: controller)
         case .startup: StartupStep(controller: controller, loginItem: loginItem, loginError: previewLoginError)
         case .done: DoneStep(controller: controller)
         }
@@ -303,6 +304,63 @@ private struct NotificationsStep: View {
     }
 }
 
+private struct CoolingStep: View {
+    @ObservedObject var controller: ClamDownController
+
+    var body: some View {
+        CDStepScreen(
+            icon: .symbol("fan.fill"),
+            title: String(localized: "Keep the Mac cool"),
+            text: String(localized: """
+                macOS keeps the fans slow until the chip is very hot, and near idle with the lid closed. \
+                ClamDown can speed them up along a curve you choose in Settings.
+                """)
+        ) {
+            CDStatusCard {
+                ForEach(Array(FanControlMode.allCases.reversed().enumerated()), id: \.element) { index, mode in
+                    if index > 0 { Divider().padding(.horizontal, CDMetric.cardInset) }
+                    FanModeRow(mode: mode, isSelected: controller.settings.fanControl == mode) {
+                        var updated = controller.settings
+                        updated.fanControl = mode
+                        Task { await controller.updateSettings(updated) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One fan control mode as a choice in a card: its name, what it does, and a checkmark while it is the chosen one.
+private struct FanModeRow: View {
+    let mode: FanControlMode
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(mode.title)
+                    Text(mode.detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                Image(systemName: "checkmark")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .opacity(isSelected ? 1 : 0)
+            }
+            .padding(.horizontal, CDMetric.cardInset)
+            .padding(.vertical, CDMetric.cardRowPadding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 private struct StartupStep: View {
     @ObservedObject var controller: ClamDownController
     let loginItem: LoginItem
@@ -366,8 +424,11 @@ private struct StartupStep: View {
         if settings.thermalCutoff != .never {
             items.append(("thermometer.high", String(localized: "Switches off when the Mac gets hot")))
         }
-        if hasFans, settings.fanControlEnabled {
-            items.append(("fan", String(localized: "Drives the fans from the hottest sensor")))
+        if hasFans, settings.fanControl == .lidClosed {
+            items.append(("fan", String(localized: "Drives the fans with the lid closed")))
+        }
+        if hasFans, settings.fanControl == .always {
+            items.append(("fan", String(localized: "Drives the fans, with the lid open too")))
         }
         return items
     }

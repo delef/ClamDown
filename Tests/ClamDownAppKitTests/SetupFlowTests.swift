@@ -48,7 +48,7 @@ import Testing
     }
 
     @Test func stepOrder() {
-        #expect(SetupFlow.steps(for: .full) == [.welcome, .helper, .notifications, .startup, .done])
+        #expect(SetupFlow.steps(for: .full) == [.welcome, .helper, .notifications, .cooling, .startup, .done])
         #expect(SetupFlow.next(after: .welcome, mode: .full) == .helper)
         #expect(SetupFlow.next(after: .startup, mode: .full) == .done)
         #expect(SetupFlow.next(after: .done, mode: .full) == nil)
