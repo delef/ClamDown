@@ -25,62 +25,59 @@ public enum MenuBarIconImage {
     /// The name VoiceOver reads for a plain icon.
     private static let accessibilityName = String(localized: "ClamDown")
 
-    /// The Lid on an 18 x 18 pt canvas, from the paths of the approved sketch (an 18 x 18 view box, y down).
-    /// Off is a rounded outline with a flat line; on is the filled lid with a heartbeat cut out of it.
+    /// The Lid on an 18 x 18 pt canvas: a closed laptop seen from the front, a slab with the notch of its lid.
+    /// Off, the outline with a "Z" above it: the Mac sleeps when the lid closes. On, the filled slab with rays above
+    /// it: the closed Mac stays awake. Chosen by the owner on 2026-11-22 from four concepts, over a wedge-shaped lid
+    /// and an eye; it replaced a lid with a heartbeat line, which did not read as "awake" at menu bar size.
     private static func lid(on: Bool) -> NSImage {
         let height: CGFloat = 18
         // The sketch's y axis points down, AppKit's up.
         func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x, y: height - y) }
+        func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ rectHeight: CGFloat) -> NSRect {
+            NSRect(x: x, y: height - y - rectHeight, width: width, height: rectHeight)
+        }
+        func strokes(_ lines: [(NSPoint, NSPoint)], width: CGFloat) {
+            let path = NSBezierPath()
+            for (from, to) in lines {
+                path.move(to: from)
+                path.line(to: to)
+            }
+            path.lineWidth = width
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.stroke()
+        }
 
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
             NSColor.black.setFill()
             NSColor.black.setStroke()
             if on {
-                let path = NSBezierPath()
-                path.windingRule = .evenOdd
-                let body = NSRect(x: 1.6, y: height - 15.1, width: 14.8, height: 12.2)
-                path.appendRoundedRect(body, xRadius: 3.3, yRadius: 3.3)
-                path.append(pulse(point: point))
-                path.fill()
+                NSBezierPath(roundedRect: rect(1.5, 10.5, 15, 5), xRadius: 2.2, yRadius: 2.2).fill()
+                // The notch is cut out of the slab, so it shows the menu bar through it.
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+                NSBezierPath(roundedRect: rect(7.6, 9.9, 2.8, 1.6), xRadius: 0.6, yRadius: 0.6).fill()
+                NSGraphicsContext.current?.compositingOperation = .sourceOver
+                strokes([(point(9, 7.4), point(9, 3.6)), (point(11.3, 8.4), point(14.1, 6.2)),
+                         (point(6.7, 8.4), point(3.9, 6.2))], width: 1.5)
             } else {
-                let outline = NSBezierPath(roundedRect: NSRect(x: 2.3, y: height - 14.4, width: 13.4, height: 10.8),
-                                           xRadius: 2.6, yRadius: 2.6)
-                outline.lineWidth = 1.4
-                outline.stroke()
-                let line = NSBezierPath()
-                line.move(to: point(5.4, 9))
-                line.line(to: point(12.6, 9))
-                line.lineWidth = 1.4
-                line.lineCapStyle = .round
-                line.stroke()
+                let slab = NSBezierPath(roundedRect: rect(2.2, 11.2, 13.6, 3.6), xRadius: 1.7, yRadius: 1.7)
+                slab.lineWidth = 1.4
+                slab.stroke()
+                NSBezierPath(roundedRect: rect(7.7, 11.4, 2.6, 1.1), xRadius: 0.5, yRadius: 0.5).fill()
+                let sleep = NSBezierPath()
+                sleep.move(to: point(6.8, 3.2))
+                sleep.line(to: point(11.2, 3.2))
+                sleep.line(to: point(6.8, 8))
+                sleep.line(to: point(11.2, 8))
+                sleep.lineWidth = 1.4
+                sleep.lineCapStyle = .round
+                sleep.lineJoinStyle = .round
+                sleep.stroke()
             }
             return true
         }
         image.isTemplate = true
         return image
-    }
-
-    /// The heartbeat line as a closed shape 1.3 wide: flat, a rise, a fall below the line, a rise back, flat.
-    private static func pulse(point: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
-        let path = NSBezierPath()
-        path.move(to: point(4.5, 8.4))
-        path.cap(from: point(4.5, 8.4), to: point(4.5, 9.7))
-        path.line(to: point(6.8, 9.7))
-        path.cap(from: point(6.8, 9.7), to: point(7.4, 9.3))
-        path.line(to: point(7.9, 8.0))
-        path.line(to: point(9.0, 11.6))
-        path.cap(from: point(9.0, 11.6), to: point(10.2, 11.7))
-        path.line(to: point(11.2, 9.7))
-        path.line(to: point(13.5, 9.7))
-        path.cap(from: point(13.5, 9.7), to: point(13.5, 8.4))
-        path.line(to: point(10.8, 8.4))
-        path.cap(from: point(10.8, 8.4), to: point(10.2, 8.8))
-        path.line(to: point(9.7, 9.8))
-        path.line(to: point(8.6, 6.1))
-        path.cap(from: point(8.6, 6.1), to: point(7.4, 6.0))
-        path.line(to: point(6.4, 8.4))
-        path.close()
-        return path
     }
 
     /// The symbol with a small badge at its lower right corner: an exclamation mark or a clock.
@@ -120,22 +117,5 @@ public enum MenuBarIconImage {
         case .timer: String(localized: "ClamDown, on for a set time")
         }
         return image
-    }
-}
-
-private extension NSBezierPath {
-    /// A round end of a stroke: the minor arc of radius .65 counter-clockwise from `start` to `end`, as the sketch's
-    /// `a.65.65 0 0 0` draws it in a view box whose y axis points down.
-    func cap(from start: NSPoint, to end: NSPoint) {
-        let radius: CGFloat = 0.65
-        let dx = end.x - start.x, dy = end.y - start.y
-        let chord = (dx * dx + dy * dy).squareRoot()
-        // The center sits left of the direction of travel, `offset` away from the middle of the chord.
-        // Clamped: for a chord of exactly two radii the difference is zero, and rounding must not turn it into NaN.
-        let offset = max(0, radius * radius - chord * chord / 4).squareRoot()
-        let center = NSPoint(x: (start.x + end.x) / 2 - dy / chord * offset,
-                             y: (start.y + end.y) / 2 + dx / chord * offset)
-        func degrees(_ p: NSPoint) -> CGFloat { atan2(p.y - center.y, p.x - center.x) * 180 / .pi }
-        appendArc(withCenter: center, radius: radius, startAngle: degrees(start), endAngle: degrees(end), clockwise: false)
     }
 }
