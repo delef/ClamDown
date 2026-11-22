@@ -8,6 +8,14 @@ public enum MenuRecovery: Equatable, Sendable {
     case reinstallHelper
 }
 
+/// The small mark in the corner of the menu bar icon.
+public enum MenuIconBadge: Equatable, Sendable {
+    /// ClamDown cannot work until the user acts.
+    case attention
+    /// ClamDown is on for a set time and switches itself off when it ends.
+    case timer
+}
+
 /// What the menu bar item and its menu show for a given controller state.
 public struct MenuPresentation: Equatable {
     public let symbolName: String
@@ -26,11 +34,14 @@ public struct MenuPresentation: Equatable {
     /// A line while ClamDown has stopped controlling the fans. It carries no attention mark: the Mac still stays
     /// awake and macOS cools it.
     public let coolingLine: String?
+    /// True while ClamDown is on for a set time and switches itself off when it ends.
+    public let isTimed: Bool
 
     public init(symbolName: String, toggleTitle: String, statusLine: String?, needsAttention: Bool = false,
                 recovery: MenuRecovery? = nil, isOn: Bool = false, coolingLine: String? = nil,
-                isTurningOn: Bool = false) {
+                isTurningOn: Bool = false, isTimed: Bool = false) {
         self.isOn = isOn
+        self.isTimed = isTimed
         self.isTurningOn = isTurningOn
         self.coolingLine = coolingLine
         self.symbolName = symbolName
@@ -40,8 +51,14 @@ public struct MenuPresentation: Equatable {
         self.recovery = recovery
     }
 
+    /// The mark in the icon's corner, or nil for a plain icon. A problem's mark comes before the timer's.
+    public var badge: MenuIconBadge? {
+        if needsAttention { return .attention }
+        return isTimed ? .timer : nil
+    }
+
     public init(state: SwitchState, notice: String?, icon: MenuBarIconStyle = .lid, helperReady: Bool = true,
-                coolingLine: String? = nil, turnOnStep: TurnOnStep? = nil) {
+                coolingLine: String? = nil, turnOnStep: TurnOnStep? = nil, offAt: Date? = nil) {
         let setup: MenuRecovery? = helperReady ? nil : .finishSetup
         if let turnOnStep, !state.isOn {
             // What went wrong before is old news while the next try runs.
@@ -52,7 +69,8 @@ public struct MenuPresentation: Equatable {
         switch state {
         case .on:
             self.init(symbolName: icon.onSymbol, toggleTitle: String(localized: "Turn Off"), statusLine: notice,
-                      needsAttention: !helperReady, recovery: setup, isOn: true, coolingLine: coolingLine)
+                      needsAttention: !helperReady, recovery: setup, isOn: true, coolingLine: coolingLine,
+                      isTimed: offAt != nil)
         case .off:
             self.init(symbolName: icon.offSymbol, toggleTitle: String(localized: "Turn On"), statusLine: notice,
                       needsAttention: !helperReady, recovery: setup)
@@ -71,7 +89,9 @@ public struct MenuPresentation: Equatable {
     /// The icon alone says this only by its shape, and the menu bar item is the app's only way in.
     public var accessibilityLabel: String {
         if isTurningOn { return String(localized: "ClamDown, turning on") }
-        let state = isOn ? String(localized: "on") : String(localized: "off")
+        let state = isOn
+            ? (isTimed ? String(localized: "on for a set time") : String(localized: "on"))
+            : String(localized: "off")
         return needsAttention
             ? String(localized: "ClamDown, \(state), needs attention")
             : String(localized: "ClamDown, \(state)")

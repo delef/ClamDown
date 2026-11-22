@@ -10,9 +10,10 @@ import Testing
         #expect(image.size.width > 0 && image.size.height > 0 && image.isTemplate)
     }
 
-    @Test(arguments: symbols) func everyStyleDrawsWithTheAttentionMark(symbol: String) throws {
+    @Test(arguments: symbols, [MenuIconBadge.attention, .timer])
+    func everyStyleDrawsWithEachMark(symbol: String, badge: MenuIconBadge) throws {
         let base = try #require(MenuBarIconImage.base(symbol: symbol))
-        let image = MenuBarIconImage.attention(symbol: symbol)
+        let image = MenuBarIconImage.badged(symbol: symbol, badge: badge)
         #expect(image.size.width > base.size.width && image.size.height > base.size.height && image.isTemplate)
     }
 

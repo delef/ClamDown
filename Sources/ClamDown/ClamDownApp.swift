@@ -28,11 +28,11 @@ private struct MenuBarIcon: View {
         let icon = controller.settings.menuBarIcon
         let presentation = MenuPresentation(state: controller.state, notice: controller.notice, icon: icon,
                                             helperReady: controller.helperAvailability == .ready,
-                                            turnOnStep: controller.turnOnStep)
+                                            turnOnStep: controller.turnOnStep, offAt: controller.offAt)
         let symbol = presentation.isTurningOn && blinkOn && !reduceMotion ? icon.onSymbol : presentation.symbolName
         Group {
-            if presentation.needsAttention {
-                Image(nsImage: MenuBarIconImage.attention(symbol: symbol))
+            if let badge = presentation.badge {
+                Image(nsImage: MenuBarIconImage.badged(symbol: symbol, badge: badge))
             } else {
                 Image(nsImage: MenuBarIconImage.base(symbol: symbol) ?? NSImage())
             }

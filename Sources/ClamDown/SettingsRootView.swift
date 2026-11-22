@@ -70,7 +70,9 @@ struct SettingsRootView: View {
             Divider()
             Button("Until Switched Off") { choose(nil, isOn: isOn) }
         } label: {
+            // Tinted while a set time runs, so the window shows the session ends by itself, as the menu bar icon does.
             Image(systemName: "timer")
+                .foregroundStyle(controller.offAt == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

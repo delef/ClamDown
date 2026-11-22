@@ -1,6 +1,7 @@
 import AppKit
 
-/// Draws the menu bar icon, with an attention mark when ClamDown cannot work until the user acts.
+/// Draws the menu bar icon, with a mark in its corner: attention when ClamDown cannot work until the user acts,
+/// a clock while it is on for a set time.
 public enum MenuBarIconImage {
     /// The names of the Lid icon, which the app draws itself instead of taking an SF Symbol.
     private static let lidOff = "clamdown.lid"
@@ -82,14 +83,18 @@ public enum MenuBarIconImage {
         return path
     }
 
-    /// The symbol with a small exclamation badge at its lower right corner.
+    /// The symbol with a small badge at its lower right corner: an exclamation mark or a clock.
     /// A template image, so macOS colors it for a light or a dark menu bar like any other status icon.
-    public static func attention(symbol: String) -> NSImage {
+    public static func badged(symbol: String, badge mark: MenuIconBadge) -> NSImage {
         // `base` draws at 13 pt, which is what SwiftUI uses for a plain `Image(systemName:)` in the menu bar, so the
         // icon keeps its size when the mark appears.
         let badgeConfiguration = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+        let badgeSymbol = switch mark {
+        case .attention: "exclamationmark.circle.fill"
+        case .timer: "clock.fill"
+        }
         guard let base = base(symbol: symbol),
-              let badge = NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil)?
+              let badge = NSImage(systemSymbolName: badgeSymbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(badgeConfiguration)
         else { return NSImage() }
 
@@ -110,7 +115,10 @@ public enum MenuBarIconImage {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = String(localized: "ClamDown needs attention")
+        image.accessibilityDescription = switch mark {
+        case .attention: String(localized: "ClamDown needs attention")
+        case .timer: String(localized: "ClamDown, on for a set time")
+        }
         return image
     }
 }

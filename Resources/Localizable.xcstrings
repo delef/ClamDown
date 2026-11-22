@@ -255,6 +255,9 @@
     "ClamDown, %@, needs attention" : {
 
     },
+    "ClamDown, on for a set time" : {
+
+    },
     "ClamDown, turning on" : {
 
     },
@@ -994,6 +997,9 @@
 
     },
     "on" : {
+
+    },
+    "on for a set time" : {
 
     },
     "rpm" : {

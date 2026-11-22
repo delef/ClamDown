@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ClamDownAppKit
 
@@ -10,6 +11,14 @@ import Testing
     @Test func onState() {
         let p = MenuPresentation(state: .on, notice: nil)
         #expect(p.symbolName == "clamdown.lid.fill" && p.toggleTitle == "Turn Off" && p.statusLine == nil)
+    }
+
+    /// A session that ends by itself shows a clock on the icon; a problem's mark comes first.
+    @Test func aTimedSessionShowsTheTimerBadge() {
+        let at = Date(timeIntervalSince1970: 1_000)
+        #expect(MenuPresentation(state: .on, notice: nil, offAt: at).badge == .timer)
+        #expect(MenuPresentation(state: .on, notice: nil).badge == nil)
+        #expect(MenuPresentation(state: .on, notice: nil, helperReady: false, offAt: at).badge == .attention)
     }
 
     @Test func approvalState() {

@@ -190,7 +190,7 @@ private struct MenuBarIconSheet: View {
         HStack(spacing: 0) {
             ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
                 Image(nsImage: MenuBarIconImage.base(symbol: style[keyPath: symbol]) ?? NSImage()).scaleEffect(2.5).frame(width: 62, height: 66)
-                Image(nsImage: MenuBarIconImage.attention(symbol: style[keyPath: symbol])).scaleEffect(2.5).frame(width: 62, height: 66)
+                Image(nsImage: MenuBarIconImage.badged(symbol: style[keyPath: symbol], badge: .attention)).scaleEffect(2.5).frame(width: 62, height: 66)
             }
         }
     }
