@@ -179,7 +179,7 @@ private struct MenuBarIconsIllustration: View {
     }
 }
 
-/// A card that lightens under the pointer and darkens while pressed.
+/// A card that lightens under the pointer, shows the pointing hand, and darkens while pressed.
 private struct CardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         Card(label: configuration.label, isPressed: configuration.isPressed)
@@ -195,7 +195,11 @@ private struct CardButtonStyle: ButtonStyle {
             label
                 .background(.quaternary.opacity(isPressed ? 1 : isHovered ? 0.8 : 0.5),
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .onHover { isHovered = $0 }
+                .onHover { inside in
+                    isHovered = inside
+                    // The pointing hand says the card is clickable, as a link's does.
+                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                }
         }
     }
 }
