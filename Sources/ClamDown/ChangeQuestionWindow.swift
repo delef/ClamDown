@@ -82,7 +82,7 @@ final class ChangeQuestionWindow {
     }
 }
 
-/// The old and the new icon style side by side, each as a card with its off and on look and its name, centred in
+/// The new and the old icon style side by side, the new one first as the window's default button is, each as a card with its off and on look and its name, centred in
 /// the space given. A card is a button: it answers the question as the window's button for that side does.
 private struct MenuBarIconsIllustration: View {
     let old: MenuBarIconStyle
@@ -92,8 +92,8 @@ private struct MenuBarIconsIllustration: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            card(old, takeNew: false)
             card(new, takeNew: true)
+            card(old, takeNew: false)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)

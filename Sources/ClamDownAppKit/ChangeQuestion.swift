@@ -8,7 +8,7 @@ import Foundation
 public struct ChangeQuestion: Sendable {
     /// What the window shows besides the text.
     public enum Illustration: Equatable, Sendable {
-        /// The menu bar icon in two styles, the old one first.
+        /// The menu bar icon in the old and the new style; the window shows the new one first.
         case menuBarIcons(old: MenuBarIconStyle, new: MenuBarIconStyle)
     }
 
