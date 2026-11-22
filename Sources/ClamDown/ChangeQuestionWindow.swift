@@ -51,25 +51,39 @@ final class ChangeQuestionWindow {
             NSApp.stopModal(withCode: takeNew ? .OK : .cancel)
         }
         let hosting = NSHostingController(rootView: ChangeQuestionView(question: question, answer: answer))
-        let window = NSWindow(contentViewController: hosting)
-        window.styleMask = [.titled, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
+        // No title bar, which would leave an empty band above the icon: the view draws the window's glass and shape.
+        let window = QuestionPanel(contentRect: NSRect(origin: .zero, size: hosting.view.fittingSize),
+                                   styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentViewController = hosting
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
         window.isMovableByWindowBackground = true
         window.setContentSize(hosting.view.fittingSize)
         window.center()
         NSApp.activate(ignoringOtherApps: true)
+        // Key at once, so the buttons show as active and Return and Escape reach them.
+        window.makeKeyAndOrderFront(nil)
         let response = NSApp.runModal(for: window)
         window.orderOut(nil)
         return response == .OK
     }
 }
 
-/// The question: the app icon, the title and the text, the illustration, and the two answers, all centred.
+/// A window without a title bar that can still take the keyboard.
+private final class QuestionPanel: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+/// The question: the app icon, the title and the text, the illustration, and the two answers, all centred, on the
+/// same glass as a system alert (macOS 26 and later) or on a material before.
 private struct ChangeQuestionView: View {
     let question: ChangeQuestion
     /// Called with true for the new behaviour, false for the old one.
     let answer: (Bool) -> Void
+    @Environment(\.cdLook) private var look
+    private static let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
 
     var body: some View {
         VStack(spacing: 16) {
@@ -102,10 +116,19 @@ private struct ChangeQuestionView: View {
             }
             .controlSize(.large)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 28)
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
         .padding(.bottom, 20)
-        .frame(width: 300)
+        .frame(width: 280)
+        .background { glass }
+    }
+
+    @ViewBuilder private var glass: some View {
+        if look == .glass, #available(macOS 26, *) {
+            Color.clear.glassEffect(.regular, in: Self.shape)
+        } else {
+            Self.shape.fill(.regularMaterial)
+        }
     }
 }
 
