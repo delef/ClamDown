@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// What a button is for. The kit decides how each role looks in each look.
@@ -55,6 +56,16 @@ private struct CDDestructiveButtonStyle: PrimitiveButtonStyle {
             button.buttonStyle(.glass)
         } else {
             button.buttonStyle(.bordered)
+        }
+    }
+}
+
+extension View {
+    /// Shows the pointing hand while the pointer is over the view, as over a link, and the arrow again when it
+    /// leaves. For buttons that should look clickable.
+    public func cdPointingHand() -> some View {
+        onHover { inside in
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
     }
 }

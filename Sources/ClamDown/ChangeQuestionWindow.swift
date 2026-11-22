@@ -108,11 +108,13 @@ private struct ChangeQuestionView: View {
                 }
                 .cdButtonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
+                .cdPointingHand()
                 Button { answer(false) } label: {
                     Text(question.oldChoice).frame(maxWidth: .infinity)
                 }
                 .cdButtonStyle(.secondary)
                 .keyboardShortcut(.cancelAction)
+                .cdPointingHand()
             }
             .controlSize(.large)
         }
@@ -195,11 +197,8 @@ private struct CardButtonStyle: ButtonStyle {
             label
                 .background(.quaternary.opacity(isPressed ? 1 : isHovered ? 0.8 : 0.5),
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .onHover { inside in
-                    isHovered = inside
-                    // The pointing hand says the card is clickable, as a link's does.
-                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
+                .onHover { isHovered = $0 }
+                .cdPointingHand()
         }
     }
 }
