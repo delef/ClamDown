@@ -32,14 +32,12 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
     /// collapsing it; should a collapse still happen (a split view the lock cannot find), it is undone at once,
     /// because in accessory mode there is no View menu to bring the sidebar back.
     @State private var columns: NavigationSplitViewVisibility = .all
-    /// The widest the brand row has asked to be while the window is open. The sidebar never gets narrower, so the
+    /// The widest the brand row has asked to be while the window is open. The sidebar is never narrower, so the
     /// app's name and state always show in full; it only grows, so a state line that changes does not make it jump.
     @State private var brandWidth: CGFloat = 0
 
-    /// The sidebar's usual width range; it widens past these when the brand row needs more.
-    private static var minimumSidebar: CGFloat { 210 }
-    private static var idealSidebar: CGFloat { 230 }
-    private static var maximumSidebar: CGFloat { 260 }
+    /// The sidebar's width, fixed as in System Settings: the user cannot drag it. Wider when the brand row needs it.
+    private static var sidebarWidth: CGFloat { 230 }
     /// The list's own margins around a row's content, on both sides together.
     private static var rowMargins: CGFloat { 40 }
 
@@ -53,11 +51,8 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
 
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            let needed = brandWidth + Self.rowMargins
             sidebar
-                .navigationSplitViewColumnWidth(min: max(Self.minimumSidebar, needed),
-                                                ideal: max(Self.idealSidebar, needed),
-                                                max: max(Self.maximumSidebar, needed))
+                .navigationSplitViewColumnWidth(max(Self.sidebarWidth, brandWidth + Self.rowMargins))
         } detail: {
             detail(selection)
                 .navigationTitle(items.first { $0.id == selection }?.title ?? "")
@@ -117,6 +112,8 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(FrostedGlass())
         .background(SidebarLock())
         if #available(macOS 14, *) {
             // As in System Settings, the sidebar cannot be collapsed.
@@ -131,6 +128,20 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
 private struct BrandWidthKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// The sidebar's background: frosted glass that blurs what is behind the window, and stays frosted while the window
+/// is in the background too, where the system sidebar would turn flat.
+private struct FrostedGlass: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .sidebar
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 /// Stops the sidebar from collapsing when its divider is dragged to the left. SwiftUI has no setting for this, so it
