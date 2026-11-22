@@ -82,14 +82,12 @@ public struct CDSettingsPage<Header: View, Content: View>: View {
         .formStyle(.grouped)
     }
 
-    /// A brand glow from the top left of the page, extended under the glass sidebar, so the sidebar's Liquid Glass
-    /// has colour to show instead of flat grey (owner, 2026-11-22: "главное, чтобы был liquid glass", "чуть более
-    /// явным"). The system's glass itself has no strength to set; what lies under it is what makes it visible.
+    /// A faint brand glow at the top of the page, extended under the glass sidebar.
     @available(macOS 26, *)
     private var aura: some View {
-        let color = colorScheme == .dark ? CDColor.brandMintGlow.opacity(0.16) : CDColor.brandTeal.opacity(0.24)
-        return RadialGradient(colors: [color, .clear], center: .topLeading, startRadius: 0, endRadius: 520)
-            .frame(height: 460)
+        let color = colorScheme == .dark ? CDColor.brandMintGlow.opacity(0.10) : CDColor.brandTeal.opacity(0.16)
+        return RadialGradient(colors: [color, .clear], center: .top, startRadius: 0, endRadius: 300)
+            .frame(height: 300)
             .backgroundExtensionEffect()
             .allowsHitTesting(false)
     }
