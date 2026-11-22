@@ -19,4 +19,16 @@ jobs:
       - name: Build
         run: swift build
       - name: Test with coverage limits
+        # RenderTests writes a render that differs from its reference to the temporary directory, as failed-*.png.
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: scripts/coverage.sh
+      - name: Keep the failed renders
+        # The references are recorded on a developer's Mac. Where the runner's macOS lays the views out differently,
+        # the render kept here shows how, and is the one to look at and commit as the reference.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-renders
+          path: ${{ runner.temp }}/failed-*.png
+          if-no-files-found: ignore
