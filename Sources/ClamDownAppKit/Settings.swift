@@ -71,13 +71,14 @@ public enum BatteryHeatHold: Int, Codable, CaseIterable, Sendable {
 /// build keeps the Cup and is asked once whether to switch (owner, 2026-11-22: "им должно показаться окно с
 /// уведомлением и выбором", "окно показывается один раз"); see `ChangeQuestionGate`.
 public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
-    case cup, lid
+    /// In the order the Appearance page offers them: the default first.
+    case lid, cup
 
     /// The names `clamdown.lid` and `clamdown.lid.fill` are not SF Symbols: the app draws them itself.
     public var offSymbol: String {
         switch self {
-        case .cup: "cup.and.saucer"
         case .lid: "clamdown.lid"
+        case .cup: "cup.and.saucer"
         }
     }
 
@@ -85,8 +86,8 @@ public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .cup: String(localized: "Cup")
         case .lid: String(localized: "Lid")
+        case .cup: String(localized: "Cup")
         }
     }
 }
