@@ -1,3 +1,5 @@
+import AppKit
+import os
 import SwiftUI
 
 /// One entry of the settings sidebar.
@@ -26,8 +28,9 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
     @Binding private var selection: ID
     private let brand: Brand
     private let detail: (ID) -> Detail
-    /// Always `.all`: as in System Settings the sidebar cannot be collapsed, not even by dragging its divider. In
-    /// accessory mode there is no View menu to bring it back, so a collapse is undone at once.
+    /// Always `.all`: as in System Settings the sidebar cannot be collapsed. `SidebarLock` stops the divider from
+    /// collapsing it; should a collapse still happen (a split view the lock cannot find), it is undone at once,
+    /// because in accessory mode there is no View menu to bring the sidebar back.
     @State private var columns: NavigationSplitViewVisibility = .all
     /// The widest the brand row has asked to be while the window is open. The sidebar never gets narrower, so the
     /// app's name and state always show in full; it only grows, so a state line that changes does not make it jump.
@@ -114,6 +117,7 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
             }
         }
         .listStyle(.sidebar)
+        .background(SidebarLock())
         if #available(macOS 14, *) {
             // As in System Settings, the sidebar cannot be collapsed.
             list.toolbar(removing: .sidebarToggle)
@@ -127,4 +131,37 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
 private struct BrandWidthKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// Stops the sidebar from collapsing when its divider is dragged to the left. SwiftUI has no setting for this, so it
+/// finds the AppKit split view that `NavigationSplitView` sits on and turns off collapsing for its first item, the
+/// sidebar. Without this, the drag collapses the sidebar and the shell has to bring it back, which looks broken.
+private struct SidebarLock: NSViewRepresentable {
+    private static let log = Logger(subsystem: "app.clamdown", category: "settings")
+
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class Probe: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard window != nil else { return }
+            // The split view controller finishes setting up its items after the view joins the window.
+            DispatchQueue.main.async { [weak self] in self?.lock() }
+        }
+
+        private func lock() {
+            var view = superview
+            while let current = view {
+                if let split = current as? NSSplitView, let controller = split.delegate as? NSSplitViewController,
+                   let sidebar = controller.splitViewItems.first {
+                    sidebar.canCollapse = false
+                    SidebarLock.log.info("sidebar locked against collapsing")
+                    return
+                }
+                view = current.superview
+            }
+            SidebarLock.log.error("no split view above the sidebar; it can still be collapsed by dragging")
+        }
+    }
 }
