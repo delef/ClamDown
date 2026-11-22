@@ -3,7 +3,7 @@ import Foundation
 /// A choice the app offers once after an update changed how something behaves: keep the old behaviour or take the
 /// new one. The code that brings in a change asks about it where it is, with what to do for each answer; nothing
 /// lists the questions in one place (owner, 2026-11-22: "механизм создаем общий, мы явно будем часто делать
-/// изменения, и нужно будет опрашивать"; "просто показываем с помощью функции, а у функции делаем коллбэки с
+/// изменения, и нужно будет опрашивать"; "просто показываем с помощью функции, а у фукции делаем коллбэки с
 /// обработкой двух исходов"; "окно показывается один раз").
 public struct ChangeQuestion: Sendable {
     /// What the window shows besides the text.

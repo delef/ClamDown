@@ -36,14 +36,21 @@ final class ChangeQuestionWindow {
     private func showNext() {
         guard !isShowing, !queue.isEmpty else { return }
         isShowing = true
-        let pending = queue.removeFirst()
-        // On the next turn of the run loop, so a question asked at launch does not hold up the launch.
-        DispatchQueue.main.async { [weak self] in
-            let takeNew = Self.run(pending.question)
-            if takeNew { pending.onNew() } else { pending.onOld() }
-            self?.isShowing = false
-            self?.showNext()
+        // From the run loop on its next turn, so a question asked at launch does not hold up the launch, and not
+        // from the main queue: a window that waits for a click inside a main-queue block holds up every main-actor
+        // task until it is answered, the controller's start and its sleep, wake and helper callbacks among them,
+        // while the run loop's own sources go on (agent, 2026-11-22, found in review: it froze the first launch
+        // after the update for every user who is asked).
+        RunLoop.main.perform { [weak self] in
+            MainActor.assumeIsolated { self?.showFirst() }
         }
+    }
+
+    private func showFirst() {
+        let pending = queue.removeFirst()
+        if Self.run(pending.question) { pending.onNew() } else { pending.onOld() }
+        isShowing = false
+        showNext()
     }
 
     /// Shows the window until the user answers; true for the new behaviour.

@@ -112,8 +112,9 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
             }
         }
         .listStyle(.sidebar)
-        // No background of its own: the system puts the sidebar on its glass (macOS 26) or sidebar material, and a
-        // material laid over that looked muddy (owner, 2026-11-22: "фон сайдбара грязноват").
+        // No material of its own: the system puts the sidebar on its glass (macOS 26) or sidebar material, and a
+        // material laid over that looked muddy (owner, 2026-11-22: "кроме фона сайдбара, грязноват"). The lock
+        // below draws nothing.
         .background(SidebarLock())
         if #available(macOS 14, *) {
             // As in System Settings, the sidebar cannot be collapsed.

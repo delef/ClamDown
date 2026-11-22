@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let settingsLog = Logger(subsystem: "app.clamdown", category: "settings")
 
 public protocol SettingsStoring: AnyObject {
     func load() -> Settings
@@ -57,7 +60,12 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
     private func firstSettings() -> Settings {
         var settings = Settings()
         if hasEarlierInstall { settings.menuBarIcon = .cup }
-        try? save(settings)
+        do {
+            try save(settings)
+        } catch {
+            // This launch still runs on these settings; the next one decides again, from keys this launch wrote.
+            settingsLog.error("The first settings could not be stored: \(error, privacy: .public)")
+        }
         return settings
     }
 
