@@ -168,7 +168,7 @@ import Testing
         var settings = Settings()
         settings.launchAtLogin = true
         settings.batteryCutoffPercent = 30
-        settings.menuBarIcon = .bolt
+        settings.menuBarIcon = .lid
         let rig = Rig(settings: settings)
         await rig.controller.resetSettings()
         var expected = Settings()

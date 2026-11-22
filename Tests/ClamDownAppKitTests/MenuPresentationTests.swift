@@ -112,9 +112,9 @@ import Testing
 
 @Suite struct MenuPresentationIconTests {
     @Test func iconStyleChangesTheSymbol() {
-        #expect(MenuPresentation(state: .off, notice: nil, icon: .bolt).symbolName == "bolt")
-        #expect(MenuPresentation(state: .on, notice: nil, icon: .bolt).symbolName == "bolt.fill")
-        #expect(MenuPresentation(state: .failed("x"), notice: nil, icon: .sun).symbolName == "sun.max")
+        #expect(MenuPresentation(state: .off, notice: nil, icon: .cup).symbolName == "cup.and.saucer")
+        #expect(MenuPresentation(state: .on, notice: nil, icon: .cup).symbolName == "cup.and.saucer.fill")
+        #expect(MenuPresentation(state: .failed("x"), notice: nil, icon: .lid).symbolName == "clamdown.lid")
     }
 }
 

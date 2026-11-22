@@ -66,32 +66,25 @@ public enum BatteryHeatHold: Int, Codable, CaseIterable, Sendable {
 }
 
 /// The symbol shown in the menu bar. Each style has a plain and a filled form for off and on.
+/// Two styles (owner, 2026-11-22: "оставляем только две"): the Cup that every release so far had as its default,
+/// and the drawn Lid. Eye, Bolt and Sun were dropped; a setting that names one of them reads as the default.
 public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
-    case lid, cup, eye, bolt, sun
+    case cup, lid
 
     /// The names `clamdown.lid` and `clamdown.lid.fill` are not SF Symbols: the app draws them itself.
     public var offSymbol: String {
         switch self {
-        case .lid: "clamdown.lid"
         case .cup: "cup.and.saucer"
-        case .eye: "eye"
-        case .bolt: "bolt"
-        case .sun: "sun.max"
+        case .lid: "clamdown.lid"
         }
     }
 
     public var onSymbol: String { offSymbol + ".fill" }
 
-    /// Whether the app draws this style itself instead of taking an SF Symbol.
-    public var isDrawn: Bool { self == .lid }
-
     public var title: String {
         switch self {
-        case .lid: String(localized: "Lid")
         case .cup: String(localized: "Cup")
-        case .eye: String(localized: "Eye")
-        case .bolt: String(localized: "Bolt")
-        case .sun: String(localized: "Sun")
+        case .lid: String(localized: "Lid")
         }
     }
 }
@@ -177,7 +170,7 @@ public struct Settings: Codable, Equatable, Sendable {
     public var notificationsEnabled = true
 
     // Appearance
-    public var menuBarIcon: MenuBarIconStyle = .lid
+    public var menuBarIcon: MenuBarIconStyle = .cup
 
     public init() {}
 

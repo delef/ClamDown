@@ -42,7 +42,7 @@ import Testing
         let rig = Rig()
         await rig.controller.toggle()
         var settings = rig.controller.settings
-        settings.menuBarIcon = .bolt
+        settings.menuBarIcon = .lid
         await rig.controller.updateSettings(settings)
         #expect(rig.helper.fanPolicyCalls.count == 1)
     }
