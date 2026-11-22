@@ -332,7 +332,8 @@ struct CoolingPage: View {
                     averaged over half a minute, so a few seconds of load do not make the fans roar.
                     """)
                 : String(localized: """
-                    Five points, each at or above the one before it, on the hottest sensor; the fans \
+                    Five points, each at or above the one before it, on the hottest sensor, with the CPU \
+                    and GPU counted as in Standard; the fans \
                     never run under the safety floor.
                     """))
         }

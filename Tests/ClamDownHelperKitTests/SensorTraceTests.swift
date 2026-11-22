@@ -5,7 +5,7 @@ import ClamDownShared
 @testable import ClamDownHelperKit
 
 /// Replays sensor recordings from real Macs (`ClamDownFanProbe sensors <seconds>`, the timestamp and group columns;
-/// the newer ones also carry the confirmed die zones as `zone.cpu` and `zone.gpu`, taken from key dumps)
+/// the newer ones also carry the confirmed die zones as `zone.cpu` and `zone.gpu`)
 /// through the helper, one reading a second, with the default settings. Each recording is checked against rules that
 /// must hold whatever the temperatures do. Add the recording of every new situation, such as a Mac in a bag.
 @Suite struct SensorTraceTests {
@@ -52,6 +52,7 @@ import ClamDownShared
         let policy = FanPolicy(points: StandardCurve.points(start: StandardCurve.defaultStart, full: StandardCurve.defaultFull),
                                onlyWhenLidClosed: true, caseRamp: .standard)
         var previous: [Double]?
+        var cpuInputs: ClosedRange<Double>?
         for (second, sample) in samples.enumerated() {
             for group in SensorGroup.allCases {
                 fans.set(group: group, sample.groups[group])
@@ -69,6 +70,12 @@ import ClamDownShared
             // The case-side groups count as read, so a Mac warming in a bag reaches the fans at once.
             let caseSide = sample.groups.filter { !SustainedTemperatures.averagedGroups.contains($0.key) }
             if let warmest = SensorGroup.hottest(in: caseSide)?.celsius { #expect(followed >= warmest, "second \(second)") }
+            // An average of the CPU's input never leaves the range of what that input has read.
+            let cpuInput = try #require(sample.zones[.cpu] ?? sample.groups[.cpu])
+            let inputs = cpuInputs.map { min($0.lowerBound, cpuInput)...max($0.upperBound, cpuInput) } ?? cpuInput...cpuInput
+            cpuInputs = inputs
+            let followedCPU = try #require(status.groupTemperatures[.cpu])
+            #expect(inputs.contains(followedCPU), "second \(second): CPU \(followedCPU) outside \(inputs)")
             let wanted = status.override == nil ? policy.speed(at: followed, caseTemperature: sample.groups[.airflow]) : 100
             let wantedRPM = FanDecision.speed(percent: wanted, fan: FanReading(rpm: 0, minimum: Self.fanRange.minimum,
                                                                              maximum: Self.fanRange.maximum))

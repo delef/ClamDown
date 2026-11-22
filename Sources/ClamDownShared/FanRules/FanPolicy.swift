@@ -14,7 +14,11 @@ public struct FanPoint: Codable, Equatable, Sendable {
 }
 
 /// The least the fans run at, whatever the curve says: 0 % up to 70 °C, a straight line to 100 % at 95 °C,
-/// and 100 % above. It keeps a hot Mac from running with slow fans.
+/// and 100 % above. It keeps a hot Mac from running with slow fans, for example under a quiet Advanced curve.
+/// It reads the same temperature as the curve, so for the chips their die zone, about 14 °C under the hottest core.
+/// Kept at 70 °C on that input (agent, 2026-11-22): macOS holds a zone under its setpoint of about 76 °C by itself
+/// and started the fans at about 69 °C, so a zone above 70 °C is the point where the Mac's own limit is near; the
+/// hot-core and system overrides still cover a core at its limit.
 public enum SafetyFloor {
     public static let rampStart = 70
     public static let rampEnd = 95
@@ -63,7 +67,8 @@ public struct CaseRamp: Codable, Equatable, Sendable {
     }
 }
 
-/// What the app asks the helper to do with the fans: a curve of points over the hottest temperature.
+/// What the app asks the helper to do with the fans: a curve of points over the temperature the helper follows
+/// (`FanDecision`, step 1).
 /// No points means fan control is switched off. The helper repairs the policy again before use.
 public struct FanPolicy: Codable, Equatable, Sendable {
     public static let temperatureRange = 40...100
@@ -142,7 +147,8 @@ public enum StandardCurve {
     /// The full-speed point stays at least this many degrees above the start point.
     public static let minimumSpan = 5
     // The curve starts early on purpose: a closed Mac in a bag has little airflow, and staying cool matters more than
-    // quiet. At idle the hottest sensor sits a little above 40 °C, so the fans run a little above their minimum.
+    // quiet. At idle on the owner's M3 Pro the followed temperature (CPU zone about 42 °C, Wi-Fi and case about 36)
+    // sits a little above 40 °C, so the fans run a little above their minimum; the case rule takes over in a bag.
     public static let defaultStart = 40
     public static let defaultFull = 70
 

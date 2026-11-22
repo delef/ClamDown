@@ -29,7 +29,7 @@ private let usage = """
       load <minutes>      CSV: seconds,average,hottest,thermalLevel every second. Fans untouched. Root.
       fullLoad <minutes>  as load, with the fans held at maximum; back to macOS at the end. Root.
       thermal [minutes]   CSV: seconds,uid,thermalLevel every second, 5 minutes by default. Root not needed.
-      sensors [seconds]   CSV: timestamp, each sensor group's hottest value, then every key of the groups,
+      sensors [seconds]   CSV: timestamp, each sensor group's hottest value, the confirmed die zones, then every key of the groups,
                           every second, 60 seconds by default. Read-only: never takes the fans. Root not needed.
       keys <machine>      JSON: type and raw bytes of every temperature and fan key, for a test fixture.
                           <machine> is free text, such as "MacBook Pro M4 Pro, macOS 27.2". Read-only. Root not needed.
@@ -291,6 +291,7 @@ private func thermal(_ seconds: Int) -> Never {
 
 /// Every temperature the curve can follow, once a second, for checking the limits in a bag. Opens the SMC to read
 /// only: no fan is taken and nothing is written, so it needs no root and leaves whatever drives the fans alone.
+/// After the groups come the chips' die zones (`zone.cpu`, `zone.gpu`), empty when the check does not confirm them.
 /// The key columns are the CPU and GPU keys this Mac has, then every fixed key of the table, also the ones this
 /// Mac lacks (their column stays empty), so files from different Macs line up.
 private func sensors(_ seconds: Int) -> Never {
@@ -306,7 +307,9 @@ private func sensors(_ seconds: Int) -> Never {
         + (missing.isEmpty ? "." : "; not on this Mac: \(missing.joined(separator: ", ")).")
         + " Group values leave out readings outside 10–130 °C; key columns are raw.")
     // Raw key names in the header: none contains a comma or a quote.
-    emit((["timestamp"] + SensorGroup.allCases.map(\.rawValue) + keys).joined(separator: ","))
+    let zoneGroups = SensorKeys.zoneKeys.map(\.group)
+    emit((["timestamp"] + SensorGroup.allCases.map(\.rawValue) + zoneGroups.map { "zone.\($0.rawValue)" } + keys)
+        .joined(separator: ","))
     let stamp = ISO8601DateFormatter()
     stamp.formatOptions = [.withInternetDateTime]
     stamp.timeZone = .current
@@ -318,7 +321,9 @@ private func sensors(_ seconds: Int) -> Never {
             byGroup[group, default: []].append(value)
         }
         let groups = SensorKeys.hottestByGroup(byGroup)
-        emit(([stamp.string(from: Date())] + SensorGroup.allCases.map { format(groups[$0], 1) } + raw.map { format($0, 2) })
+        let zones = (try? hardware.read().zoneTemperatures) ?? [:]
+        emit(([stamp.string(from: Date())] + SensorGroup.allCases.map { format(groups[$0], 1) }
+              + zoneGroups.map { format(zones[$0], 1) } + raw.map { format($0, 2) })
             .joined(separator: ","))
         if second % 30 == 0 {
             let summary = SensorGroup.allCases.compactMap { group in groups[group].map { "\(group.title) \(format($0, 1))" } }

@@ -3,17 +3,19 @@ import Foundation
 /// The sensor group values the curve and the safety floor follow: each chip (CPU, GPU) as the die zone the SMC's own
 /// fan controller steers by, averaged over about half a minute; every other group as read.
 ///
-/// Why (owner's choice on 2026-11-22, from measurements on their M3 Pro): following the hottest core made the fans roar
-/// at every 5–10 s burst and hunt at idle, while the Mac as a whole barely warmed. macOS steers by the die zones
-/// (the sensor adapter's `SensorKeys.zoneKeys`), which run about 14 °C under the hottest core and barely move with a burst, but it leaves
-/// the fans off until a zone nears its setpoint of about 76 °C and ignores a case at 49 °C. ClamDown takes the same
+/// Why: the owner heard the fans roar at every 5–10 s burst while the Mac as a whole did not warm, and asked to compute
+/// the temperature "примерно так же, как эпл" but to start the fans more eagerly, with a Mac in a bag in mind (owner,
+/// 2026-11-22). Measured on their M3 Pro, macOS steers by the die zones (the sensor adapter's `SensorKeys.zoneKeys`),
+/// which run about 14 °C under the hottest core and barely move with a burst, but it leaves the fans off until a zone
+/// nears its setpoint of about 76 °C and ignores a case at 49 °C. Offered the zones averaged over 30 s or the hottest
+/// core averaged over 60 s, the owner picked "Apple zone, 30 s avg" (owner, 2026-11-22). ClamDown takes the same
 /// input and stays more eager: its curve starts at 40 °C, and the battery, SSD, Wi-Fi and airflow groups, which
 /// follow the case and warm slowly by themselves, count as read, so a Mac warming in a bag still reaches full speed.
 /// The short average takes out what is left of a burst. On a Mac whose zones cannot be confirmed, a chip counts as
 /// its hottest sensor averaged over a minute, which also ignores a burst but keeps the fans higher at idle.
 /// A core at its limit is the hot-core watch's job, which reads the raw hottest core.
-/// Rejected: the raw zones, which still lift the fans by a third for a 10 s burst; a rolling minimum, which reads a
-/// load with short pauses as cool.
+/// Not chosen (agent, 2026-11-22): the raw zones, which still lift the fans by a third for a heavy 10 s burst; a
+/// rolling minimum, which reads a load with short pauses as cool.
 public struct SustainedTemperatures: Sendable {
     /// The groups whose values swing with load within seconds.
     public static let averagedGroups: Set<SensorGroup> = [.cpu, .gpu]
