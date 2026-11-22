@@ -1,4 +1,4 @@
-import ClamDownShared
+import Foundation
 
 /// Watches one temperature for a part that runs too hot, which the curve alone may not answer in time.
 /// On after the value has stayed at or above `onAt` for `onAfter`; off after it has stayed below `offBelow`

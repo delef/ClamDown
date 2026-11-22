@@ -28,7 +28,7 @@ public struct HardwareReading: Equatable, Sendable {
     }
 
     /// The hottest reading over all groups as read, in °C. The helper's curve follows the chips as their averaged
-    /// zones instead (`SustainedTemperatures`). Nil when no group could be read.
+    /// zones instead (`FanDecision`). Nil when no group could be read.
     public var hottestTemperature: Double? { SensorGroup.hottest(in: groupTemperatures)?.celsius }
     /// The group of `hottestTemperature`.
     public var hottestGroup: SensorGroup? { SensorGroup.hottest(in: groupTemperatures)?.group }

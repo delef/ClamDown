@@ -70,7 +70,7 @@ import ClamDownShared
             let caseSide = sample.groups.filter { !SustainedTemperatures.averagedGroups.contains($0.key) }
             if let warmest = SensorGroup.hottest(in: caseSide)?.celsius { #expect(followed >= warmest, "second \(second)") }
             let wanted = status.override == nil ? policy.speed(at: followed, caseTemperature: sample.groups[.airflow]) : 100
-            let wantedRPM = FanCurve.speed(percent: wanted, fan: FanReading(rpm: 0, minimum: Self.fanRange.minimum,
+            let wantedRPM = FanDecision.speed(percent: wanted, fan: FanReading(rpm: 0, minimum: Self.fanRange.minimum,
                                                                              maximum: Self.fanRange.maximum))
             for (fan, rpm) in targets.enumerated() {
                 // Never under what the curve, the floor, the case rule and the overrides ask for, never outside the range.

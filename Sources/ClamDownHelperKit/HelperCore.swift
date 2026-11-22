@@ -35,8 +35,7 @@ public actor HelperCore {
     private let hardware: FanHardware?
     /// macOS's own thermal level, read by the helper itself. Nil leaves the system override off.
     private let thermal: ThermalStateReading?
-    /// How far a fan's target may fall per `fanStepInterval`, in rpm. The fall is limited by time, not by call:
-    /// a new policy runs `updateFans` at once, and a burst of them must not drop the fans faster.
+    /// How far a fan's target may fall per `fanStepInterval`, in rpm (`FanDecision.fallStep`; tests set their own).
     private let fanStepDown: Double
     private let fanStepInterval: Duration
 
@@ -81,12 +80,9 @@ public actor HelperCore {
     private var fanIdle = true
     /// Why the last hand-back to macOS failed, until one succeeds.
     private var releaseProblem: String?
-    /// Watches for one core at its limit; reset whenever the helper is not asked to drive the fans.
-    private var hotCore = OverheatWatch.hotCore()
-    /// Watches the hottest battery sensor; reset with `hotCore`.
-    private var hotBattery = OverheatWatch.hotBattery()
-    /// The chips' die zones averaged over time, which the curve follows; reset with `hotCore`.
-    private var sustained = SustainedTemperatures()
+    /// Every rule that decides the fan speed, with its averages and watches; started afresh whenever the helper is
+    /// not asked to drive the fans.
+    private var decision = FanDecision()
     /// Why the fans last ran at full speed, while they did.
     private var fanOverride: FanOverride?
 
@@ -99,8 +95,8 @@ public actor HelperCore {
         idle: IdleReading? = nil,
         thermal: ThermalStateReading? = nil,
         watchdogTimeout: Duration = .seconds(90),
-        fanStepDown: Double = 150,
-        fanStepInterval: Duration = .seconds(3)
+        fanStepDown: Double = FanDecision.fallStep,
+        fanStepInterval: Duration = FanDecision.fallInterval
     ) {
         self.runner = runner
         self.store = store
@@ -246,8 +242,7 @@ public actor HelperCore {
         lastFanPolicy = nil
         health.restart()
         fanIdle = true
-        hotCore = .hotCore()
-        hotBattery = .hotBattery()
+        decision = FanDecision()
         fanOverride = nil
         enabled = false
         owner = nil
@@ -407,17 +402,13 @@ public actor HelperCore {
     /// Call every few seconds. Sets the fan speeds while the mode is on or a fan-only session runs, and the policy
     /// asks for it;
     /// in every other case it hands the fans back to macOS if ClamDown holds them.
-    /// The curve and the safety floor follow the hottest of the known groups, each chip as its die zone averaged
-    /// over time (`SustainedTemperatures`), or the average CPU temperature when no group can be read; a core at its
-    /// limit, a hot battery or a Mac that macOS reports as hot runs the fans at full speed instead.
+    /// The speed itself is `FanDecision`'s; this reads the sensors, applies it and handles faults.
     /// Any fault (a failed read or write, a lost temperature, a fan that drops out of the reading or does not
     /// follow its target) hands the fans back to macOS; `FanHealth` says when to take them again.
     public func updateFans(now: SuspendingClock.Instant = .now) {
         guard !terminating else { return }
         guard let policy = fanPolicy, !policy.isOff else {
-            hotCore = .hotCore()
-            hotBattery = .hotBattery()
-            sustained = SustainedTemperatures()
+            decision = FanDecision()
             stopDriving()
             return
         }
@@ -438,10 +429,8 @@ public actor HelperCore {
             }
             return
         }
-        let hotCoreActive = hotCore.update(hottest: reading.hottestCPUTemperature, now: now)
-        let hotBatteryActive = hotBattery.update(hottest: reading.groupTemperatures[.battery], now: now)
-        // Kept up while the lid is open too, so closing it finds an average that is already right.
-        let followed = sustained.update(reading, now: now)
+        // Kept up while the lid is open too, so closing it finds the averages and the watches already right.
+        let observation = decision.observe(Self.sensors(reading), now: now)
         if policy.onlyWhenLidClosed, reading.lidClosed != true {
             stopDriving()
             return
@@ -466,7 +455,7 @@ public actor HelperCore {
         }
         knownFanMaxima = reading.fans.map(\.maximum)
         // Without a temperature the curve cannot work, and guessing is worse than macOS's own control.
-        guard let temperature = SensorGroup.hottest(in: followed)?.celsius ?? reading.cpuTemperature else {
+        guard let temperature = observation.temperature else {
             fault("Cannot read the temperature sensors.", now: now)
             return
         }
@@ -482,24 +471,12 @@ public actor HelperCore {
             fault("Fan \(lagging + 1) does not reach the speed it was set to.", now: now)
             return
         }
-        let override: FanOverride? = if hotCoreActive {
-            .hotCore
-        } else if hotBatteryActive {
-            .hotBattery
-        } else if let level = thermal?.thermalLevel(), level >= .serious {
-            .system
-        } else {
-            nil
-        }
-        let percent = override == nil
-            ? policy.speed(at: temperature, caseTemperature: reading.groupTemperatures[.airflow]) : 100
-        let maxDrop = allowedDrop(now: now)
-        let targets = reading.fans.enumerated().map { index, fan in
-            let wanted = FanCurve.speed(percent: percent, fan: fan)
-            let previous = fanTargets.flatMap { index < $0.count ? $0[index] : nil }
-            let smoothed = FanCurve.smoothed(previous: previous, wanted: wanted, maxDrop: maxDrop)
-            return min(max(smoothed, fan.minimum), fan.maximum)
-        }
+        let override = FanDecision.override(observation, systemLevel: thermal?.thermalLevel())
+        let percent = FanDecision.percent(policy: policy, temperature: temperature,
+                                          airflow: reading.groupTemperatures[.airflow], override: override)
+        let maxDrop = FanDecision.allowedDrop(after: fanTargetsWritten.map { $0.duration(to: now) },
+                                              step: fanStepDown, interval: fanStepInterval)
+        let targets = FanDecision.targets(percent: percent, fans: reading.fans, previous: fanTargets, maxDrop: maxDrop)
         do {
             if !fansHeld {
                 // Record the take-over before touching the fans, so a crash cannot leave them stuck.
@@ -516,19 +493,16 @@ public actor HelperCore {
         }
     }
 
-    /// How far the targets may fall now: `fanStepDown` for each `fanStepInterval` since the last write, never
-    /// more than one step. Calls close together, such as several new policies in a row, share the step.
-    private func allowedDrop(now: SuspendingClock.Instant) -> Double {
-        guard let written = fanTargetsWritten else { return fanStepDown }
-        let elapsed = written.duration(to: now)
-        guard elapsed > .zero else { return 0 }
-        return fanStepDown * min(elapsed / fanStepInterval, 1)
+    /// The values `FanDecision` needs from a reading.
+    private static func sensors(_ reading: HardwareReading) -> FanDecision.Sensors {
+        FanDecision.Sensors(groups: reading.groupTemperatures, zones: reading.zoneTemperatures,
+                            hottestCore: reading.hottestCPUTemperature, cpuAverage: reading.cpuTemperature)
     }
 
     /// What the helper sees and does right now. Reads the sensors but changes nothing.
     public func coolingStatus() -> CoolingStatus {
         let reading = try? hardware?.read()
-        let followed = reading.map { sustained.applied(to: $0) }
+        let followed = reading.map { decision.followed(Self.sensors($0)) }
         let hottest = followed.flatMap { SensorGroup.hottest(in: $0) }
         let control: FanControlState = fanIdle ? .idle : health.state
         let problem: String? = if hardware == nil {

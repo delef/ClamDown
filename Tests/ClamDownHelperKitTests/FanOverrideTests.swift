@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import ClamDownShared
 @testable import ClamDownHelperKit
 
 @Suite struct HotCoreWatchTests {

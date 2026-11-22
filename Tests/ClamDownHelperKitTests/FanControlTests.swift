@@ -10,31 +10,31 @@ import ClamDownShared
                                   onlyWhenLidClosed: false)
 
     @Test func curveRunsFromMinimumToMaximum() {
-        #expect(FanCurve.speed(at: 40, policy: curve, fan: fan) == 1000)
-        #expect(FanCurve.speed(at: 60, policy: curve, fan: fan) == 1000)
-        #expect(FanCurve.speed(at: 70, policy: curve, fan: fan) == 3000)
-        #expect(FanCurve.speed(at: 80, policy: curve, fan: fan) == 5000)
-        #expect(FanCurve.speed(at: 110, policy: curve, fan: fan) == 5000)
+        #expect(FanDecision.speed(percent: curve.speed(at: 40), fan: fan) == 1000)
+        #expect(FanDecision.speed(percent: curve.speed(at: 60), fan: fan) == 1000)
+        #expect(FanDecision.speed(percent: curve.speed(at: 70), fan: fan) == 3000)
+        #expect(FanDecision.speed(percent: curve.speed(at: 80), fan: fan) == 5000)
+        #expect(FanDecision.speed(percent: curve.speed(at: 110), fan: fan) == 5000)
     }
 
     @Test func pointsAtFullSpeedIgnoreTemperature() {
         let policy = FanPolicy(points: [.init(temperature: 40, speed: 100), .init(temperature: 80, speed: 100)],
                                onlyWhenLidClosed: false)
-        #expect(FanCurve.speed(at: 30, policy: policy, fan: fan) == 5000)
+        #expect(FanDecision.speed(percent: policy.speed(at: 30), fan: fan) == 5000)
     }
 
     @Test func safetyFloorRaisesALowCurve() {
         let quiet = FanPolicy(points: [.init(temperature: 40, speed: 0)], onlyWhenLidClosed: false)
-        #expect(FanCurve.speed(at: 60, policy: quiet, fan: fan) == 1000)
-        #expect(FanCurve.speed(at: 82.5, policy: quiet, fan: fan) == 3000)
-        #expect(FanCurve.speed(at: 99, policy: quiet, fan: fan) == 5000)
+        #expect(FanDecision.speed(percent: quiet.speed(at: 60), fan: fan) == 1000)
+        #expect(FanDecision.speed(percent: quiet.speed(at: 82.5), fan: fan) == 3000)
+        #expect(FanDecision.speed(percent: quiet.speed(at: 99), fan: fan) == 5000)
     }
 
     @Test func speedRisesAtOnceAndFallsSlowly() {
-        #expect(FanCurve.smoothed(previous: 2000, wanted: 4000, maxDrop: 150) == 4000)
-        #expect(FanCurve.smoothed(previous: 4000, wanted: 1000, maxDrop: 150) == 3850)
-        #expect(FanCurve.smoothed(previous: 1100, wanted: 1000, maxDrop: 150) == 1000)
-        #expect(FanCurve.smoothed(previous: nil, wanted: 1000, maxDrop: 150) == 1000)
+        #expect(FanDecision.smoothed(previous: 2000, wanted: 4000, maxDrop: 150) == 4000)
+        #expect(FanDecision.smoothed(previous: 4000, wanted: 1000, maxDrop: 150) == 3850)
+        #expect(FanDecision.smoothed(previous: 1100, wanted: 1000, maxDrop: 150) == 1000)
+        #expect(FanDecision.smoothed(previous: nil, wanted: 1000, maxDrop: 150) == 1000)
     }
 }
 
@@ -411,9 +411,9 @@ import ClamDownShared
 
     @Test func speedFromPercentSpansTheFansRange() {
         let fan = FanReading(rpm: 0, minimum: 1000, maximum: 5000)
-        #expect(FanCurve.speed(percent: 0, fan: fan) == 1000)
-        #expect(FanCurve.speed(percent: 50, fan: fan) == 3000)
-        #expect(FanCurve.speed(percent: 100, fan: fan) == 5000)
+        #expect(FanDecision.speed(percent: 0, fan: fan) == 1000)
+        #expect(FanDecision.speed(percent: 50, fan: fan) == 3000)
+        #expect(FanDecision.speed(percent: 100, fan: fan) == 5000)
     }
 
     @Test func curveFollowsTheHottestSensor() async throws {
