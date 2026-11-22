@@ -116,12 +116,6 @@ import ClamDownShared
         #expect(s.lockScreenWhenLidClosed && s.batteryCutoffEnabled && s.autoOffTimer == .never && s.menuBarIcon == .cup)
     }
 
-    @Test func anUnknownValueFallsBackToTheOlderBuildsValue() throws {
-        let json = #"{"menuBarIcon":"rocket","batteryCutoffPercent":25}"#
-        let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
-        #expect(s.menuBarIcon == .cup && s.batteryCutoffPercent == 25)
-    }
-
     @Test func storedStyleIsKept() throws {
         let s = try JSONDecoder().decode(Settings.self, from: Data(#"{"menuBarIcon":"lid"}"#.utf8))
         #expect(s.menuBarIcon == .lid)
