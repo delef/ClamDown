@@ -26,9 +26,11 @@ public enum MenuBarIconImage {
     private static let accessibilityName = String(localized: "ClamDown")
 
     /// The Lid on an 18 x 18 pt canvas: a closed laptop seen from the front, a slab with the notch of its lid.
-    /// Off, the outline with a "Z" above it: the Mac sleeps when the lid closes. On, the filled slab with rays above
-    /// it: the closed Mac stays awake. Chosen by the owner on 2026-11-22 from four concepts, over a wedge-shaped lid
-    /// and an eye; it replaced a lid with a heartbeat line, which did not read as "awake" at menu bar size.
+    /// Off, the outline with a crescent moon above it: the Mac sleeps when the lid closes. On, the filled slab with
+    /// rays above it: the closed Mac stays awake. Chosen by the owner on 2026-11-22 from four concepts, over a
+    /// wedge-shaped lid and an eye; it replaced a lid with a heartbeat line, which did not read as "awake" at menu bar
+    /// size. The moon replaced a "Z" the same day: the owner found the letter "слишком двухсмысленная" (owner,
+    /// 2026-11-22); a moon is how macOS itself shows sleep.
     private static func lid(on: Bool) -> NSImage {
         let height: CGFloat = 18
         // The sketch's y axis points down, AppKit's up.
@@ -64,15 +66,11 @@ public enum MenuBarIconImage {
                 slab.lineWidth = 1.4
                 slab.stroke()
                 NSBezierPath(roundedRect: rect(7.7, 11.4, 2.6, 1.1), xRadius: 0.5, yRadius: 0.5).fill()
-                let sleep = NSBezierPath()
-                sleep.move(to: point(6.8, 3.2))
-                sleep.line(to: point(11.2, 3.2))
-                sleep.line(to: point(6.8, 8))
-                sleep.line(to: point(11.2, 8))
-                sleep.lineWidth = 1.4
-                sleep.lineCapStyle = .round
-                sleep.lineJoinStyle = .round
-                sleep.stroke()
+                // A crescent: a disc with a smaller one taken out of its upper right.
+                NSBezierPath(ovalIn: rect(5.9, 2.2, 6.2, 6.2)).fill()
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+                NSBezierPath(ovalIn: rect(8.0, 1.0, 5.4, 5.4)).fill()
+                NSGraphicsContext.current?.compositingOperation = .sourceOver
             }
             return true
         }
