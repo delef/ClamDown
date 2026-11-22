@@ -8,6 +8,9 @@ public struct CDSettingsIcon: View {
     private let color: Color
     private let size: CGFloat
 
+    /// The share of the tile the symbol fits into, on each side.
+    private static let glyphShare: CGFloat = 0.6
+
     public init(symbol: String, color: Color, size: CGFloat = 20) {
         self.symbol = symbol
         self.color = color
@@ -18,9 +21,15 @@ public struct CDSettingsIcon: View {
         RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
             .fill(color.gradient)
             .overlay {
+                // Fitted into a box of a fixed share of the tile, not set by font size: a symbol at a small point size
+                // is drawn larger and bolder for legibility, which filled a 20 pt sidebar tile almost to its edges
+                // while the 56 pt page tile looked right. System Settings keeps the glyph to about 60 % at any size.
                 Image(systemName: symbol)
-                    .font(.system(size: size * 0.56, weight: .medium))
+                    .resizable()
+                    .scaledToFit()
+                    .fontWeight(.medium)
                     .foregroundStyle(.white)
+                    .frame(width: size * Self.glyphShare, height: size * Self.glyphShare)
             }
             .frame(width: size, height: size)
             .accessibilityHidden(true)
