@@ -43,17 +43,23 @@ final class ChangeQuestionWindow {
                 Self.attach(illustration, to: alert)
             }
             NSApp.activate(ignoringOtherApps: true)
-            if alert.runModal() == .alertFirstButtonReturn { pending.onNew() } else { pending.onOld() }
+            let response = alert.runModal()
+            // A click on the illustration ends the modal session without a button, so the window is closed here.
+            alert.window.orderOut(nil)
+            if response == .alertFirstButtonReturn { pending.onNew() } else { pending.onOld() }
             self?.isShowing = false
             self?.showNext()
         }
     }
 
     /// Puts the illustration under the text, as wide as the text, so it is centred in the window whatever width
-    /// this macOS gives an alert.
+    /// this macOS gives an alert. Clicking the old or the new side answers as its button does.
     private static func attach(_ illustration: ChangeQuestion.Illustration, to alert: NSAlert) {
+        let answer: (Bool) -> Void = { takeNew in
+            NSApp.stopModal(withCode: takeNew ? .alertFirstButtonReturn : .alertSecondButtonReturn)
+        }
         let content: AnyView = switch illustration {
-        case .menuBarIcons(let old, let new): AnyView(MenuBarIconsIllustration(styles: [old, new]))
+        case .menuBarIcons(let old, let new): AnyView(MenuBarIconsIllustration(old: old, new: new, answer: answer))
         }
         let host = NSHostingView(rootView: content)
         host.frame.size = host.fittingSize
@@ -76,29 +82,40 @@ final class ChangeQuestionWindow {
     }
 }
 
-/// Icon styles side by side, each as a card with its off and on look and its name, centred in the space given.
+/// The old and the new icon style side by side, each as a card with its off and on look and its name, centred in
+/// the space given. A card is a button: it answers the question as the window's button for that side does.
 private struct MenuBarIconsIllustration: View {
-    let styles: [MenuBarIconStyle]
+    let old: MenuBarIconStyle
+    let new: MenuBarIconStyle
+    /// Called with true for the new style, false for the old one.
+    let answer: (Bool) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            ForEach(styles, id: \.self) { style in
-                VStack(spacing: 8) {
-                    HStack(spacing: 14) {
-                        glyph(style.offSymbol)
-                        glyph(style.onSymbol)
-                    }
-                    Text(style.title)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(width: 104)
-                .padding(.vertical, 12)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
+            card(old, takeNew: false)
+            card(new, takeNew: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
+    }
+
+    private func card(_ style: MenuBarIconStyle, takeNew: Bool) -> some View {
+        Button { answer(takeNew) } label: {
+            VStack(spacing: 8) {
+                HStack(spacing: 14) {
+                    glyph(style.offSymbol)
+                    glyph(style.onSymbol)
+                }
+                Text(style.title)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 104)
+            .padding(.vertical, 12)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(CardButtonStyle())
+        .help(takeNew ? String(localized: "Use this icon") : String(localized: "Keep this icon"))
     }
 
     /// Drawn at the size it is shown, not scaled afterwards, so it takes its real room in the layout.
@@ -110,5 +127,26 @@ private struct MenuBarIconsIllustration: View {
             .scaledToFit()
             .frame(width: 28, height: 28)
             .foregroundStyle(.primary)
+    }
+}
+
+/// A card that lightens under the pointer and darkens while pressed.
+private struct CardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Card(label: configuration.label, isPressed: configuration.isPressed)
+    }
+
+    /// A view of its own, so it can remember whether the pointer is over it.
+    private struct Card: View {
+        let label: Configuration.Label
+        let isPressed: Bool
+        @State private var isHovered = false
+
+        var body: some View {
+            label
+                .background(.quaternary.opacity(isPressed ? 1 : isHovered ? 0.8 : 0.5),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .onHover { isHovered = $0 }
+        }
     }
 }
