@@ -6,7 +6,8 @@ import ClamDownUI
 /// Shows change questions after an update, one window at a time.
 ///
 /// Its own window rather than an `NSAlert`: from macOS 26 an alert puts its icon and title on the left, and an
-/// illustration under them then sits apart from them. Here everything is centred (owner, 2026-11-22).
+/// illustration under them then sits apart from them (owner, 2026-11-22: "и вот эти почему-то по левому краю").
+/// Here everything is centred, on the same glass an alert has.
 @MainActor
 final class ChangeQuestionWindow {
     private struct Pending {
@@ -152,8 +153,8 @@ private struct MenuBarIconsIllustration: View {
         Button { answer(takeNew) } label: {
             VStack(spacing: 8) {
                 HStack(spacing: 14) {
-                    glyph(style.offSymbol)
-                    glyph(style.onSymbol)
+                    MenuBarIconGlyph(symbol: style.offSymbol, size: 28)
+                    MenuBarIconGlyph(symbol: style.onSymbol, size: 28)
                 }
                 Text(style.title)
                     .font(.callout)
@@ -165,17 +166,6 @@ private struct MenuBarIconsIllustration: View {
         }
         .buttonStyle(CardButtonStyle())
         .help(takeNew ? String(localized: "Use this icon") : String(localized: "Keep this icon"))
-    }
-
-    /// Drawn at the size it is shown, not scaled afterwards, so it takes its real room in the layout.
-    private func glyph(_ symbol: String) -> some View {
-        Image(nsImage: MenuBarIconImage.base(symbol: symbol) ?? NSImage())
-            .renderingMode(.template)
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: 28, height: 28)
-            .foregroundStyle(.primary)
     }
 }
 

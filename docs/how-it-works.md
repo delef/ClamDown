@@ -17,9 +17,9 @@ ClamDown is a universal app for Apple Silicon and Intel Macs running macOS 13 or
 
 ## Switching on and off
 
-- One switch in the menu bar. Filled icon: on. Outline icon: off. The icon is a cup (the default) or a closed laptop, with a moon above it when off and rays when on (setting, on the Appearance page). While ClamDown is on for a set time, a small clock sits in the icon's corner.
+- One switch in the menu bar. Filled icon: on. Outline icon: off. The icon is a closed laptop (the default), with a moon above it when off and rays when on, or a cup (setting, on the Appearance page). A user who updates from 0.1.2 or earlier keeps the cup, the default until then, and is asked once whether to switch; closing that window keeps the cup. While ClamDown is on for a set time, a small clock sits in the icon's corner.
 - "Turn On For" starts a timed session (30 minutes to 8 hours, or until switched off). While ClamDown is on, "Turn Off In" changes when it ends, counting from now.
-- The settings window has the same switch above the sidebar, next to the app's name and state, with a timer button for "Turn On For" and "Turn Off In".
+- The settings window has the same switch at the top of the sidebar, next to the app's name and state, with a timer button for "Turn On For" and "Turn Off In".
 - While on, closing the lid does not sleep the Mac. Running processes and network connections carry on.
 - While on, closing the lid locks the screen (setting, on by default), so the Mac does not open without a password.
 - On battery, it switches on Low Power Mode for the battery profile (setting, on by default) and puts your previous value back when it switches off.

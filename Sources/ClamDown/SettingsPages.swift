@@ -456,15 +456,8 @@ struct AppearancePage: View {
         CDSettingsPage(title: pane.title, subtitle: pane.subtitle, symbol: pane.symbol, color: pane.color) {
             CDSection(String(localized: "Menu Bar"),
                       footer: String(localized: "The icon fills in while ClamDown is on.")) {
-                // As Icon & Widget Style in System Settings: the tiles are the row's control. A window near its
-                // smallest width has no room for the title beside five tiles, so there they go under it.
-                ViewThatFits(in: .horizontal) {
-                    CDRow(String(localized: "Icon Style")) { iconStyles }
-                    VStack(alignment: .leading, spacing: 10) {
-                        CDRow(String(localized: "Icon Style"))
-                        iconStyles
-                    }
-                }
+                // As Icon & Widget Style in System Settings: the tiles are the row's control.
+                CDRow(String(localized: "Icon Style")) { iconStyles }
             }
         }
     }

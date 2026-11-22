@@ -65,8 +65,31 @@ extension View {
     /// leaves. Only for something clickable that does not look like a button, such as a card; macOS keeps the
     /// arrow over buttons (agent, 2026-11-22, agreed by the owner).
     public func cdPointingHand() -> some View {
-        onHover { inside in
-            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }
+        modifier(PointingHand())
+    }
+}
+
+/// Pushes the pointing hand while hovered and pops it once, also when the view goes away under the pointer, as when
+/// a click closes its window: an unpopped push would leave the hand on the cursor stack.
+private struct PointingHand: ViewModifier {
+    @State private var pushed = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                if inside, !pushed {
+                    NSCursor.pointingHand.push()
+                    pushed = true
+                } else if !inside, pushed {
+                    NSCursor.pop()
+                    pushed = false
+                }
+            }
+            .onDisappear {
+                if pushed {
+                    NSCursor.pop()
+                    pushed = false
+                }
+            }
     }
 }

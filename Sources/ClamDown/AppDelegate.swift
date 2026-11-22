@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsStore = UserDefaultsSettingsStore()
         // Read before anything is saved: settings stored by an earlier launch mean this is an update.
         changeQuestions = ChangeQuestionWindow(gate: ChangeQuestionGate(asked: UserDefaultsAskedQuestionsStore(),
-                                                                        isUpdate: settingsStore.hasStoredSettings))
+                                                                        isUpdate: settingsStore.hasEarlierInstall))
         controller = ClamDownController(
             helper: helper,
             registrar: SMAppServiceRegistrar(plistName: label + ".plist"),

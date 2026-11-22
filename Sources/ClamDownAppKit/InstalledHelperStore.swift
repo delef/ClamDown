@@ -7,7 +7,7 @@ public protocol InstalledHelperStoring: AnyObject {
 }
 
 public final class UserDefaultsInstalledHelperStore: InstalledHelperStoring {
-    private static let key = "installedHelper.fingerprint.v1"
+    static let key = "installedHelper.fingerprint.v1"
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) {

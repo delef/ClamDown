@@ -27,9 +27,9 @@ public enum MenuBarIconImage {
 
     /// The Lid on an 18 x 18 pt canvas: a closed laptop seen from the front, a slab with the notch of its lid.
     /// Off, the outline with a crescent moon above it: the Mac sleeps when the lid closes. On, the filled slab with
-    /// rays above it: the closed Mac stays awake. Chosen by the owner on 2026-11-22 from four concepts, over a
-    /// wedge-shaped lid and an eye; it replaced a lid with a heartbeat line, which did not read as "awake" at menu bar
-    /// size. The moon replaced a "Z" the same day: the owner found the letter "слишком двухсмысленная" (owner,
+    /// rays above it: the closed Mac stays awake. Offered four concepts, the owner picked "awake" over a wedge-shaped
+    /// lid and an eye (owner, 2026-11-22: "мне не нравится новая иконка lid, давай еще переделаем"); it replaced a lid
+    /// with a heartbeat line. The moon replaced a "Z" the same day: the owner found the letter "слишком двухсмысленная" (owner,
     /// 2026-11-22); a moon is how macOS itself shows sleep.
     private static func lid(on: Bool) -> NSImage {
         let height: CGFloat = 18

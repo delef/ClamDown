@@ -59,27 +59,44 @@ import ClamDownShared
     @Test func storeReturnsDefaultsWhenCorrupt() {
         let defaults = makeDefaults()
         defaults.set(Data("garbage".utf8), forKey: "settings.v1")
-        #expect(UserDefaultsSettingsStore(defaults: defaults).load() == Settings())
+        // Settings that were stored at all come from an earlier install, which keeps the Cup.
+        var expected = Settings()
+        expected.menuBarIcon = .cup
+        #expect(UserDefaultsSettingsStore(defaults: defaults).load() == expected)
     }
 
     // MARK: The menu bar icon after the update
 
-    /// A user coming from 0.1.2 keeps the Cup, also after choosing a style that is gone; `ChangeQuestions` then
+    /// A user coming from 0.1.2 keeps the Cup, also after choosing a style that is gone; `ChangeQuestionGate` then
     /// asks them once.
     @Test(arguments: ["cup", "eye", "bolt", "sun"]) func anUpdatedUserKeepsTheCup(style: String) {
         let defaults = makeDefaults()
         defaults.set(Data(#"{"menuBarIcon":"\#(style)","batteryCutoffPercent":25}"#.utf8), forKey: "settings.v1")
         let store = UserDefaultsSettingsStore(defaults: defaults)
+        #expect(store.hasEarlierInstall)
         #expect(store.load().menuBarIcon == .cup && store.load().batteryCutoffPercent == 25)
-        #expect(store.hasStoredSettings)
     }
 
-    @Test func aNewUserGetsTheNewIcon() throws {
-        let store = UserDefaultsSettingsStore(defaults: makeDefaults())
+    /// 0.1.2 stored settings only once one was changed. A user who never changed one left only the keys every launch
+    /// or the setup wrote; 0.1.0 and 0.1.1 left at least the helper's fingerprint. They keep the Cup and are asked.
+    @Test(arguments: [["settings.fanCurveDefaults.v2", "setup.completed.v1"], ["installedHelper.fingerprint.v1"]])
+    func anUpdatedUserWithoutStoredSettingsKeepsTheCup(leftBehind: [String]) {
+        let defaults = makeDefaults()
+        for key in leftBehind { defaults.set(key.hasPrefix("installedHelper") ? "abc" : true, forKey: key) }
+        let store = UserDefaultsSettingsStore(defaults: defaults)
+        #expect(store.hasEarlierInstall)
+        #expect(store.load().menuBarIcon == .cup)
+        #expect(UserDefaultsSettingsStore(defaults: defaults).load().menuBarIcon == .cup)
+    }
+
+    /// A new user gets the new icon, and keeps it on later launches, when this build's own keys are there.
+    @Test func aNewUserGetsTheNewIconForGood() {
+        let defaults = makeDefaults()
+        let store = UserDefaultsSettingsStore(defaults: defaults)
+        #expect(!store.hasEarlierInstall)
         #expect(store.load().menuBarIcon == .lid)
-        #expect(!store.hasStoredSettings)
-        try store.save(store.load())
-        #expect(store.hasStoredSettings)
+        let later = UserDefaultsSettingsStore(defaults: defaults)
+        #expect(later.load().menuBarIcon == .lid)
     }
 
     @Test func storeClampsOnLoad() throws {

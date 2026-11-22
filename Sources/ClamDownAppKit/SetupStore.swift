@@ -6,7 +6,7 @@ public protocol SetupStoring: AnyObject {
 }
 
 public final class UserDefaultsSetupStore: SetupStoring {
-    private static let key = "setup.completed.v1"
+    static let key = "setup.completed.v1"
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) {
