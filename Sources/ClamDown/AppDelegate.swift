@@ -150,8 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 id: "menuBarIcon.lid.0.1.3",
                 title: String(localized: "A New Menu Bar Icon"),
                 message: String(localized: """
-                    ClamDown has a new icon: a closed laptop, with a moon while ClamDown is off and rays while it \
-                    keeps the Mac awake. You can keep the cup; Settings > Appearance changes it at any time.
+                    A closed laptop: a moon while ClamDown is off, rays while it keeps the Mac awake. \
+                    Change it any time in Settings > Appearance.
                     """),
                 illustration: .menuBarIcons(old: .cup, new: .lid),
                 newChoice: String(localized: "Use the New Icon"),

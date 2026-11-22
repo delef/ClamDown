@@ -105,6 +105,9 @@
     "A New Menu Bar Icon" : {
 
     },
+    "A closed laptop: a moon while ClamDown is off, rays while it keeps the Mac awake. Change it any time in Settings > Appearance." : {
+
+    },
     "A small background helper with administrator rights changes the sleep setting and drives the fans. It does nothing else." : {
 
     },
@@ -205,9 +208,6 @@
 
     },
     "ClamDown hands the fans back when it quits or crashes." : {
-
-    },
-    "ClamDown has a new icon: a closed laptop, with a moon while ClamDown is off and rays while it keeps the Mac awake. You can keep the cup; Settings > Appearance changes it at any time." : {
 
     },
     "ClamDown is not controlling the fans. The fans run at full speed." : {
