@@ -321,7 +321,13 @@ private func sensors(_ seconds: Int) -> Never {
             byGroup[group, default: []].append(value)
         }
         let groups = SensorKeys.hottestByGroup(byGroup)
-        let zones = (try? hardware.read().zoneTemperatures) ?? [:]
+        let zones: [SensorGroup: Double]
+        do {
+            zones = try hardware.read().zoneTemperatures
+        } catch {
+            zones = [:]
+            note("\(second) s: could not read the zones (\(error)); their columns are empty.")
+        }
         emit(([stamp.string(from: Date())] + SensorGroup.allCases.map { format(groups[$0], 1) }
               + zoneGroups.map { format(zones[$0], 1) } + raw.map { format($0, 2) })
             .joined(separator: ","))
