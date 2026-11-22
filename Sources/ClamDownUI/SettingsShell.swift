@@ -113,7 +113,14 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
-        .background(FrostedGlass())
+        // Under the title bar too: otherwise the band with the window buttons keeps the system's lighter background.
+        .background {
+            ZStack {
+                FrostedGlass()
+                Color.black.opacity(FrostedGlass.shade)
+            }
+            .ignoresSafeArea()
+        }
         .background(SidebarLock())
         if #available(macOS 14, *) {
             // As in System Settings, the sidebar cannot be collapsed.
@@ -133,6 +140,9 @@ private struct BrandWidthKey: PreferenceKey {
 /// The sidebar's background: frosted glass that blurs what is behind the window, and stays frosted while the window
 /// is in the background too, where the system sidebar would turn flat.
 private struct FrostedGlass: NSViewRepresentable {
+    /// How much darker than the system's sidebar glass, as the opacity of black laid over it.
+    static let shade = 0.06
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .sidebar
