@@ -58,7 +58,7 @@ struct AboutPage: View {
             CDAppIcon(size: 96, glow: true)
                 .padding(.bottom, 8)
             Text("ClamDown").font(.title2.bold())
-            Text("Keeps a closed MacBook awake for your coding agents.")
+            Text("Keeps a closed MacBook awake for your coding agents")
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 Text(info.versionLine)
