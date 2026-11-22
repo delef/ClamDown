@@ -1,6 +1,7 @@
 import Foundation
 
-/// One point of a fan curve: at this temperature (whole °C, of the hottest sensor) the fans run at this speed
+/// One point of a fan curve: at this temperature (whole °C, of the hottest sensor group as the helper follows it, each
+/// chip as the die zone macOS steers by, averaged over half a minute) the fans run at this speed
 /// (whole percent of each fan's range: 0 is the fan's minimum rpm, 100 its maximum).
 public struct FanPoint: Codable, Equatable, Sendable {
     public var temperature: Int
@@ -239,11 +240,13 @@ public struct CoolingStatus: Codable, Equatable, Sendable {
     public var control: FanControlState
     /// The thermal level macOS reports to the helper itself. Nil when the helper does not read it.
     public var systemThermalLevel: ThermalLevel?
-    /// The hottest reading over the sensor groups, in °C: what the curve follows. Nil when no group can be read.
+    /// The hottest of `groupTemperatures`, in °C: what the curve follows. Nil when no group can be read.
     public var hottestTemperature: Double?
     /// The group of `hottestTemperature`. Nil when there is none, or a later helper names a group this build does not know.
     public var hottestGroup: SensorGroup?
-    /// The hottest value of each group that could be read.
+    /// Each group that could be read, as the curve follows it: the CPU and GPU as their die zones averaged over about
+    /// half a minute (or their hottest sensor averaged over a minute on a Mac without confirmed zones), the other
+    /// groups as read. An older helper, and the app reading the sensors itself, send each group's hottest sensor.
     public var groupTemperatures: [SensorGroup: Double]
     /// True while handing the fans back to macOS fails: the helper still holds them and runs them at full speed
     /// until the hand-back works. An older helper does not send it.

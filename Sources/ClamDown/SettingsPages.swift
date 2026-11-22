@@ -328,7 +328,8 @@ struct CoolingPage: View {
                 ? String(localized: """
                     Fans stay at their lowest speed up to the first point and reach full speed at the \
                     second, following the hottest of the CPU, GPU, battery, SSD, Wi-Fi and airflow \
-                    sensors.
+                    sensors. The CPU and GPU count as the chip temperature macOS itself steers by, \
+                    averaged over half a minute, so a few seconds of load do not make the fans roar.
                     """)
                 : String(localized: """
                     Five points, each at or above the one before it, on the hottest sensor; the fans \

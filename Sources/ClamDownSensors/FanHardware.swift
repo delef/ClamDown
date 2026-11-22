@@ -13,17 +13,22 @@ public struct HardwareReading: Equatable, Sendable {
     public var lidClosed: Bool?
     /// The hottest plausible value of each sensor group that could be read. Groups without one are absent.
     public var groupTemperatures: [SensorGroup: Double]
+    /// The die-zone temperature the SMC steers each chip's fans by (`SensorKeys.zoneKeys`). Empty when this Mac
+    /// has none or the check does not confirm them.
+    public var zoneTemperatures: [SensorGroup: Double]
 
     public init(cpuTemperature: Double?, hottestCPUTemperature: Double? = nil, fans: [FanReading], lidClosed: Bool?,
-                groupTemperatures: [SensorGroup: Double] = [:]) {
+                groupTemperatures: [SensorGroup: Double] = [:], zoneTemperatures: [SensorGroup: Double] = [:]) {
         self.cpuTemperature = cpuTemperature
         self.hottestCPUTemperature = hottestCPUTemperature
         self.fans = fans
         self.lidClosed = lidClosed
         self.groupTemperatures = groupTemperatures
+        self.zoneTemperatures = zoneTemperatures
     }
 
-    /// The hottest reading over all groups, in °C: what the curve follows. Nil when no group could be read.
+    /// The hottest reading over all groups as read, in °C. The helper's curve follows the chips as their averaged
+    /// zones instead (`SustainedTemperatures`). Nil when no group could be read.
     public var hottestTemperature: Double? { SensorGroup.hottest(in: groupTemperatures)?.celsius }
     /// The group of `hottestTemperature`.
     public var hottestGroup: SensorGroup? { SensorGroup.hottest(in: groupTemperatures)?.group }
@@ -76,6 +81,8 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
     private let temperatureKeys: [String]
     /// Every key of every group this Mac has, in group order. CPU uses `temperatureKeys`.
     private let groupKeys: [(group: SensorGroup, keys: [String])]
+    /// The zone keys, when this Mac has every one of them and the check key.
+    private let zoneKeys: [(group: SensorGroup, key: String)]
     public let fanCount: Int
     public let supportsControl: Bool
     /// How long to wait for macOS to hand over a fan after `Ftst` = 1.
@@ -101,6 +108,8 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
         let allKeys = (0..<smc.keyCount()).compactMap { smc.key(at: $0) }
         temperatureKeys = Self.findCPUTemperatureKeys(smc, allKeys: allKeys)
         groupKeys = Self.findGroupKeys(smc, allKeys: allKeys, cpu: temperatureKeys)
+        let zoneKeysPresent = (SensorKeys.zoneKeys.map(\.key) + [SensorKeys.zoneCheckKey]).allSatisfy { smc.has($0) }
+        zoneKeys = zoneKeysPresent ? SensorKeys.zoneKeys : []
         supportsControl = fanCount > 0 && smc.has("Ftst") && smc.read("F0Tg")?.type == "flt "
     }
 
@@ -120,9 +129,13 @@ public final class SMCFanHardware: FanHardware, @unchecked Sendable {
             for (group, keys) in groupKeys where group != .cpu {
                 byGroup[group] = keys.compactMap { smc.read($0)?.number }
             }
+            var zones: [SensorGroup: Double] = [:]
+            for (group, key) in zoneKeys { zones[group] = smc.read(key)?.number }
+            let check = zoneKeys.isEmpty ? nil : smc.read(SensorKeys.zoneCheckKey)?.number
             return HardwareReading(cpuTemperature: temperatures.average, hottestCPUTemperature: temperatures.hottest,
                                    fans: fans, lidClosed: lidReader(),
-                                   groupTemperatures: SensorKeys.hottestByGroup(byGroup))
+                                   groupTemperatures: SensorKeys.hottestByGroup(byGroup),
+                                   zoneTemperatures: SensorKeys.confirmedZones(zones, check: check))
         }
     }
 

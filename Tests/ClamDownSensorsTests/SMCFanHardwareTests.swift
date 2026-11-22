@@ -44,6 +44,32 @@ import ClamDownShared
         #expect(reading.lidClosed == true)
     }
 
+    /// The zones steer the fans only when `TCDX`, the hotter zone, confirms what the keys mean on this Mac.
+    @Test func zonesCountOnlyWhenTheCheckConfirmsThem() throws {
+        let confirmed = smc()
+        confirmed.values["Tf14"] = .float(45)
+        confirmed.values["Tf24"] = .float(41)
+        confirmed.values["TCDX"] = .float(45.5)
+        #expect(try hardware(confirmed).read().zoneTemperatures == [.cpu: 45, .gpu: 41])
+
+        let otherMeaning = smc()
+        otherMeaning.values["Tf14"] = .float(36)
+        otherMeaning.values["Tf24"] = .float(30)
+        otherMeaning.values["TCDX"] = .float(52)
+        #expect(try hardware(otherMeaning).read().zoneTemperatures.isEmpty)
+
+        let unchecked = smc()
+        unchecked.values["Tf14"] = .float(45)
+        unchecked.values["Tf24"] = .float(41)
+        #expect(try hardware(unchecked).read().zoneTemperatures.isEmpty)
+
+        let gain = smc()
+        gain.values["Tf14"] = .float(1)
+        gain.values["Tf24"] = .float(41)
+        gain.values["TCDX"] = .float(41)
+        #expect(try hardware(gain).read().zoneTemperatures.isEmpty)
+    }
+
     @Test func aFanWithAMissingKeyIsLeftOutButKeepsItsIndex() throws {
         let partial = smc()
         partial.values["F0Ac"] = nil

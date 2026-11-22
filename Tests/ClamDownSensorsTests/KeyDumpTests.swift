@@ -20,6 +20,15 @@ import ClamDownShared
         #expect(average <= hottest)
     }
 
+    /// Every dump so far comes from a Mac whose SMC steers by the die zones; a new Mac without them changes this test.
+    @Test(arguments: dumps) func zonesAreFoundAndRunUnderTheHottestCore(name: String) throws {
+        let dump = try FakeSMC.fixture(name)
+        let reading = try SMCFanHardware(smc: FakeSMC(dump: dump), pause: { _ in }, lidClosed: { true }).read()
+        #expect(Set(reading.zoneTemperatures.keys) == [.cpu, .gpu], "\(dump.machine)")
+        let zone = try #require(reading.zoneTemperatures[.cpu])
+        #expect(zone <= (reading.hottestCPUTemperature ?? 0), "\(dump.machine)")
+    }
+
     @Test(arguments: dumps) func fansAreControllableWithSaneRanges(name: String) throws {
         let dump = try FakeSMC.fixture(name)
         let hardware = SMCFanHardware(smc: FakeSMC(dump: dump), pause: { _ in }, lidClosed: { true })

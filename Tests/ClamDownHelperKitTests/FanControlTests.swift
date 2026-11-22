@@ -448,6 +448,65 @@ import ClamDownShared
         #expect(status.control == .controlling)
     }
 
+    /// Sets a chip's temperature the way a Mac with confirmed zones (`withZone`) or without them reports it.
+    private func setChip(_ fans: FakeFans, _ celsius: Double, withZone: Bool) {
+        // The hottest core runs well above the zone.
+        let hottest = withZone ? celsius + 14 : celsius
+        if withZone { fans.set(zone: .cpu, celsius) }
+        fans.set(group: .cpu, hottest)
+        fans.set(hottest: hottest)
+    }
+
+    /// macOS steers by the die zone, which runs far under the hottest core: so does the curve.
+    @Test func curveFollowsTheChipZoneNotTheHottestCore() async throws {
+        let fans = FakeFans(temperature: 60)
+        setChip(fans, 50, withZone: true)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        #expect(fans.targets == [[1000]])  // the zone's 50 °C is the curve's first point
+        let status = await core.coolingStatus()
+        #expect(status.groupTemperatures[.cpu] == 50)
+        #expect(status.hottestCPUTemperature == 64)
+    }
+
+    /// A few seconds of load heat a core by tens of degrees but not the Mac: the fans must not roar for it.
+    @Test(arguments: [true, false]) func aShortChipBurstBarelyMovesTheFans(withZone: Bool) async throws {
+        let fans = FakeFans(temperature: 50)
+        setChip(fans, 50, withZone: withZone)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        setChip(fans, 75, withZone: withZone)
+        for tick in 1...3 { await core.updateFans(now: at(3 * tick)) }
+        setChip(fans, 50, withZone: withZone)
+        for tick in 4...10 { await core.updateFans(now: at(3 * tick)) }
+        // The raw value would ask for full speed; the average for about a quarter of the range at most.
+        #expect(try #require(fans.targets.flatMap { $0 }.max()) <= 2200)
+    }
+
+    /// In a bag the heat that lasts is what matters: sustained load must still reach full speed within about a minute.
+    @Test(arguments: [true, false]) func sustainedChipHeatReachesFullSpeedWithinAMinute(withZone: Bool) async throws {
+        let fans = FakeFans(temperature: 50)
+        setChip(fans, 50, withZone: withZone)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(FanPolicy(points: StandardCurve.points(start: StandardCurve.defaultStart,
+                                                                           full: StandardCurve.defaultFull)), now: at(0))
+        setChip(fans, 90, withZone: withZone)
+        for tick in 1...16 { await core.updateFans(now: at(3 * tick)) }
+        #expect(fans.targets.last == [5000])
+    }
+
+    /// The groups that follow the case warm slowly by themselves and are followed as read.
+    @Test func caseSideGroupsReachTheCurveAtOnce() async throws {
+        let fans = FakeFans(temperature: 50)
+        fans.set(group: .cpu, 50)
+        fans.set(group: .ssd, 40)
+        let (core, _) = try await enabled(fans: fans)
+        try await core.setFanPolicy(standard, now: at(0))
+        fans.set(group: .ssd, 62.5)
+        await core.updateFans(now: at(3))
+        #expect(fans.targets.last == [3000])
+    }
+
     @Test func noTemperatureAtAllIsStillAFault() async throws {
         let fans = FakeFans(temperature: nil)
         let (core, _) = try await enabled(fans: fans)
