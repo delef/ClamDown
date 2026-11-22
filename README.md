@@ -58,7 +58,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 
 ## What it does
 
-- One switch in the menu bar. Filled icon: on. Outline icon: off. "Turn On For" starts a timed session. The icon style is a setting.
+- One switch in the menu bar. Filled icon: on. Outline icon: off. "Turn On For" starts a timed session; while on, "Turn Off In" changes when it ends. The icon style is a setting.
 - While on, closing the lid does not sleep the Mac. Running processes and network connections carry on.
 - While on, closing the lid locks the screen (setting, on by default), so the Mac does not open without a password.
 - It drives the fans from the hottest temperature sensor: the CPU, GPU, battery, SSD, Wi-Fi and airflow sensors, whichever is hottest. The CPU and GPU count the way macOS's own fan control reads them: as the temperature of the chip's die zone (SMC keys `Tf14` and `Tf24`, confirmed against `TCDX` on every reading), averaged over about half a minute. A zone runs about 14 °C under the hottest core and barely moves when a few cores spike for a few seconds, so a short burst does not make the fans roar. Where macOS waits until a zone nears about 76 °C, ClamDown follows its own curve from 40 °C. The other sensors follow the case and count as read, so a Mac warming in a bag still reaches full speed. On a Mac without the zone keys, a chip counts as its hottest sensor averaged over about a minute. macOS keeps a closed MacBook's fans near their lowest speed even when the chip is hot, and lets an open one run hot before they speed up. Fan control needs Apple Silicon; on an Intel Mac the Cooling page only shows the readings. Fan Control decides when ClamDown raises the fans along a curve, and the setup assistant asks once:
@@ -83,7 +83,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 - When you open the lid after ClamDown let the Mac sleep, it tells you why, in a window that stays until you close it.
 - It posts a notification that names the reason whenever it switches itself off (setting, on by default).
 
-Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. Above them, next to the app's name and state, sits the same On/Off switch as in the menu, and while ClamDown is off a timer button that turns it on for a set time or until switched off. The Cooling page has the Fan Control choice, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
+Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. Above them, next to the app's name and state, sits the same On/Off switch as in the menu, and a timer button: while ClamDown is off it turns it on for a set time or until switched off, while it is on it sets when it turns off ("Turn Off In", also in the menu). The Cooling page has the Fan Control choice, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
 
 ## Requirements
 

@@ -426,7 +426,7 @@
     "Keep the Mac cool" : {
 
     },
-    "Keeps a closed MacBook awake for your coding agents." : {
+    "Keeps a closed MacBook awake for your coding agents" : {
 
     },
     "Know when ClamDown switches off" : {
@@ -646,6 +646,9 @@
     "Serious" : {
 
     },
+    "Sets when ClamDown turns off." : {
+
+    },
     "Setting up the helper…" : {
 
     },
@@ -813,6 +816,9 @@
 
     },
     "Turn Off" : {
+
+    },
+    "Turn Off In" : {
 
     },
     "Turn On" : {

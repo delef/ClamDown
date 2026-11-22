@@ -62,6 +62,38 @@ import Testing
         #expect(rig.controller.offAt == nil)
     }
 
+    /// "Turn Off In" while on: the new time counts from now, and the old timer no longer switches the mode off.
+    @Test func changingTheTimerWhileOnMovesTheDeadline() async {
+        let rig = Rig()
+        await rig.controller.turnOn(for: .milliseconds(30))
+        await rig.time.untilWaiting(.milliseconds(30))
+        rig.clock.advance(by: 10)
+        rig.controller.setOffTimer(.seconds(3600))
+        #expect(rig.controller.offAt == rig.clock.now.addingTimeInterval(3600))
+        rig.time.fire(.milliseconds(30))
+        await rig.controller.handleSystemChange()
+        #expect(rig.controller.state == .on)
+        #expect(rig.helper.disableCount == 0)
+        #expect(rig.helper.enableCalls.count == 1)
+    }
+
+    @Test func untilSwitchedOffWhileOnDropsTheDeadline() async {
+        let rig = Rig()
+        await rig.controller.turnOn(for: .seconds(600))
+        rig.controller.setOffTimer(nil)
+        #expect(rig.controller.offAt == nil)
+        rig.clock.advance(by: 601)
+        await rig.controller.handleSystemChange()
+        #expect(rig.controller.state == .on)
+    }
+
+    @Test func changingTheTimerWhileOffDoesNothing() async {
+        let rig = Rig()
+        rig.controller.setOffTimer(.seconds(600))
+        #expect(rig.controller.offAt == nil)
+        #expect(rig.controller.state == .off)
+    }
+
     // MARK: Unplugged
 
     @Test func refusesToTurnOnWhenUnpluggedAndTheSettingIsOn() async {

@@ -21,8 +21,9 @@ struct SettingsRootView: View {
             detail: { page(for: $0) })
     }
 
-    /// The app icon, the name and the state, with the switch that turns the mode on or off. While it is off, the timer
-    /// button beside the switch turns it on for a set time, as "Turn On For" in the menu bar menu does.
+    /// The app icon, the name and the state, with the switch that turns the mode on or off. The timer button beside
+    /// the switch turns it on for a set time while it is off, and sets when it switches off while it is on, as
+    /// "Turn On For" and "Turn Off In" in the menu bar menu do.
     private var brand: some View {
         HStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -40,8 +41,8 @@ struct SettingsRootView: View {
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
-            if !controller.state.isOn, controller.turnOnStep == nil {
-                turnOnFor
+            if controller.turnOnStep == nil {
+                timerMenu
             }
             Toggle("ClamDown", isOn: Binding(
                 get: { controller.state.isOn || controller.turnOnStep != nil },
@@ -57,28 +58,33 @@ struct SettingsRootView: View {
         }
     }
 
-    /// Turns the mode on for one of the menu's set times, or until switched off.
-    private var turnOnFor: some View {
-        Menu {
-            Section("Turn On For") {
+    /// Off: turns the mode on for one of the set times, or until switched off. On: sets when it switches off.
+    private var timerMenu: some View {
+        let isOn = controller.state.isOn
+        return Menu {
+            Section(isOn ? "Turn Off In" : "Turn On For") {
                 ForEach(AutoOffTimer.sessions, id: \.self) { timer in
-                    Button(timer.title) {
-                        Task { await controller.turnOn(for: timer.duration) }
-                    }
+                    Button(timer.title) { choose(timer.duration, isOn: isOn) }
                 }
             }
             Divider()
-            Button("Until Switched Off") {
-                Task { await controller.turnOn(for: nil) }
-            }
+            Button("Until Switched Off") { choose(nil, isOn: isOn) }
         } label: {
             Image(systemName: "timer")
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Turns ClamDown on for a set time.")
-        .accessibilityLabel("Turn On For")
+        .help(isOn ? "Sets when ClamDown turns off." : "Turns ClamDown on for a set time.")
+        .accessibilityLabel(isOn ? "Turn Off In" : "Turn On For")
+    }
+
+    private func choose(_ duration: Duration?, isOn: Bool) {
+        if isOn {
+            controller.setOffTimer(duration)
+        } else {
+            Task { await controller.turnOn(for: duration) }
+        }
     }
 
     private var statusLine: String {

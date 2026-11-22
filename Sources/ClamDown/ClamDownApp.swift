@@ -79,6 +79,15 @@ private struct MenuContent: View {
                 }
             }
         }
+        if controller.state.isOn {
+            Menu("Turn Off In") {
+                ForEach(AutoOffTimer.sessions, id: \.self) { timer in
+                    Button(timer.title) { controller.setOffTimer(timer.duration) }
+                }
+                Divider()
+                Button("Until Switched Off") { controller.setOffTimer(nil) }
+            }
+        }
         if let offAt = controller.offAt {
             Text("Turns off at \(offAt.formatted(date: .omitted, time: .shortened))")
         }

@@ -278,6 +278,13 @@ public final class ClamDownController: ObservableObject {
         await performTurnOn(duration: duration)
     }
 
+    /// Sets when the mode switches itself off while it is on ("Turn Off In"): `duration` from now, or nil to stay on
+    /// until something else ends it. Does nothing while the mode is off.
+    public func setOffTimer(_ duration: Duration?) {
+        guard state.isOn else { return }
+        startAutoOffTimer(duration)
+    }
+
     /// "Turn On Now" in the setup assistant: finishes the Turn On that waited for approval, with the duration
     /// it asked for. With none remembered it behaves like the menu's Turn On.
     public func resumeTurnOn() async {
