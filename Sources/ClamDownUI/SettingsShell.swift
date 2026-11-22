@@ -112,15 +112,8 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
             }
         }
         .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        // Under the title bar too: otherwise the band with the window buttons keeps the system's lighter background.
-        .background {
-            ZStack {
-                FrostedGlass()
-                Color.black.opacity(FrostedGlass.shade)
-            }
-            .ignoresSafeArea()
-        }
+        // No background of its own: the system puts the sidebar on its glass (macOS 26) or sidebar material, and a
+        // material laid over that looked muddy (owner, 2026-11-22: "фон сайдбара грязноват").
         .background(SidebarLock())
         if #available(macOS 14, *) {
             // As in System Settings, the sidebar cannot be collapsed.
@@ -135,23 +128,6 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
 private struct BrandWidthKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-/// The sidebar's background: frosted glass that blurs what is behind the window, and stays frosted while the window
-/// is in the background too, where the system sidebar would turn flat.
-private struct FrostedGlass: NSViewRepresentable {
-    /// How much darker than the system's sidebar glass, as the opacity of black laid over it.
-    static let shade = 0.06
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .sidebar
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 /// Stops the sidebar from collapsing when its divider is dragged to the left. SwiftUI has no setting for this, so it
