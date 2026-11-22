@@ -108,13 +108,11 @@ private struct ChangeQuestionView: View {
                 }
                 .cdButtonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
-                .cdPointingHand()
                 Button { answer(false) } label: {
                     Text(question.oldChoice).frame(maxWidth: .infinity)
                 }
                 .cdButtonStyle(.secondary)
                 .keyboardShortcut(.cancelAction)
-                .cdPointingHand()
             }
             .controlSize(.large)
         }

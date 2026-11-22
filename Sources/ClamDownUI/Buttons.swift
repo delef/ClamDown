@@ -62,7 +62,8 @@ private struct CDDestructiveButtonStyle: PrimitiveButtonStyle {
 
 extension View {
     /// Shows the pointing hand while the pointer is over the view, as over a link, and the arrow again when it
-    /// leaves. For buttons that should look clickable.
+    /// leaves. Only for something clickable that does not look like a button, such as a card; macOS keeps the
+    /// arrow over buttons (agent, 2026-11-22, agreed by the owner).
     public func cdPointingHand() -> some View {
         onHover { inside in
             if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
