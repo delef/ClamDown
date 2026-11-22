@@ -42,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var turnOnWindow = TurnOnProgressWindow()
     private var helperTimer: Timer?
     private var showDockIcon = false
+    /// Asks a user who came from an older build about changes they may want to undo, once each.
+    private let changeQuestions: ChangeQuestionWindow
 
     override init() {
         let appBundleID = Bundle.main.bundleIdentifier ?? "unknown"
@@ -53,11 +55,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             helper = UnsignedHelper()
         }
+        let settingsStore = UserDefaultsSettingsStore()
+        // Read before anything is saved: settings stored by an earlier launch mean this is an update.
+        changeQuestions = ChangeQuestionWindow(gate: ChangeQuestionGate(asked: UserDefaultsAskedQuestionsStore(),
+                                                                        isUpdate: settingsStore.hasStoredSettings))
         controller = ClamDownController(
             helper: helper,
             registrar: SMAppServiceRegistrar(plistName: label + ".plist"),
             monitor: LiveSystemMonitor(),
-            settingsStore: UserDefaultsSettingsStore(),
+            settingsStore: settingsStore,
             notifier: notifier,
             activity: AppNapActivity(),
             installedHelper: UserDefaultsInstalledHelperStore(),
@@ -133,6 +139,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         showSetup(.launch)
         applyDockBadge()
+        askAboutChanges()
+    }
+
+    /// Changes this version brought in that a user from an older build may want to keep as they were.
+    private func askAboutChanges() {
+        // 0.1.3: the drawn Lid became the default menu bar icon; an older user keeps the Cup until they choose.
+        changeQuestions.ask(
+            ChangeQuestion(
+                id: "menuBarIcon.lid.0.1.3",
+                title: String(localized: "A New Menu Bar Icon"),
+                message: String(localized: """
+                    ClamDown has a new icon: a closed laptop, with a moon while ClamDown is off and rays while it \
+                    keeps the Mac awake. You can keep the cup; Settings > Appearance changes it at any time.
+                    """),
+                illustration: .menuBarIcons(old: .cup, new: .lid),
+                newChoice: String(localized: "Use the New Icon"),
+                oldChoice: String(localized: "Keep the Cup")),
+            showIf: controller.settings.menuBarIcon == .cup,
+            onNew: { [controller] in
+                var settings = controller.settings
+                settings.menuBarIcon = .lid
+                Task { await controller.updateSettings(settings) }
+            })
     }
 
     /// macOS sends no notice when the helper's approval changes in System Settings, so the app asks on a timer:

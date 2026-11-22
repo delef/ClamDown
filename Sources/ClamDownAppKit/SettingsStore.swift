@@ -42,6 +42,10 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
         return settings.clamped()
     }
 
+    /// True when settings were stored before, by this build or an older one; false on a new install until the
+    /// first save. Read at launch, it tells an update from a new install for `ChangeQuestionGate`.
+    public var hasStoredSettings: Bool { defaults.data(forKey: Self.key) != nil }
+
     public func save(_ settings: Settings) throws {
         let data = try JSONEncoder().encode(settings)
         defaults.set(data, forKey: Self.key)

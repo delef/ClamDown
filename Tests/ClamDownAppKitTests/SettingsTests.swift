@@ -62,6 +62,26 @@ import ClamDownShared
         #expect(UserDefaultsSettingsStore(defaults: defaults).load() == Settings())
     }
 
+    // MARK: The menu bar icon after the update
+
+    /// A user coming from 0.1.2 keeps the Cup, also after choosing a style that is gone; `ChangeQuestions` then
+    /// asks them once.
+    @Test(arguments: ["cup", "eye", "bolt", "sun"]) func anUpdatedUserKeepsTheCup(style: String) {
+        let defaults = makeDefaults()
+        defaults.set(Data(#"{"menuBarIcon":"\#(style)","batteryCutoffPercent":25}"#.utf8), forKey: "settings.v1")
+        let store = UserDefaultsSettingsStore(defaults: defaults)
+        #expect(store.load().menuBarIcon == .cup && store.load().batteryCutoffPercent == 25)
+        #expect(store.hasStoredSettings)
+    }
+
+    @Test func aNewUserGetsTheNewIcon() throws {
+        let store = UserDefaultsSettingsStore(defaults: makeDefaults())
+        #expect(store.load().menuBarIcon == .lid)
+        #expect(!store.hasStoredSettings)
+        try store.save(store.load())
+        #expect(store.hasStoredSettings)
+    }
+
     @Test func storeClampsOnLoad() throws {
         let store = UserDefaultsSettingsStore(defaults: makeDefaults())
         var s = Settings()
@@ -85,18 +105,9 @@ import ClamDownShared
         #expect(s.menuBarIcon == .cup && s.batteryCutoffPercent == 25)
     }
 
-    @Test func cupIsTheDefaultIcon() { #expect(Settings().menuBarIcon == .cup) }
-
     @Test func storedStyleIsKept() throws {
         let s = try JSONDecoder().decode(Settings.self, from: Data(#"{"menuBarIcon":"lid"}"#.utf8))
         #expect(s.menuBarIcon == .lid)
-    }
-
-    /// 0.1.2 offered Eye, Bolt and Sun; a user who chose one gets the default Cup after the update.
-    @Test(arguments: ["eye", "bolt", "sun"]) func aDroppedStyleReadsAsTheDefault(style: String) throws {
-        let json = #"{"menuBarIcon":"\#(style)","batteryCutoffPercent":25}"#
-        let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
-        #expect(s.menuBarIcon == .cup && s.batteryCutoffPercent == 25)
     }
 
     @Test func timerDurations() {

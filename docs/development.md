@@ -17,6 +17,7 @@ The helper only talks to an app signed with the same Team ID as itself, so a bui
 ## Where things live
 
 - Every rule that decides the fan speed (what the curve follows, the curve, the safety floor, the case rule, the full-speed overrides and how fast the fans may slow down) lives in `Sources/ClamDownShared/FanRules/`; `FanDecision.swift` lists the steps in order. Which SMC keys feed each sensor group and each chip's die zone is in `Sources/ClamDownSensors/SensorKeys.swift`.
+- A change that users from an older build may want to keep as it was gets a one-time question: call `ChangeQuestionWindow.ask(_:showIf:onNew:onOld:)` at launch (see `askAboutChanges()` in `Sources/ClamDown/AppDelegate.swift`) with a new, never reused id. It shows only after an update, only once, and only when `showIf` holds.
 - User-visible text lives in `Resources/Localizable.xcstrings`, which `scripts/sync-strings.sh` refreshes from the code.
 - What the app does for its users, with every default, is in [how-it-works.md](how-it-works.md).
 

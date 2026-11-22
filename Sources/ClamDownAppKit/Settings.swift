@@ -66,8 +66,10 @@ public enum BatteryHeatHold: Int, Codable, CaseIterable, Sendable {
 }
 
 /// The symbol shown in the menu bar. Each style has a plain and a filled form for off and on.
-/// Two styles (owner, 2026-11-22: "оставляем только две"): the Cup that every release so far had as its default,
-/// and the drawn Lid. Eye, Bolt and Sun were dropped; a setting that names one of them reads as the default.
+/// Two styles (owner, 2026-11-22: "оставляем только две"): the Cup that every release up to 0.1.2 had as its
+/// default, and the drawn Lid, the default from 0.1.3. Eye, Bolt and Sun were dropped. A user coming from an older
+/// build keeps the Cup and is asked once whether to switch (owner, 2026-11-22: "им должно показаться окно с
+/// уведомлением и выбором", "окно показывается один раз"); see `ChangeQuestionGate`.
 public enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     case cup, lid
 
@@ -170,7 +172,7 @@ public struct Settings: Codable, Equatable, Sendable {
     public var notificationsEnabled = true
 
     // Appearance
-    public var menuBarIcon: MenuBarIconStyle = .cup
+    public var menuBarIcon: MenuBarIconStyle = .lid
 
     public init() {}
 
@@ -264,7 +266,9 @@ public struct Settings: Codable, Equatable, Sendable {
         launchAtLogin = (try? c.decodeIfPresent(Bool.self, forKey: .launchAtLogin)) ?? launchAtLogin
         showDockIcon = (try? c.decodeIfPresent(Bool.self, forKey: .showDockIcon)) ?? showDockIcon
         notificationsEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled)) ?? notificationsEnabled
-        menuBarIcon = (try? c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIcon)) ?? menuBarIcon
+        // Stored settings without a style this build knows come from a build that had the Cup by default, or named
+        // a style that is gone: they keep the Cup, the icon the user saw, instead of today's default.
+        menuBarIcon = (try? c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIcon)) ?? .cup
     }
 
     /// Turns an older build's fan settings into the mode and the two curves, so nothing changes for the user.
