@@ -860,6 +860,15 @@
     "Turning on…" : {
 
     },
+    "Turns ClamDown off." : {
+
+    },
+    "Turns ClamDown on for a set time." : {
+
+    },
+    "Turns ClamDown on." : {
+
+    },
     "Turns off at %@" : {
 
     },

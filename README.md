@@ -83,7 +83,7 @@ ClamDown keeps a closed Mac awake, drives the fans and watches the battery and t
 - When you open the lid after ClamDown let the Mac sleep, it tells you why, in a window that stays until you close it.
 - It posts a notification that names the reason whenever it switches itself off (setting, on by default).
 
-Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. The Cooling page has the Fan Control choice, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
+Settings has six pages: General, Sleep, Protection, Cooling, Appearance and Helper. Above them, next to the app's name and state, sits the same On/Off switch as in the menu, and while ClamDown is off a timer button that turns it on for a set time or until switched off. The Cooling page has the Fan Control choice, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's, each fan's speed and whether ClamDown or macOS controls the fans. The Helper page shows the helper's state and can reinstall or remove it.
 
 ## Requirements
 

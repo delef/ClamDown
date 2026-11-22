@@ -21,21 +21,64 @@ struct SettingsRootView: View {
             detail: { page(for: $0) })
     }
 
-    /// The app icon, the name and the state. Turning the mode on or off and Quit live in the menu bar menu.
+    /// The app icon, the name and the state, with the switch that turns the mode on or off. While it is off, the timer
+    /// button beside the switch turns it on for a set time, as "Turn On For" in the menu bar menu does.
     private var brand: some View {
-        HStack(spacing: 10) {
-            CDAppIcon(size: 32)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("ClamDown").fontWeight(.semibold)
-                HStack(spacing: 5) {
-                    CDStatusDot(controller.state.isOn ? CDColor.success : Color.secondary)
-                    Text(statusLine)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                CDAppIcon(size: 32)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("ClamDown").fontWeight(.semibold)
+                    HStack(spacing: 5) {
+                        CDStatusDot(controller.state.isOn ? CDColor.success : Color.secondary)
+                        Text(statusLine)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 0)
+            if !controller.state.isOn, controller.turnOnStep == nil {
+                turnOnFor
+            }
+            Toggle("ClamDown", isOn: Binding(
+                get: { controller.state.isOn || controller.turnOnStep != nil },
+                set: { on in
+                    guard on != controller.state.isOn else { return }
+                    Task { await controller.toggle() }
+                }))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+                .disabled(controller.turnOnStep != nil)
+                .help(controller.state.isOn ? "Turns ClamDown off." : "Turns ClamDown on.")
         }
-        .accessibilityElement(children: .combine)
+    }
+
+    /// Turns the mode on for one of the menu's set times, or until switched off.
+    private var turnOnFor: some View {
+        Menu {
+            Section("Turn On For") {
+                ForEach(AutoOffTimer.sessions, id: \.self) { timer in
+                    Button(timer.title) {
+                        Task { await controller.turnOn(for: timer.duration) }
+                    }
+                }
+            }
+            Divider()
+            Button("Until Switched Off") {
+                Task { await controller.turnOn(for: nil) }
+            }
+        } label: {
+            Image(systemName: "timer")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Turns ClamDown on for a set time.")
+        .accessibilityLabel("Turn On For")
     }
 
     private var statusLine: String {

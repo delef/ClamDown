@@ -56,9 +56,6 @@ private struct MenuContent: View {
     let openSettings: (SettingsPane?) -> Void
     let openSetup: () -> Void
 
-    /// Sessions offered under "Turn On For".
-    private static let durations: [AutoOffTimer] = [.minutes30, .hour1, .hours2, .hours4, .hours8]
-
     var body: some View {
         let presentation = MenuPresentation(state: controller.state, notice: controller.notice,
                                             icon: controller.settings.menuBarIcon,
@@ -71,7 +68,7 @@ private struct MenuContent: View {
         .disabled(!presentation.toggleEnabled)
         if !controller.state.isOn, !presentation.isTurningOn {
             Menu("Turn On For") {
-                ForEach(Self.durations, id: \.self) { timer in
+                ForEach(AutoOffTimer.sessions, id: \.self) { timer in
                     Button(timer.title) {
                         Task { await controller.turnOn(for: timer.duration) }
                     }

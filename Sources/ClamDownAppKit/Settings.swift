@@ -24,6 +24,10 @@ public enum AutoOffTimer: Int, Codable, CaseIterable, Sendable {
     case hours4 = 240
     case hours8 = 480
 
+    /// The sessions offered wherever the user turns ClamDown on for a set time ("Turn On For"); "Until Switched Off"
+    /// comes after them.
+    public static let sessions: [AutoOffTimer] = [.minutes30, .hour1, .hours2, .hours4, .hours8]
+
     /// Nil means the mode stays on until something else switches it off.
     public var duration: Duration? {
         self == .never ? nil : .seconds(rawValue * 60)
