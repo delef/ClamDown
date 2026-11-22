@@ -29,6 +29,16 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
     /// Always `.all`: as in System Settings the sidebar cannot be collapsed, not even by dragging its divider. In
     /// accessory mode there is no View menu to bring it back, so a collapse is undone at once.
     @State private var columns: NavigationSplitViewVisibility = .all
+    /// The widest the brand row has asked to be while the window is open. The sidebar never gets narrower, so the
+    /// app's name and state always show in full; it only grows, so a state line that changes does not make it jump.
+    @State private var brandWidth: CGFloat = 0
+
+    /// The sidebar's usual width range; it widens past these when the brand row needs more.
+    private static var minimumSidebar: CGFloat { 210 }
+    private static var idealSidebar: CGFloat { 230 }
+    private static var maximumSidebar: CGFloat { 260 }
+    /// The list's own margins around a row's content, on both sides together.
+    private static var rowMargins: CGFloat { 40 }
 
     public init(items: [CDSidebarItem<ID>], selection: Binding<ID>,
                 @ViewBuilder brand: () -> Brand, @ViewBuilder detail: @escaping (ID) -> Detail) {
@@ -40,8 +50,11 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
 
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
+            let needed = brandWidth + Self.rowMargins
             sidebar
-                .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 260)
+                .navigationSplitViewColumnWidth(min: max(Self.minimumSidebar, needed),
+                                                ideal: max(Self.idealSidebar, needed),
+                                                max: max(Self.maximumSidebar, needed))
         } detail: {
             detail(selection)
                 .navigationTitle(items.first { $0.id == selection }?.title ?? "")
@@ -66,8 +79,19 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
     @ViewBuilder
     private var sidebar: some View {
         let list = List(selection: Binding<ID?>(get: { selection }, set: { if let new = $0 { selection = new } })) {
-            // No tag: this row cannot be selected.
+            // No tag: this row cannot be selected. A hidden copy at its natural width measures what it needs.
             brand
+                .background(alignment: .leading) {
+                    brand
+                        .fixedSize(horizontal: true, vertical: false)
+                        .hidden()
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: BrandWidthKey.self, value: proxy.size.width)
+                        })
+                }
+                .onPreferenceChange(BrandWidthKey.self) { width in
+                    if width > brandWidth { brandWidth = width }
+                }
                 .listRowSeparator(.hidden)
             // Each group is a section of its own, so a separator row belongs to no item and is never highlighted
             // with the item after it.
@@ -97,4 +121,10 @@ public struct CDSettingsShell<ID: Hashable, Brand: View, Detail: View>: View {
             list
         }
     }
+}
+
+/// The brand row's natural width, for the sidebar's minimum.
+private struct BrandWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
