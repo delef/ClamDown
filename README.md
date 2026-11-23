@@ -31,7 +31,7 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/cooling-dark.png">
-    <img src="docs/screenshots/cooling-light.png" width="49%" alt="Cooling settings: Fan Control, the fan curve chart, CPU temperature and fan speeds">
+    <img src="docs/screenshots/cooling-light.png" width="49%" alt="Cooling settings: Fan Control and the fan curve chart">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/protection-dark.png">
@@ -41,7 +41,7 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/sleep-dark.png">
-    <img src="docs/screenshots/sleep-light.png" width="49%" alt="Sleep settings: timer, lock screen when closed, Low Power Mode">
+    <img src="docs/screenshots/sleep-light.png" width="49%" alt="Sleep settings: timer, unplug rule, lock screen when closed">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/general-dark.png">
