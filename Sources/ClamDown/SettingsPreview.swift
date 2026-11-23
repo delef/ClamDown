@@ -13,6 +13,8 @@ import ClamDownUI
 ///     ClamDown -settingsShot <directory>    draws every pane, then quits
 ///     ClamDown -settingsShot <directory> -settingsShotPanes cooling,about    draws only these panes
 ///     ... -settingsShotNoTall YES    skips the tall pictures; -settingsShotWindow YES draws in a titled window
+///     ... -settingsShotShowcase YES    ClamDown on for two hours with steady readings, as in the published screenshots
+///     ... -settingsShotLive YES    the published screenshots instead: see `SettingsLiveShot`
 ///
 /// The system draws no glass into an offscreen picture, so the sidebar and the glass buttons show their fallback.
 @MainActor
@@ -26,21 +28,28 @@ enum SettingsPreview {
         // No Dock icon and no activation: the pictures are drawn in windows far off screen, and nothing shows.
         NSApp.setActivationPolicy(.accessory)
         Task {
-            await shoot(into: URL(fileURLWithPath: directory))
+            let url = URL(fileURLWithPath: directory)
+            if UserDefaults.standard.bool(forKey: "settingsShotLive") {
+                await SettingsLiveShot.shoot(into: url)
+            } else {
+                await shoot(into: url)
+            }
             exit(0)
         }
         return true
     }
 
-    private static func makeController() -> ClamDownController {
+    /// The controller the pictures show. With `showcase`, ClamDown is on for two hours and drives the fans, with the
+    /// steady readings of `ShowcaseHelper`, so every run draws the same numbers.
+    static func makeController(showcase: Bool) async -> ClamDownController {
         var settings = AppSettings()
         // Fan control on with the Standard curve; the Cooling page is also drawn in Advanced and switched off.
         settings.fanControlEnabled = true
         settings.fanCurveMode = .standard
         let store = PreviewSettingsStore()
         try? store.save(settings)
-        return ClamDownController(
-            helper: PreviewHelper(),
+        let controller = ClamDownController(
+            helper: showcase ? ShowcaseHelper() : PreviewHelper(),
             registrar: PreviewRegistrar(state: .ready, registerError: nil),
             monitor: LiveSystemMonitor(),
             settingsStore: store,
@@ -48,11 +57,13 @@ enum SettingsPreview {
             activity: AppNapActivity(),
             installedHelper: PreviewInstalledHelper(),
             sensors: SMCFanHardware())
+        if showcase { await controller.turnOn(for: .seconds(2 * 3600)) }
+        return controller
     }
 
     private static func shoot(into directory: URL) async {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let controller = makeController()
+        let controller = await makeController(showcase: UserDefaults.standard.bool(forKey: "settingsShotShowcase"))
         let updater = Updater(starts: false)
         // The About page in each state of the update check; the other pages ignore it.
         let updateStates: [(String, UpdateStatus)] = [
