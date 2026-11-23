@@ -18,9 +18,9 @@ import Foundation
 /// full speed at 44 °C), on the belief that they follow how warm the case feels. They sit by the heatsink and follow
 /// the chips' load instead (about 37 °C idle, 46–53 °C under load), and the rule ran the owner's fans at full speed at
 /// about 50 °C with the lid closed while the case felt cold: «Корпус ощущается холодным, в том и дело» (owner,
-/// 2026-11-23). Dropped rather than moved to other sensors (agent, 2026-11-23): no sensor has been shown to follow
-/// the case, and a Mac in a bag is still caught by the curve, which counts these groups as read, the hot-battery
-/// override and the floor.
+/// 2026-11-23). The agent proposed dropping it and the owner agreed: «Давай» (owner, 2026-11-23). Moving it to other
+/// sensors was rejected (agent, 2026-11-23): no sensor has been shown to follow the case, and a Mac in a bag is still
+/// caught by the curve, which counts these groups as read, the hot-battery override and the floor.
 public struct FanDecision: Sendable {
     /// From this level of macOS's own thermal state the fans run at full speed.
     public static let systemLevelForFullSpeed = ThermalLevel.serious

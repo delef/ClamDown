@@ -10,7 +10,8 @@ import Foundation
 /// nears its setpoint of about 76 °C and ignores a case at 49 °C. Offered the zones averaged over 30 s or the hottest
 /// core averaged over 60 s, the owner picked "Apple zone, 30 s avg" (owner, 2026-11-22). ClamDown takes the same
 /// input and stays more eager: its curve starts at 40 °C, and the battery, SSD, Wi-Fi and airflow groups, which
-/// follow the case and warm slowly by themselves, count as read, so a Mac warming in a bag still reaches full speed.
+/// warm slowly by themselves, count as read, so a Mac warming in a bag still reaches full speed. (The airflow sensors
+/// sit by the heatsink and follow the chips' load, not the case; see `FanDecision`.)
 /// The short average takes out what is left of a burst. On a Mac whose zones cannot be confirmed, a chip counts as
 /// its hottest sensor averaged over a minute, which also ignores a burst but keeps the fans higher at idle.
 /// A core at its limit is the hot-core watch's job, which reads the raw hottest core.

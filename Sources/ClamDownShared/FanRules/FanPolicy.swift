@@ -107,7 +107,7 @@ public enum StandardCurve {
     /// The full-speed point stays at least this many degrees above the start point.
     public static let minimumSpan = 5
     // The curve starts early on purpose: a closed Mac in a bag has little airflow, and staying cool matters more than
-    // quiet. At idle on the owner's M3 Pro the followed temperature (CPU zone about 42 °C, Wi-Fi and case about 36)
+    // quiet. At idle on the owner's M3 Pro the followed temperature (CPU zone about 42 °C, Wi-Fi and airflow about 36)
     // sits a little above 40 °C, so the fans run a little above their minimum.
     public static let defaultStart = 40
     public static let defaultFull = 70

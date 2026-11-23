@@ -495,8 +495,8 @@ import ClamDownShared
         #expect(fans.targets.last == [5000])
     }
 
-    /// The groups that follow the case warm slowly by themselves and are followed as read.
-    @Test func caseSideGroupsReachTheCurveAtOnce() async throws {
+    /// The battery, SSD, Wi-Fi and airflow groups warm slowly by themselves and are followed as read.
+    @Test func slowGroupsReachTheCurveAtOnce() async throws {
         let fans = FakeFans(temperature: 50)
         fans.set(group: .cpu, 50)
         fans.set(group: .ssd, 40)

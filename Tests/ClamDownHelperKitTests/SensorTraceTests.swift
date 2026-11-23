@@ -39,20 +39,17 @@ import ClamDownShared
     /// Two fans with the range of a 14-inch MacBook Pro.
     private static let fanRange = (minimum: 1350.0, maximum: 5350.0)
 
-    @Test(arguments: traces) func helperKeepsItsRulesThroughARealRecording(name: String) async throws {
-        let samples = try Self.load(name)
-        try #require(samples.count >= 30, "a recording needs at least 30 readings")
+    /// Replays `samples` through a helper that drives two fans with `policy`, one reading a second, and hands each
+    /// second's sample, the helper's status and the fan targets to `check`.
+    private static func replay(_ samples: [Sample], policy: FanPolicy,
+                               check: (Int, Sample, CoolingStatus, [Double]) throws -> Void) async throws {
         let fans = FakeFans(fans: (0..<2).map {
-            FanReading(rpm: Self.fanRange.minimum, minimum: Self.fanRange.minimum, maximum: Self.fanRange.maximum, index: $0)
+            FanReading(rpm: fanRange.minimum, minimum: fanRange.minimum, maximum: fanRange.maximum, index: $0)
         })
         fans.followsTargets = true
         let t0 = SuspendingClock.now
         let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
-        let policy = FanPolicy(points: StandardCurve.points(start: StandardCurve.defaultStart, full: StandardCurve.defaultFull),
-                               onlyWhenLidClosed: true)
-        var previous: [Double]?
-        var cpuInputs: ClosedRange<Double>?
         for (second, sample) in samples.enumerated() {
             for group in SensorGroup.allCases {
                 fans.set(group: group, sample.groups[group])
@@ -62,14 +59,25 @@ import ClamDownShared
             fans.set(hottest: sample.groups[.cpu])
             let now = t0.advanced(by: .seconds(second))
             if second == 0 { try await core.setFanPolicy(policy, now: now) } else { await core.updateFans(now: now) }
-
             let status = await core.coolingStatus()
-            #expect(status.control == .controlling, "second \(second)")
             let targets = try #require(fans.targets.last, "second \(second)")
+            try check(second, sample, status, targets)
+        }
+    }
+
+    @Test(arguments: traces) func helperKeepsItsRulesThroughARealRecording(name: String) async throws {
+        let samples = try Self.load(name)
+        try #require(samples.count >= 30, "a recording needs at least 30 readings")
+        let policy = FanPolicy(points: StandardCurve.points(start: StandardCurve.defaultStart, full: StandardCurve.defaultFull),
+                               onlyWhenLidClosed: true)
+        var previous: [Double]?
+        var cpuInputs: ClosedRange<Double>?
+        try await Self.replay(samples, policy: policy) { second, sample, status, targets in
+            #expect(status.control == .controlling, "second \(second)")
             let followed = try #require(status.hottestTemperature, "second \(second)")
-            // The case-side groups count as read, so a Mac warming in a bag reaches the fans at once.
-            let caseSide = sample.groups.filter { !SustainedTemperatures.averagedGroups.contains($0.key) }
-            if let warmest = SensorGroup.hottest(in: caseSide)?.celsius { #expect(followed >= warmest, "second \(second)") }
+            // The groups that are not averaged count as read, so a Mac warming in a bag reaches the fans at once.
+            let asRead = sample.groups.filter { !SustainedTemperatures.averagedGroups.contains($0.key) }
+            if let warmest = SensorGroup.hottest(in: asRead)?.celsius { #expect(followed >= warmest, "second \(second)") }
             // An average of the CPU's input never leaves the range of what that input has read.
             let cpuInput = try #require(sample.zones[.cpu] ?? sample.groups[.cpu])
             let inputs = cpuInputs.map { min($0.lowerBound, cpuInput)...max($0.upperBound, cpuInput) } ?? cpuInput...cpuInput
@@ -97,28 +105,11 @@ import ClamDownShared
     @Test func hotAirflowSensorsAloneDoNotRunTheFansAtFullSpeed() async throws {
         let samples = try Self.load("m3-pro-desk-heavy-load")
         try #require(samples.contains { ($0.groups[.airflow] ?? 0) >= 44 }, "the recording needs hot airflow sensors")
-        let fans = FakeFans(fans: (0..<2).map {
-            FanReading(rpm: Self.fanRange.minimum, minimum: Self.fanRange.minimum, maximum: Self.fanRange.maximum, index: $0)
-        })
-        fans.followsTargets = true
-        let t0 = SuspendingClock.now
-        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
-        try await core.enable(lowPowerOnBattery: false, now: t0)
         // The owner's curve, 50 to 85 °C, as a 0.1.3 app sends it.
         let sent = #"{"points":[{"temperature":50,"speed":0},{"temperature":85,"speed":100}],"onlyWhenLidClosed":true,"caseRamp":{"start":38,"full":44}}"#
         let policy = try JSONDecoder().decode(FanPolicy.self, from: Data(sent.utf8))
-        for (second, sample) in samples.enumerated() {
-            for group in SensorGroup.allCases {
-                fans.set(group: group, sample.groups[group])
-                fans.set(zone: group, sample.zones[group])
-            }
-            fans.set(temperature: sample.groups[.cpu])
-            fans.set(hottest: sample.groups[.cpu])
-            let now = t0.advanced(by: .seconds(second))
-            if second == 0 { try await core.setFanPolicy(policy, now: now) } else { await core.updateFans(now: now) }
-            let status = await core.coolingStatus()
-            guard status.override == nil, let followed = status.hottestTemperature, followed < 85 else { continue }
-            let targets = try #require(fans.targets.last)
+        try await Self.replay(samples, policy: policy) { second, sample, status, targets in
+            guard status.override == nil, let followed = status.hottestTemperature, followed < 85 else { return }
             #expect(targets.allSatisfy { $0 < Self.fanRange.maximum },
                     "second \(second): full speed at \(followed) °C, airflow \(sample.groups[.airflow] ?? 0) °C")
         }
