@@ -6,7 +6,8 @@ import ClamDownShared
 
 /// Debug builds only: takes the screenshots in `docs/screenshots` and on the site. Each page is shown in a real
 /// settings window on screen, because the system draws the sidebar's glass only there, and `screencapture` takes
-/// the window with its shadow. The app does not activate; the window only looks active.
+/// the window with its shadow. The app comes to the front for the run, because only the key window of the active
+/// app draws as active, and gives the front back to the app that had it.
 ///
 ///     ClamDown -settingsShot <directory> -settingsShotLive YES    the published pages, light and dark, then quits
 ///     ... -settingsShotPanes cooling,about    these pages instead
@@ -25,7 +26,12 @@ enum SettingsLiveShot {
         let panes = only.map { names in SettingsPane.allCases.filter { names.contains($0.rawValue) } } ?? publishedPanes
         let appearances: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
         var failed = false
+        let previous = NSWorkspace.shared.frontmostApplication
+        NSApp.activate(ignoringOtherApps: true)
+        defer { previous?.activate() }
         for (appearanceName, appearance) in appearances {
+            // The whole app, not only the window: menus and their labels take the app's appearance.
+            NSApp.appearance = NSAppearance(named: appearance)
             for pane in panes {
                 var selection = pane
                 let view = SettingsRootView(
@@ -53,9 +59,13 @@ enum SettingsLiveShot {
         window.isReleasedWhenClosed = false
         window.setContentSize(SettingsWindowController.contentSize)
         window.center()
-        window.orderFrontRegardless()
+        window.makeKeyAndOrderFront(nil)
         // Time for the page's tasks to load the readings and for the glass to settle.
         try? await Task.sleep(for: .milliseconds(1500))
+        // Keyboard focus on the sidebar on every page, as after a click there: its selection draws in the accent
+        // colour, and no control on the page wears a focus ring.
+        if let sidebar = firstTable(in: window.contentView) { window.makeFirstResponder(sidebar) }
+        try? await Task.sleep(for: .milliseconds(300))
         let shot = Process()
         shot.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         shot.arguments = ["-x", "-l", String(window.windowNumber), url.path]
@@ -72,6 +82,13 @@ enum SettingsLiveShot {
         window.contentViewController = nil
         return ok
     }
+}
+
+private func firstTable(in view: NSView?) -> NSTableView? {
+    guard let view else { return nil }
+    if let table = view as? NSTableView { return table }
+    for subview in view.subviews { if let table = firstTable(in: subview) { return table } }
+    return nil
 }
 
 /// A helper that accepts every request and reports ClamDown driving two fans at steady, plausible readings, so
