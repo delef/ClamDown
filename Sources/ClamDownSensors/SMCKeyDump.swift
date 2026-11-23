@@ -45,7 +45,10 @@ public struct SMCKeyDump: Codable, Equatable, Sendable {
 
     /// Reads every kept key from this Mac's SMC. Read-only. Nil when the SMC cannot be opened.
     public static func capture(machine: String) -> SMCKeyDump? {
-        guard let smc = SMC() else { return nil }
+        SMC().map { capture(machine: machine, smc: $0) }
+    }
+
+    static func capture(machine: String, smc: any SMCAccess) -> SMCKeyDump {
         let entries = (0..<smc.keyCount()).compactMap { index -> Entry? in
             guard let key = smc.key(at: index), isKept(key), let value = smc.read(key) else { return nil }
             return Entry(key: key, type: value.type, bytes: value.bytes.map { String(format: "%02x", $0) }.joined())

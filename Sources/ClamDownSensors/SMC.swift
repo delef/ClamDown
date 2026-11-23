@@ -40,30 +40,30 @@ struct SMCValue: Equatable {
 }
 
 // The layout of the kernel's SMCParamStruct (80 bytes). The explicit padding keeps
-// Swift's layout identical to the C one; `SMC.init` checks the size before any call.
-private struct SMCVersion {
+// Swift's layout identical to the C one; `IOKitSMCDriver.init` checks the size before any call.
+struct SMCVersion {
     var major: UInt8 = 0, minor: UInt8 = 0, build: UInt8 = 0, reserved: UInt8 = 0
     var release: UInt16 = 0
 }
 
-private struct SMCPowerLimit {
+struct SMCPowerLimit {
     var version: UInt16 = 0, length: UInt16 = 0
     var cpu: UInt32 = 0, gpu: UInt32 = 0, memory: UInt32 = 0
 }
 
-private struct SMCKeyInfo {
+struct SMCKeyInfo {
     var dataSize: UInt32 = 0
     var dataType: UInt32 = 0
     var attributes: UInt8 = 0
     var padding: (UInt8, UInt8, UInt8) = (0, 0, 0)
 }
 
-private typealias SMCBytes = (
+typealias SMCBytes = (
     UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
     UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
 )
 
-private struct SMCParam {
+struct SMCParam {
     var key: UInt32 = 0
     var version = SMCVersion()
     var powerLimit = SMCPowerLimit()
@@ -86,21 +86,19 @@ protocol SMCAccess: AnyObject {
     func has(_ key: String) -> Bool
 }
 
-/// A minimal client for the System Management Controller. Reading works for any user; writing needs root.
-/// Not thread-safe: the owner serialises access.
-final class SMC: SMCAccess {
-    private enum Command: UInt8 {
-        case readKey = 5
-        case writeKey = 6
-        case keyAtIndex = 8
-        case keyInfo = 9
-    }
+/// One call into the SMC driver: the input structure in, the kernel's return code and the output structure out.
+/// `IOKitSMCDriver` talks to the hardware; tests answer the calls from a key dump.
+protocol SMCDriver: AnyObject {
+    func call(_ input: SMCParam) -> (kern_return_t, SMCParam)
+}
 
+/// The open connection to the AppleSMC driver.
+final class IOKitSMCDriver: SMCDriver {
     private static let handleEvent: UInt32 = 2
 
     private let connection: io_connect_t
-    private var infoCache: [UInt32: SMCKeyInfo] = [:]
 
+    /// Nil when the SMC cannot be opened, as on a virtual Mac, or when `SMCParam` lost the kernel's layout.
     init?() {
         guard MemoryLayout<SMCParam>.stride == 80, MemoryLayout<SMCParam>.offset(of: \SMCParam.bytes) == 48 else { return nil }
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
@@ -112,6 +110,38 @@ final class SMC: SMCAccess {
     }
 
     deinit { IOServiceClose(connection) }
+
+    func call(_ input: SMCParam) -> (kern_return_t, SMCParam) {
+        var input = input
+        var output = SMCParam()
+        var outputSize = MemoryLayout<SMCParam>.stride
+        let kr = IOConnectCallStructMethod(connection, Self.handleEvent, &input, MemoryLayout<SMCParam>.stride, &output, &outputSize)
+        return (kr, output)
+    }
+}
+
+/// A minimal client for the System Management Controller. Reading works for any user; writing needs root.
+/// Not thread-safe: the owner serialises access.
+final class SMC: SMCAccess {
+    enum Command: UInt8 {
+        case readKey = 5
+        case writeKey = 6
+        case keyAtIndex = 8
+        case keyInfo = 9
+    }
+
+    private let driver: any SMCDriver
+    private var infoCache: [UInt32: SMCKeyInfo] = [:]
+
+    /// Nil when the SMC cannot be opened.
+    convenience init?() {
+        guard let driver = IOKitSMCDriver() else { return nil }
+        self.init(driver: driver)
+    }
+
+    init(driver: any SMCDriver) {
+        self.driver = driver
+    }
 
     func keyCount() -> Int {
         read("#KEY")?.number.map { Int($0) } ?? 0
@@ -165,10 +195,7 @@ final class SMC: SMCAccess {
     }
 
     private func call(_ input: SMCParam, key: String) throws -> SMCParam {
-        var input = input
-        var output = SMCParam()
-        var outputSize = MemoryLayout<SMCParam>.stride
-        let kr = IOConnectCallStructMethod(connection, Self.handleEvent, &input, MemoryLayout<SMCParam>.stride, &output, &outputSize)
+        let (kr, output) = driver.call(input)
         guard kr == KERN_SUCCESS, output.result == 0 else {
             throw SMCError.callFailed(key: key, kernReturn: kr, result: output.result)
         }

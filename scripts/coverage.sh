@@ -10,7 +10,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # Minimum line coverage, in percent, per module. Raise a limit when coverage goes up; never lower one to pass.
-LIMITS="ClamDownHelperKit=93 ClamDownSensors=75 ClamDownShared=94 ClamDownAppKit=82"
+# Read the coverage for a limit from a run without the hardware, `swift test --enable-code-coverage --skip
+# LiveSystemMonitorTests` then `scripts/coverage.sh --no-test`: that test reads this Mac's real SMC, which the CI
+# runner, a virtual Mac, does not have, so a Mac measures more than CI does.
+LIMITS="ClamDownHelperKit=93 ClamDownSensors=80 ClamDownShared=94 ClamDownAppKit=82"
 
 if [ "${1:-}" != "--no-test" ]; then
   swift test --enable-code-coverage
