@@ -7,12 +7,20 @@ import Foundation
 /// Each reading goes through these steps, in this order:
 /// 1. **What the curve follows** (`observe`): the hottest of the sensor groups, each chip (CPU, GPU) as the die zone
 ///    macOS steers by, averaged over time (`SustainedTemperatures`); the other groups as read.
-/// 2. **The speed the rules ask for** (`FanPolicy.speed`): the highest of the user's curve, the safety floor
-///    (`SafetyFloor`) on that temperature, and the case rule (`CaseRamp`) on the airflow sensors.
+/// 2. **The speed the rules ask for** (`FanPolicy.speed`): the higher of the user's curve and the safety floor
+///    (`SafetyFloor`) on that temperature.
 /// 3. **Full speed instead** (`override`): a CPU core at its limit, then a hot battery (`OverheatWatch`), then macOS
 ///    reporting the Mac as hot (`systemLevelForFullSpeed`), in that order.
 /// 4. **Revolutions per minute** (`targets`): the percent of each fan's own range, rising at once and falling by at
 ///    most `fallStep` per `fallInterval`, inside the fan's minimum and maximum.
+///
+/// No rule follows the airflow sensors (`TaLP`, `TaRF`) on their own. 0.1.3 had one, the case rule (0 % at 38 °C,
+/// full speed at 44 °C), on the belief that they follow how warm the case feels. They sit by the heatsink and follow
+/// the chips' load instead (about 37 °C idle, 46–53 °C under load), and the rule ran the owner's fans at full speed at
+/// about 50 °C with the lid closed while the case felt cold: «Корпус ощущается холодным, в том и дело» (owner,
+/// 2026-11-23). Dropped rather than moved to other sensors (agent, 2026-11-23): no sensor has been shown to follow
+/// the case, and a Mac in a bag is still caught by the curve, which counts these groups as read, the hot-battery
+/// override and the floor.
 public struct FanDecision: Sendable {
     /// From this level of macOS's own thermal state the fans run at full speed.
     public static let systemLevelForFullSpeed = ThermalLevel.serious
@@ -81,8 +89,8 @@ public struct FanDecision: Sendable {
     }
 
     /// Steps 2 and 3: the speed in percent of each fan's range. Expects a repaired policy and a temperature.
-    public static func percent(policy: FanPolicy, temperature: Double, airflow: Double?, override: FanOverride?) -> Double {
-        override == nil ? policy.speed(at: temperature, caseTemperature: airflow) : 100
+    public static func percent(policy: FanPolicy, temperature: Double, override: FanOverride?) -> Double {
+        override == nil ? policy.speed(at: temperature) : 100
     }
 
     /// Step 4: each fan's target in rpm, in the order of `fans`. `previous` are the targets last set, in the same

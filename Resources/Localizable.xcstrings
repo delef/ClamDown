@@ -174,9 +174,6 @@
     "Cannot read the temperature sensors." : {
 
     },
-    "Case" : {
-
-    },
     "Check Automatically" : {
 
     },
@@ -367,9 +364,6 @@
 
     },
     "For At Least" : {
-
-    },
-    "Full Speed At" : {
 
     },
     "Full speed at " : {
@@ -685,9 +679,6 @@
     "Source Code" : {
 
     },
-    "Speeds Up From" : {
-
-    },
     "Speeds up from " : {
 
     },
@@ -768,9 +759,6 @@
 
     },
     "The battery was hot (%lld °C)." : {
-
-    },
-    "The case can feel hot while the chips are only warm. The fans also speed up with the airflow sensors: from the first value, full speed at the second. Now: %@." : {
 
     },
     "The helper could not be registered." : {

@@ -50,7 +50,7 @@ import ClamDownShared
         let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         let policy = FanPolicy(points: StandardCurve.points(start: StandardCurve.defaultStart, full: StandardCurve.defaultFull),
-                               onlyWhenLidClosed: true, caseRamp: .standard)
+                               onlyWhenLidClosed: true)
         var previous: [Double]?
         var cpuInputs: ClosedRange<Double>?
         for (second, sample) in samples.enumerated() {
@@ -76,19 +76,51 @@ import ClamDownShared
             cpuInputs = inputs
             let followedCPU = try #require(status.groupTemperatures[.cpu])
             #expect(inputs.contains(followedCPU), "second \(second): CPU \(followedCPU) outside \(inputs)")
-            let wanted = status.override == nil ? policy.speed(at: followed, caseTemperature: sample.groups[.airflow]) : 100
+            let wanted = status.override == nil ? policy.speed(at: followed) : 100
             let wantedRPM = FanDecision.speed(percent: wanted, fan: FanReading(rpm: 0, minimum: Self.fanRange.minimum,
                                                                              maximum: Self.fanRange.maximum))
             for (fan, rpm) in targets.enumerated() {
-                // Never under what the curve, the floor, the case rule and the overrides ask for, never outside the range.
+                // Never under what the curve, the floor and the overrides ask for, never outside the range.
                 #expect(rpm >= wantedRPM - 0.001, "fan \(fan) at second \(second): \(rpm) < \(wantedRPM)")
                 #expect(rpm >= Self.fanRange.minimum && rpm <= Self.fanRange.maximum)
                 // Falls by at most 150 rpm per 3 seconds: 50 rpm per reading.
                 if let before = previous?[fan] { #expect(before - rpm <= 50.001, "fan \(fan) fell too fast at second \(second)") }
             }
             if (sample.groups[.battery] ?? 0) >= 45 { #expect(status.override == .hotBattery || status.override == .hotCore) }
-            if (sample.groups[.airflow] ?? 0) >= Double(CaseRamp.defaultFull) { #expect(targets.allSatisfy { $0 == Self.fanRange.maximum }) }
             previous = targets
+        }
+    }
+
+    /// The airflow sensors sit by the heatsink and follow the chips' load, not how warm the case feels: the owner's
+    /// fans ran at full speed at about 50 °C while the case felt cold (2026-11-23). A policy from 0.1.3, which still
+    /// carries the case rule that drove the fans by them, must leave the fans on the curve.
+    @Test func hotAirflowSensorsAloneDoNotRunTheFansAtFullSpeed() async throws {
+        let samples = try Self.load("m3-pro-desk-heavy-load")
+        try #require(samples.contains { ($0.groups[.airflow] ?? 0) >= 44 }, "the recording needs hot airflow sensors")
+        let fans = FakeFans(fans: (0..<2).map {
+            FanReading(rpm: Self.fanRange.minimum, minimum: Self.fanRange.minimum, maximum: Self.fanRange.maximum, index: $0)
+        })
+        fans.followsTargets = true
+        let t0 = SuspendingClock.now
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
+        try await core.enable(lowPowerOnBattery: false, now: t0)
+        // The owner's curve, 50 to 85 °C, as a 0.1.3 app sends it.
+        let sent = #"{"points":[{"temperature":50,"speed":0},{"temperature":85,"speed":100}],"onlyWhenLidClosed":true,"caseRamp":{"start":38,"full":44}}"#
+        let policy = try JSONDecoder().decode(FanPolicy.self, from: Data(sent.utf8))
+        for (second, sample) in samples.enumerated() {
+            for group in SensorGroup.allCases {
+                fans.set(group: group, sample.groups[group])
+                fans.set(zone: group, sample.zones[group])
+            }
+            fans.set(temperature: sample.groups[.cpu])
+            fans.set(hottest: sample.groups[.cpu])
+            let now = t0.advanced(by: .seconds(second))
+            if second == 0 { try await core.setFanPolicy(policy, now: now) } else { await core.updateFans(now: now) }
+            let status = await core.coolingStatus()
+            guard status.override == nil, let followed = status.hottestTemperature, followed < 85 else { continue }
+            let targets = try #require(fans.targets.last)
+            #expect(targets.allSatisfy { $0 < Self.fanRange.maximum },
+                    "second \(second): full speed at \(followed) °C, airflow \(sample.groups[.airflow] ?? 0) °C")
         }
     }
 

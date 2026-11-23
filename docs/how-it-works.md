@@ -38,13 +38,14 @@ macOS keeps a closed MacBook's fans near their lowest speed even when the chip i
 
 - The CPU and GPU count the way macOS's own fan control reads them: as the temperature of the chip's die zone (SMC keys `Tf14` and `Tf24`, confirmed against `TCDX` on every reading), averaged over about half a minute. A zone runs about 14 °C under the hottest core and barely moves when a few cores spike for a few seconds, so a short burst does not make the fans roar. Where macOS waits until a zone nears about 76 °C, ClamDown follows its own curve from 40 °C.
 - On a Mac without the zone keys, a chip counts as its hottest sensor averaged over about a minute.
-- The battery, SSD, Wi-Fi and airflow sensors follow the case and count as read, so a Mac warming in a bag still reaches full speed.
+- The battery, SSD, Wi-Fi and airflow sensors count as read, without averaging, so a Mac warming in a bag reaches the fans at once.
 
-**How fast.** The fans run at the fastest of three rules:
+**How fast.** The fans run at the faster of two rules:
 
 - **The curve.** Standard has two points: by default the fans speed up from 40 °C and reach full speed at 70 °C (both settings). Advanced has five points you drag on a chart.
 - **The safety floor**, which ClamDown never goes under: from 70 °C the fans rise in a straight line to full speed at 95 °C.
-- **The case rule**, because the case can feel hot while the chips are only warm: the fans also follow the airflow sensors, from 0 % at 38 °C to full speed at 44 °C. Both temperatures can be changed on the Cooling page.
+
+There is no separate rule for the case. Version 0.1.3 had one, on the airflow sensors (full speed at 44 °C), but those sensors sit by the heatsink and follow the chips' load: they ran the fans at full speed at about 50 °C while the case felt cold.
 
 **Full speed whatever the rules say** when a CPU core sits at its limit (100 °C for 10 seconds), when the battery reaches 45 °C (until it has been under 43 °C for 30 seconds), or when macOS reports the Mac as hot.
 
@@ -82,7 +83,7 @@ When ClamDown cannot work until you do something, for example after macOS took t
 
 Six pages: General, Sleep, Protection, Cooling, Appearance and Helper.
 
-- The Cooling page has the Fan Control choice, the curve chart, the case rule's two temperatures, the hottest temperature and each sensor group's (as the curve follows them), each fan's speed and whether ClamDown or macOS controls the fans.
+- The Cooling page has the Fan Control choice, the curve chart, the hottest temperature and each sensor group's (as the curve follows them), each fan's speed and whether ClamDown or macOS controls the fans.
 - The Helper page shows the helper's state and can reinstall or remove it. Settings > Helper > Setup Assistant opens the setup assistant again.
 
 ## Updates

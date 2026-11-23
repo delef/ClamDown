@@ -32,41 +32,6 @@ public enum SafetyFloor {
     }
 }
 
-/// The case rule: the fans speed up with the airflow sensors, which follow the Mac's case, apart from the curve.
-/// A case can feel hot while the chips are only warm, so it gets its own, lower temperatures:
-/// 0 % at `start`, 100 % at `full`, a straight line in between.
-public struct CaseRamp: Codable, Equatable, Sendable {
-    public static let startRange = 30...50
-    public static let fullSpeedMaximum = 60
-    /// The full-speed point stays at least this many degrees above the start point.
-    public static let minimumSpan = 2
-    public static let defaultStart = 38
-    public static let defaultFull = 44
-    public static let standard = CaseRamp(start: defaultStart, full: defaultFull)
-
-    public var start: Int
-    public var full: Int
-
-    public init(start: Int, full: Int) {
-        self.start = start
-        self.full = full
-    }
-
-    /// Moves both temperatures to the nearest allowed values.
-    public func clamped() -> CaseRamp {
-        let start = FanPolicy.clamp(start, to: Self.startRange)
-        return CaseRamp(start: start, full: FanPolicy.clamp(full, to: (start + Self.minimumSpan)...Self.fullSpeedMaximum))
-    }
-
-    /// The speed in percent for this case temperature. Expects a clamped ramp.
-    public func speed(at temperature: Double) -> Double {
-        let start = Double(start), full = Double(full)
-        if temperature <= start { return 0 }
-        if temperature >= full { return 100 }
-        return (temperature - start) * 100 / (full - start)
-    }
-}
-
 /// What the app asks the helper to do with the fans: a curve of points over the temperature the helper follows
 /// (`FanDecision`, step 1).
 /// No points means fan control is switched off. The helper repairs the policy again before use.
@@ -77,13 +42,11 @@ public struct FanPolicy: Codable, Equatable, Sendable {
     public var points: [FanPoint]
     /// Leaves the fans to macOS while the lid is open.
     public var onlyWhenLidClosed: Bool
-    /// The case rule. Nil from apps older than the rule, which then does not apply.
-    public var caseRamp: CaseRamp?
 
-    public init(points: [FanPoint], onlyWhenLidClosed: Bool = true, caseRamp: CaseRamp? = nil) {
+    // A 0.1.3 app also sends `caseRamp`, the case rule this build dropped (see `FanDecision`); decoding ignores it.
+    public init(points: [FanPoint], onlyWhenLidClosed: Bool = true) {
         self.points = points
         self.onlyWhenLidClosed = onlyWhenLidClosed
-        self.caseRamp = caseRamp
     }
 
     /// True when ClamDown leaves the fans to macOS.
@@ -104,7 +67,6 @@ public struct FanPolicy: Codable, Equatable, Sendable {
             previous = fixed
             return fixed
         }
-        copy.caseRamp = caseRamp?.clamped()
         return copy
     }
 
@@ -125,12 +87,10 @@ public struct FanPolicy: Codable, Equatable, Sendable {
         return Double(last.speed)
     }
 
-    /// The speed in percent the fans run at: the highest of the curve, the safety floor and the case rule
-    /// (at `caseTemperature`, when there is one); 0 when off.
-    public func speed(at temperature: Double, caseTemperature: Double? = nil) -> Double {
+    /// The speed in percent the fans run at: the higher of the curve and the safety floor; 0 when off.
+    public func speed(at temperature: Double) -> Double {
         guard !isOff else { return 0 }
-        let forCase = caseTemperature.flatMap { celsius in caseRamp.map { $0.speed(at: celsius) } } ?? 0
-        let wanted = max(curveSpeed(at: temperature), SafetyFloor.speed(at: temperature), forCase)
+        let wanted = max(curveSpeed(at: temperature), SafetyFloor.speed(at: temperature))
         return min(max(wanted, Double(Self.speedRange.lowerBound)), Double(Self.speedRange.upperBound))
     }
 
@@ -148,7 +108,7 @@ public enum StandardCurve {
     public static let minimumSpan = 5
     // The curve starts early on purpose: a closed Mac in a bag has little airflow, and staying cool matters more than
     // quiet. At idle on the owner's M3 Pro the followed temperature (CPU zone about 42 °C, Wi-Fi and case about 36)
-    // sits a little above 40 °C, so the fans run a little above their minimum; the case rule takes over in a bag.
+    // sits a little above 40 °C, so the fans run a little above their minimum.
     public static let defaultStart = 40
     public static let defaultFull = 70
 

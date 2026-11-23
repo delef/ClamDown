@@ -23,7 +23,7 @@ No more carrying the laptop half-open with a thumb in the hinge, and no paid clo
 **Everything a closed laptop needs, in one app:**
 
 - **Stays awake with the lid shut.** Agents, terminals, browsers, SSH sessions and downloads keep running.
-- **Keeps it cool.** Drives the fans while the lid is closed, where macOS would leave them near idle. It reads the chips the way macOS does, so a few seconds of load do not make the fans roar, and it watches the case and the battery, so a Mac in a bag still gets full speed.
+- **Keeps it cool.** Drives the fans while the lid is closed, where macOS would leave them near idle. It reads the chips the way macOS does, so a few seconds of load do not make the fans roar, and it watches the battery, SSD and Wi-Fi sensors too, so a Mac in a bag still gets full speed.
 - **Keeps it locked.** Locks the screen the moment the lid closes.
 - **Knows when to stop.** Switches itself off and lets the Mac sleep before a low battery or high heat becomes a problem, or when your timer ends.
 - **Can't get stuck on.** A root helper with a watchdog puts sleep, Low Power Mode and the fans back if the app quits, crashes or stops responding.

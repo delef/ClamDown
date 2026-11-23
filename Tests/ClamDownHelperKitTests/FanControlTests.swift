@@ -531,17 +531,6 @@ import ClamDownShared
         #expect(fans.targets == [[4200]])
     }
 
-    @Test func warmCaseSpeedsUpTheFansBelowTheCurve() async throws {
-        let fans = FakeFans(temperature: 45)
-        fans.set(group: .cpu, 45)
-        fans.set(group: .airflow, 41)
-        let (core, _) = try await enabled(fans: fans)
-        let policy = FanPolicy(points: standard.points, onlyWhenLidClosed: true, caseRamp: .standard)
-        try await core.setFanPolicy(policy, now: at(0))
-        #expect(fans.targets == [[3000]])  // 50 % from the case at 41 °C; the curve alone gives 0 % at 45 °C
-        #expect(await core.coolingStatus().override == nil)
-    }
-
     @Test func hotBatteryRunsFullSpeedAtOnce() async throws {
         let fans = FakeFans(temperature: 40)
         fans.set(group: .battery, 45)
@@ -799,7 +788,7 @@ import ClamDownShared
         try await core.setFanPolicy(curve, now: at(62))
         #expect(await core.coolingStatus().control == .stopped)
         var changed = curve
-        changed.caseRamp = .standard
+        changed.points.append(.init(temperature: 90, speed: 100))
         try await core.setFanPolicy(changed, now: at(63))
         #expect(fans.targets == [[3000]])
         #expect(await core.coolingStatus().control == .controlling)

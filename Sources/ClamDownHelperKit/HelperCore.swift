@@ -472,8 +472,7 @@ public actor HelperCore {
             return
         }
         let override = FanDecision.override(observation, systemLevel: thermal?.thermalLevel())
-        let percent = FanDecision.percent(policy: policy, temperature: temperature,
-                                          airflow: reading.groupTemperatures[.airflow], override: override)
+        let percent = FanDecision.percent(policy: policy, temperature: temperature, override: override)
         let maxDrop = FanDecision.allowedDrop(after: fanTargetsWritten.map { $0.duration(to: now) },
                                               step: fanStepDown, interval: fanStepInterval)
         let targets = FanDecision.targets(percent: percent, fans: reading.fans, previous: fanTargets, maxDrop: maxDrop)
