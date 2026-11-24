@@ -82,6 +82,8 @@ public actor HelperCore {
     private var fanIdle = true
     /// Why the last hand-back to macOS failed, until one succeeds.
     private var releaseProblem: String?
+    /// The hand-back failure last written down, with what was done meanwhile.
+    private var releaseEntry: String?
     /// Why the last switch-off failed, until one succeeds. The watchdog retries it on every tick, so only a new one
     /// is written down.
     private var switchOffProblem: String?
@@ -121,8 +123,10 @@ public actor HelperCore {
 
     /// `owner` is the app connection that asked; see `connectionClosed`. Nil for callers without one.
     public func enable(lowPowerOnBattery: Bool, owner: UUID? = nil, now: SuspendingClock.Instant = .now) throws {
-        // The app is back, so the sleep an earlier watchdog switch-off owed is off.
+        // The app is back, so the sleep an earlier watchdog switch-off owed is off, and a switch-off that fails again
+        // is a new episode worth writing down.
         owedSleep = nil
+        switchOffProblem = nil
         // A new Turn On: fan control starts afresh.
         health.restart()
         if enabled {
@@ -662,14 +666,17 @@ public actor HelperCore {
             try hardware.releaseFans()
         } catch {
             let problem = "Could not hand the fans back to macOS: \(error)"
+            let meanwhile = runHeldFansAtMaximum(hardware)
             // Tried on every tick: only a new problem is written down.
-            if problem != releaseProblem { journal?.failure(.fans, "\(problem); running them at full speed meanwhile") }
+            let entry = "\(problem); \(meanwhile)"
+            if entry != releaseEntry { journal?.failure(.fans, entry) }
             releaseProblem = problem
-            runHeldFansAtMaximum(hardware)
+            releaseEntry = entry
             return
         }
         journal?.change(.fans, "handed the fans back to macOS because \(cause)")
         releaseProblem = nil
+        releaseEntry = nil
         fansHeld = false
         fanTargets = nil
         lagWatch = LagWatch()
@@ -678,20 +685,26 @@ public actor HelperCore {
 
     /// Best effort: sets every fan still in manual mode to its maximum. A fan macOS already has is left to macOS:
     /// taking it back could block the tick for seconds and fight macOS on every tick.
-    /// The take-over stays on disk, because the fans are still held.
-    private func runHeldFansAtMaximum(_ hardware: FanHardware) {
+    /// The take-over stays on disk, because the fans are still held. Returns what it did, for the journal; a failure
+    /// is retried with the hand-back on the next tick.
+    private func runHeldFansAtMaximum(_ hardware: FanHardware) -> String {
+        let reading = Result { try hardware.read() }
         let maxima: [Double]?
-        if let reading = try? hardware.read(), isComplete(reading, hardware) {
+        if case .success(let reading) = reading, isComplete(reading, hardware) {
             maxima = reading.fans.map(\.maximum)
         } else {
             maxima = knownFanMaxima
         }
-        guard let maxima, maxima.count == hardware.fanCount else { return }
+        guard let maxima, maxima.count == hardware.fanCount else {
+            let why = if case .failure(let error) = reading { "the fans cannot be read (\(error))" } else { "the reading misses a fan" }
+            return "cannot run them at full speed meanwhile: \(why), and their maximum is not known"
+        }
         do {
             try hardware.setTargetsIfHeld(maxima)
             fanTargets = maxima
+            return "running them at full speed meanwhile"
         } catch {
-            // The hand-back is retried on the next tick, and this with it.
+            return "could not run them at full speed meanwhile either: \(error)"
         }
     }
 
