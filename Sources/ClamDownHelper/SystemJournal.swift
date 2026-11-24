@@ -1,6 +1,7 @@
 import Foundation
 import os
 import ClamDownHelperKit
+import ClamDownShared
 
 /// The helper's journal on a real Mac: changes and failures go to the system log, subsystem `app.clamdown`, one
 /// category per topic, at levels macOS keeps on disk for days (`notice`, `error`); fan ticks go to `FanTraceFile`.
@@ -29,7 +30,7 @@ final class SystemJournal: HelperJournal, @unchecked Sendable {
             try trace.append(tick, at: Date())
             problem = nil
         } catch {
-            problem = "could not write the fan trace: \(error)"
+            problem = "fan trace: \(error)"
         }
         lock.lock()
         let isNew = problem != nil && problem != traceProblem
@@ -39,6 +40,6 @@ final class SystemJournal: HelperJournal, @unchecked Sendable {
     }
 
     private static func logger(_ topic: JournalTopic) -> Logger {
-        Logger(subsystem: "app.clamdown", category: topic.rawValue)
+        Logger(subsystem: Identifiers.logSubsystem, category: topic.rawValue)
     }
 }

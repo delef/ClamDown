@@ -4,15 +4,15 @@ import Combine
 import Foundation
 import os
 
-/// What a Turn On did and when, for Console: `log stream --predicate 'subsystem == "app.clamdown"'`.
-// The app's journal in the system log, read with `log show --predicate 'subsystem == "app.clamdown"'`. Changes are
-// `notice` and failures `error`, which macOS keeps on disk for days; `info` stays in memory only, so it is kept for
-// what repeats on a timer. See "Logs" in docs/development.md.
-let turnOnLog = Logger(subsystem: "app.clamdown", category: "turn-on")
+// The app's journal in the system log. Changes are `notice` and failures `error`, which macOS keeps on disk for days;
+// `info` stays in memory only, so it is kept for what repeats on a timer. See "Logs" in docs/development.md.
+
+/// What a Turn On did and when.
+let turnOnLog = Logger(subsystem: Identifiers.logSubsystem, category: "turn-on")
 /// Switching on and off, with who or what asked, and the sleep ClamDown asks for after a protective switch-off.
-private let modeLog = Logger(subsystem: "app.clamdown", category: "mode")
+private let modeLog = Logger(subsystem: Identifiers.logSubsystem, category: "mode")
 /// What the app tells the user about fan control, and the policies the helper did not take.
-private let fanLog = Logger(subsystem: "app.clamdown", category: "fans")
+private let fanLog = Logger(subsystem: Identifiers.logSubsystem, category: "fans")
 
 public enum SwitchState: Equatable {
     case off
@@ -332,10 +332,13 @@ public final class ClamDownController: ObservableObject {
     public func sendHeartbeat() async {
         guard state.isOn else { return }
         let stillOn: Bool
+        let cause: String
         do {
             stillOn = try await askHelper(limit: heartbeatLimit) { try await $0.heartbeat() }
+            cause = "the helper says the mode is off"
         } catch {
             stillOn = false
+            cause = "the helper did not answer the heartbeat: \(Self.describe(error))"
         }
         if stillOn {
             if fanPolicyUnconfirmed { await applyFanPolicy() }
@@ -343,7 +346,7 @@ public final class ClamDownController: ObservableObject {
             return
         }
         guard state.isOn else { return }
-        modeLog.error("off: the helper says the mode is off, or did not answer the heartbeat")
+        modeLog.error("off: \(cause, privacy: .public)")
         finishOff()
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
@@ -958,7 +961,11 @@ public final class ClamDownController: ObservableObject {
             present(fanAlert.reset())
             return
         }
-        let status = try? await askHelper { try await $0.coolingStatus() }
+        let status: CoolingStatus?
+        do { status = try await askHelper { try await $0.coolingStatus() } } catch {
+            fanLog.info("no fan status from the helper: \(Self.describe(error), privacy: .public)")
+            status = nil
+        }
         // The mode or the switch may have changed while the helper answered.
         guard drivesFans else {
             present(fanAlert.reset())

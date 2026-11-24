@@ -1,7 +1,8 @@
+import ClamDownShared
 import Foundation
 import os
 
-private let settingsLog = Logger(subsystem: "app.clamdown", category: "settings")
+private let settingsLog = Logger(subsystem: Identifiers.logSubsystem, category: "settings")
 
 public protocol SettingsStoring: AnyObject {
     func load() -> Settings

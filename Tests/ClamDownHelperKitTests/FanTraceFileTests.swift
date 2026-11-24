@@ -87,9 +87,14 @@ import ClamDownShared
         defer { try? FileManager.default.removeItem(at: directory) }
         let trace = FanTraceFile(directory: directory, maxFileBytes: 1_000)
         let time = Date(timeIntervalSince1970: 1_800_000_000)
+        var refusals: [String] = []
         for second in 0..<100 {
-            try trace.append(Self.tick, at: time.addingTimeInterval(Double(second)))
+            do { try trace.append(Self.tick, at: time.addingTimeInterval(Double(second))) } catch {
+                refusals.append("\(error)")
+            }
         }
+        // Said once, not on every tick of the hour.
+        #expect(refusals == ["\(FanTraceFile.fileName(for: time)) is full; the rest of this hour is not written"])
         let name = try #require(try Self.files(in: directory).first)
         let size = try #require(try FileManager.default.attributesOfItem(
             atPath: directory.appendingPathComponent(name).path)[.size] as? Int)

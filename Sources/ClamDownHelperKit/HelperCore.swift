@@ -82,6 +82,9 @@ public actor HelperCore {
     private var fanIdle = true
     /// Why the last hand-back to macOS failed, until one succeeds.
     private var releaseProblem: String?
+    /// Why the last switch-off failed, until one succeeds. The watchdog retries it on every tick, so only a new one
+    /// is written down.
+    private var switchOffProblem: String?
     /// Every rule that decides the fan speed, with its averages and watches; started afresh whenever the helper is
     /// not asked to drive the fans.
     private var decision = FanDecision()
@@ -219,9 +222,12 @@ public actor HelperCore {
             do { try exec(.setBatteryLowPowerMode(prior)) } catch { firstError = firstError ?? error }
         }
         if let firstError {
-            journal?.failure(.mode, "could not switch off (\(cause)): \(firstError); the mode stays on")
+            let problem = "could not switch off (\(cause)): \(firstError); the mode stays on"
+            if problem != switchOffProblem { journal?.failure(.mode, problem) }
+            switchOffProblem = problem
             throw firstError
         }
+        switchOffProblem = nil
         journal?.change(.mode, "off: \(cause); sleep disabled back to \(priorSleepDisabled ?? false)"
             + (priorBatteryLowPower.map { ", Low Power Mode on battery back to \($0)" } ?? ""))
         markSwitchedOff()
@@ -733,7 +739,13 @@ public actor HelperCore {
     /// install, must not win. After a session that was never undone the record stays, because the current values may
     /// be ClamDown's. An unreadable record (a damaged file) is always replaced, so it can never stop the switch-on.
     private func recordOriginalSettings(sleepDisabled: Bool, batteryLowPowerMode: Bool?, replacing: Bool) throws {
-        if !replacing, let existing = try? originals.load(), existing != nil { return }
+        if !replacing {
+            do {
+                if try originals.load() != nil { return }
+            } catch {
+                journal?.failure(.storage, "the settings from before ClamDown cannot be read (\(error)); recording them afresh")
+            }
+        }
         try originals.save(OriginalSettings(
             sleepDisabled: sleepDisabled,
             batteryLowPowerMode: batteryLowPowerMode,

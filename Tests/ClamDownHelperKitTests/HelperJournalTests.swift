@@ -44,4 +44,26 @@ import ClamDownSensors
         // Every tick that read the sensors is in the trace, the failed one too.
         #expect(journal.ticks.map(\.outcome) == [.set, .set, .set, .fault])
     }
+
+    /// The watchdog retries a failed switch-off, and every tick retries a failed hand-back: each is written once,
+    /// not every three seconds.
+    @Test func aFailureRetriedOnEveryTickIsWrittenOnce() async throws {
+        let fans = FakeFans(temperature: 70)
+        fans.followsTargets = true
+        let runner = FakeRunner()
+        let journal = RecordingJournal()
+        let core = HelperCore(runner: runner, store: FakeStore(), originals: FakeOriginalStore(), fans: fans,
+                              watchdogTimeout: .seconds(90), journal: journal)
+        try await core.enable(lowPowerOnBattery: false, now: at(0))
+        try await core.setFanPolicy(FanPolicy(points: [.init(temperature: 60, speed: 50)], onlyWhenLidClosed: true), now: at(0))
+        runner.fail(.setSleepDisabled(false))
+        fans.failRelease()
+        fans.set(lidClosed: false)
+        for tick in 0..<3 {
+            _ = await core.checkWatchdog(now: at(91 + 3 * tick))
+            await core.updateFans(now: at(91 + 3 * tick))
+        }
+        #expect(journal.entries.filter { $0.hasPrefix("mode failure: could not switch off") }.count == 1)
+        #expect(journal.entries.filter { $0.contains("Could not hand the fans back") }.count == 1)
+    }
 }

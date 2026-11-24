@@ -9,6 +9,20 @@ import ClamDownShared
 /// costs the disk nothing that matters. Files older than `keep` are deleted when a new hour starts, and an hour stops
 /// growing at `maxFileBytes`, so a root process can never fill the disk with it.
 public final class FanTraceFile: @unchecked Sendable {
+    public enum Problem: Error, CustomStringConvertible {
+        /// The hour reached `maxFileBytes`; its later ticks are not written. Thrown once per hour.
+        case hourFull(String)
+        /// The tick was written, but old files could not be deleted. The next hour tries again.
+        case pruneFailed(Error)
+
+        public var description: String {
+            switch self {
+            case .hourFull(let name): "\(name) is full; the rest of this hour is not written"
+            case .pruneFailed(let error): "could not delete old trace files: \(error)"
+            }
+        }
+    }
+
     public static let defaultKeep: Duration = .seconds(24 * 3600)
     /// About ten times what an hour of three-second ticks takes.
     public static let defaultMaxFileBytes: UInt64 = 2_000_000
@@ -19,6 +33,7 @@ public final class FanTraceFile: @unchecked Sendable {
     private let lock = NSLock()
     private var handle: FileHandle?
     private var hour: String?
+    private var hourFull = false
 
     public init(directory: URL, keep: Duration = defaultKeep, maxFileBytes: UInt64 = defaultMaxFileBytes) {
         self.directory = directory
@@ -48,13 +63,17 @@ public final class FanTraceFile: @unchecked Sendable {
             hour = nil
             handle = try open(name)
             hour = name
+            hourFull = false
             do { try prune(before: time.addingTimeInterval(-Double(keep.components.seconds))) } catch { pruneError = error }
         }
         if let handle, try handle.offset() < maxFileBytes {
             try handle.write(contentsOf: Data((Self.row(tick, at: time) + "\n").utf8))
+        } else if !hourFull {
+            hourFull = true
+            throw Problem.hourFull(name)
         }
         // The tick is written first: old files left over are no reason to lose it. The next hour prunes again.
-        if let pruneError { throw pruneError }
+        if let pruneError { throw Problem.pruneFailed(pruneError) }
     }
 
     /// The file for the hour of `time`, created with the header when new.

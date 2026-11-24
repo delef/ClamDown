@@ -41,7 +41,7 @@ import ClamDownShared
     }
 
     /// Two fans with the range of a 14-inch MacBook Pro.
-    static let fanRange = (minimum: 1350.0, maximum: 5350.0)
+    private static let fanRange = (minimum: 1350.0, maximum: 5350.0)
 
     /// Replays `samples` through a helper that drives two fans with `policy`, one reading a second, and hands each
     /// second's sample, the helper's status and the fan targets to `check`.
