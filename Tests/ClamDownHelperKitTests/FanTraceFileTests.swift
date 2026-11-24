@@ -82,6 +82,31 @@ import ClamDownShared
         #expect(names.first == FanTraceFile.fileName(for: start.addingTimeInterval(5 * 3600)))
     }
 
+    @Test func anHourWrittenByAnotherVersionGoesOnInAFileOfItsOwn() throws {
+        let directory = Self.makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let time = Date(timeIntervalSince1970: 1_800_000_000)
+        func put(_ name: String, _ text: String) throws {
+            try text.write(to: directory.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+        let older = "timestamp,cpu\n2027-01-15T09:00:00+01:00,60.0\n"
+        try put(FanTraceFile.fileName(for: time), older)
+        // Second files of the oldest hour kept and of the hour before it.
+        let kept = FanTraceFile.fileName(for: time.addingTimeInterval(-24 * 3600), part: 2)
+        try put(kept, older)
+        try put(FanTraceFile.fileName(for: time.addingTimeInterval(-25 * 3600), part: 2), older)
+
+        try FanTraceFile(directory: directory).append(Self.tick, at: time)
+
+        let current = FanTraceFile.fileName(for: time, part: 2)
+        #expect(try Self.files(in: directory) == [kept, FanTraceFile.fileName(for: time), current].sorted())
+        #expect(try String(contentsOf: directory.appendingPathComponent(FanTraceFile.fileName(for: time)),
+                           encoding: .utf8) == older)
+        let rows = try SensorTraceTests.load(contentsOf: directory.appendingPathComponent(current))
+        #expect(rows.map(\.groups) == [Self.tick.groups])
+    }
+
     @Test func anHourStopsGrowingAtItsLimit() throws {
         let directory = Self.makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
