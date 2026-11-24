@@ -28,6 +28,14 @@ The helper only talks to an app signed with the same Team ID as itself, so a bui
 - The sensor tests replay real SMC key dumps from `Tests/ClamDownSensorsTests/Fixtures`; `.build/debug/ClamDownFanProbe keys "<machine>"` takes a new one without root.
 - The helper tests replay real sensor recordings from `Tests/ClamDownHelperKitTests/Fixtures`; `.build/debug/ClamDownFanProbe sensors <seconds>` records one without root and without touching the fans. Add a recording of every new situation, such as a Mac in a bag.
 
+## Logs
+
+ClamDown writes down what it changes and why, so a problem on a user's Mac can be traced afterwards. Up to 0.2.0 it kept nothing: the helper wrote its few errors to stderr, which launchd sends nowhere, and the app logged at `info`, which macOS keeps in memory only. A look at a Mac running 0.2.0 with the lid closed could see the fans now, not what they had done for the two hours before (agent, 2026-11-23). The agent proposed the two records below and the owner agreed: «Да» (owner, 2026-11-24).
+
+- **The system log**, subsystem `app.clamdown`, for changes and failures: the mode switching on or off with who or what asked, who drives the fans and why that changed, faults, full-speed overrides, recovery, the sleep owed to an abandoned Mac, the turn-on steps and what the user was told. Changes are `notice` and failures `error`, the levels macOS keeps on disk for some days; `info` is only for what repeats on a timer. Each entry is written when something changes, never on every tick, and carries its cause and the values behind it. The helper's categories are `JournalTopic`; the app's are `turn-on`, `mode` and `fans`. Read it with `log show --predicate 'subsystem == "app.clamdown"' --last 3d --info`.
+- **The fan trace**, `/Library/Logs/ClamDown/fans-<UTC hour>.csv`: every fan tick's readings, the temperature the curve followed, the speed asked for, the override, each fan's speed and target, and what the tick did. One file per hour, the last 24 hours kept, an hour capped at 2 MB (`FanTraceFile`). Its first columns are a sensor recording's, so a trace copied into `Tests/ClamDownHelperKitTests/Fixtures` replays in `SensorTraceTests` as it is. The system log was rejected for this (agent, 2026-11-24): about 29,000 lines a day would push the changes out, and they would not replay.
+- Every value in both is public: temperatures, speeds, settings and error codes say nothing about the user. An error is never dropped with `try?`; write it down where it happens, once per new problem when it repeats on every tick.
+
 ## Release
 
 1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist.template`. Sparkle compares `CFBundleVersion`, so it must grow with every release.

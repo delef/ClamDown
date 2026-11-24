@@ -5,7 +5,14 @@ import Foundation
 import os
 
 /// What a Turn On did and when, for Console: `log stream --predicate 'subsystem == "app.clamdown"'`.
+// The app's journal in the system log, read with `log show --predicate 'subsystem == "app.clamdown"'`. Changes are
+// `notice` and failures `error`, which macOS keeps on disk for days; `info` stays in memory only, so it is kept for
+// what repeats on a timer. See "Logs" in docs/development.md.
 let turnOnLog = Logger(subsystem: "app.clamdown", category: "turn-on")
+/// Switching on and off, with who or what asked, and the sleep ClamDown asks for after a protective switch-off.
+private let modeLog = Logger(subsystem: "app.clamdown", category: "mode")
+/// What the app tells the user about fan control, and the policies the helper did not take.
+private let fanLog = Logger(subsystem: "app.clamdown", category: "fans")
 
 public enum SwitchState: Equatable {
     case off
@@ -258,14 +265,17 @@ public final class ClamDownController: ObservableObject {
         }
         // Time-limited: a helper launchd will not start never answers, and Always must still get going.
         if !state.isOn, let leftover = try? await askHelper({ try await $0.isEnabled() }), leftover {
-            _ = try? await askHelper(limit: switchOffLimit) { try await $0.disable() }
+            modeLog.notice("the helper still had the mode on from an earlier run: switching it off")
+            do { _ = try await askHelper(limit: switchOffLimit) { try await $0.disable() } } catch {
+                modeLog.error("could not switch off the earlier run's mode: \(Self.describe(error), privacy: .public)")
+            }
         }
         await tendIdleCooling()
     }
 
     public func toggle() async {
         if state.isOn {
-            await turnOff()
+            await turnOff(because: "the user turned it off")
         } else {
             await performTurnOn(duration: settings.autoOffTimer.duration)
         }
@@ -333,6 +343,7 @@ public final class ClamDownController: ObservableObject {
             return
         }
         guard state.isOn else { return }
+        modeLog.error("off: the helper says the mode is off, or did not answer the heartbeat")
         finishOff()
         // The helper also goes quiet when macOS stops it, for example after its approval is switched off in Login Items.
         refreshHelperAvailability()
@@ -394,6 +405,7 @@ public final class ClamDownController: ObservableObject {
             return
         }
         settings = candidate
+        if candidate != previous { modeLog.notice("settings: \(String(describing: candidate), privacy: .public)") }
         if state.isOn, settings.autoLowPowerOnBattery != previous.autoLowPowerOnBattery {
             do {
                 try await helper.setLowPowerOnBattery(settings.autoLowPowerOnBattery)
@@ -440,7 +452,7 @@ public final class ClamDownController: ObservableObject {
         shuttingDown = true
         monitor.stop()
         stopIdleCoolingLoop()
-        if state.isOn { await turnOff() }
+        if state.isOn { await turnOff(because: "the app quits") }
         await endIdleCooling()
     }
 
@@ -456,7 +468,7 @@ public final class ClamDownController: ObservableObject {
         helperBusy = true
         defer { helperBusy = false }
         if state.isOn {
-            await turnOff()
+            await turnOff(because: "the helper is set up again or removed")
             guard !state.isOn else { return }
         }
         notice = nil
@@ -485,7 +497,7 @@ public final class ClamDownController: ObservableObject {
     public func refreshHelperAvailability() {
         let current = registrar.availability()
         if current != helperAvailability {
-            turnOnLog.info("SMAppService: \(String(describing: current), privacy: .public)")
+            turnOnLog.notice("SMAppService: \(String(describing: current), privacy: .public)")
             helperAvailability = current
         }
         // The user approved the helper without pressing Turn On again: nothing is waiting on them any more.
@@ -534,7 +546,7 @@ public final class ClamDownController: ObservableObject {
         helperBusy = true
         defer { helperBusy = false }
         if state.isOn {
-            await turnOff()
+            await turnOff(because: "the helper is set up again or removed")
             guard !state.isOn else { return }
         }
         // A helper that answers with a failure stays, so the user can try again. One that cannot be reached
@@ -570,13 +582,13 @@ public final class ClamDownController: ObservableObject {
         await waitForBackgroundHelperSync()
         guard !helperBusy else { return }
         helperBusy = true
-        turnOnLog.info("turn on")
+        turnOnLog.notice("turn on")
         turnOnStep = .starting
         registeredThisTurnOn = false
         defer {
             helperBusy = false
             turnOnStep = nil
-            turnOnLog.info("turn on ended: \(String(describing: self.state), privacy: .public)")
+            turnOnLog.notice("turn on ended: \(String(describing: self.state), privacy: .public)")
         }
         notice = nil
         // The user is back and acting, so an undelivered "why the Mac slept" is old news.
@@ -587,6 +599,7 @@ public final class ClamDownController: ObservableObject {
         guard show(preparation) else { return }
         batteryHeat.reset()
         if let reason = autoOffReason() {
+            modeLog.notice("not turned on: \(String(describing: reason), privacy: .public)")
             let text = reason.notTurnedOnText
             state = .off
             announce(text)
@@ -605,6 +618,7 @@ public final class ClamDownController: ObservableObject {
             return
         }
         activity.begin()
+        modeLog.notice("on, \(duration.map { "for \($0)" } ?? "until switched off", privacy: .public)")
         state = .on
         startHeartbeatLoop()
         startAutoOffTimer(duration)
@@ -629,6 +643,7 @@ public final class ClamDownController: ObservableObject {
             fanPolicyUnconfirmed = true
             // A retry that fails too says nothing new.
             guard !retry else { return }
+            fanLog.error("the helper did not take the fan policy: \(Self.describe(error), privacy: .public)")
             let text = String(localized: "Could not control the fans: \(Self.describe(error))")
             notice = text
             fanFailureNotice = text
@@ -663,7 +678,7 @@ public final class ClamDownController: ObservableObject {
                 try await enableHelper()
                 return .started
             } catch {
-                turnOnLog.info("first request: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
+                turnOnLog.notice("first request: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
                 // The helper answered with a failure of its own: waiting changes nothing.
                 guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
             }
@@ -732,7 +747,7 @@ public final class ClamDownController: ObservableObject {
     /// before it asks for approval. Neither waiting nor registering again helps: the user is sent to Login Items,
     /// and the Turn On is remembered until launchd starts the helper.
     private func refusedByLaunchd() -> ModeStart {
-        turnOnLog.info("launchd refuses the helper: needs Login Items")
+        turnOnLog.notice("launchd refuses the helper: needs Login Items")
         launchdRefusesHelper = true
         return .stopped(.needsApproval)
     }
@@ -763,7 +778,7 @@ public final class ClamDownController: ObservableObject {
                 try? await Task.sleep(for: limit)
                 // First, so that the cancelled request's own error comes too late to count.
                 if once.resume(with: .failure(HelperClientError.connection(XPCHelperClient.noAnswer))) {
-                    turnOnLog.info("no answer within \(String(describing: limit), privacy: .public)")
+                    turnOnLog.notice("no answer within \(String(describing: limit), privacy: .public)")
                 }
                 work.cancel()
             }
@@ -774,17 +789,17 @@ public final class ClamDownController: ObservableObject {
     private func tryHelperOnce() async -> ModeStart? {
         let availability = registrar.availability()
         guard availability == .ready else {
-            turnOnLog.info("look: availability \(String(describing: availability), privacy: .public)")
+            turnOnLog.notice("look: availability \(String(describing: availability), privacy: .public)")
             helperAvailability = availability
             return .stopped(Self.preparation(for: availability))
         }
         let start = ContinuousClock.now
         do {
             try await enableHelper()
-            turnOnLog.info("look: helper answered after \(String(describing: ContinuousClock.now - start), privacy: .public)")
+            turnOnLog.notice("look: helper answered after \(String(describing: ContinuousClock.now - start), privacy: .public)")
             return .started
         } catch {
-            turnOnLog.info("look: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
+            turnOnLog.notice("look: no answer after \(String(describing: ContinuousClock.now - start), privacy: .public)")
             guard Self.isSilence(error) else { return .stopped(.failed(Self.describe(error))) }
             return nil
         }
@@ -806,8 +821,10 @@ public final class ClamDownController: ObservableObject {
     private func launchFailed() async -> Bool {
         guard let jobReader else { return false }
         let state = await jobReader.state()
+        // Asked on every look while the helper is silent, so only a refusal is kept.
         turnOnLog.info("launchd: \(String(describing: state), privacy: .public)")
         guard case .spawnFailed = state else { return false }
+        turnOnLog.error("launchd could not start the helper: \(String(describing: state), privacy: .public)")
         return true
     }
 
@@ -824,10 +841,12 @@ public final class ClamDownController: ObservableObject {
         return AutoOffPolicy.reason(for: snapshot, settings: settings, batteryHeat: heat)
     }
 
-    private func turnOff() async {
+    private func turnOff(because cause: String) async {
         do {
             try await askHelper(limit: switchOffLimit) { try await $0.disable() }
+            modeLog.notice("off: \(cause, privacy: .public)")
         } catch {
+            modeLog.error("could not turn off (\(cause, privacy: .public)): \(Self.describe(error), privacy: .public)")
             // The helper may still be keeping the Mac awake, so the switch keeps showing "on".
             notice = String(localized: "Could not turn off: \(Self.describe(error))")
             return
@@ -841,6 +860,10 @@ public final class ClamDownController: ObservableObject {
         } catch {
             // Another switch-off may have finished while this one waited for the helper.
             guard state.isOn else { return }
+            modeLog.error("""
+                off by itself (\(String(describing: reason), privacy: .public)), but the helper did not confirm: \
+                \(Self.describe(error), privacy: .public); its watchdog puts everything back
+                """)
             // Stop the heartbeat on purpose: the helper's own watchdog then resets the Mac within about 90 seconds.
             finishOff()
             let unconfirmed = String(localized: "The helper did not confirm, so it will reset by itself within 90 seconds.")
@@ -851,6 +874,7 @@ public final class ClamDownController: ObservableObject {
         guard state.isOn else { return }
         finishOff()
         let attendance = forcesSleep(after: reason) ? attendance() : .attended
+        modeLog.notice("off by itself: \(String(describing: reason), privacy: .public); \(String(describing: attendance), privacy: .public)")
         let outcome = attendance == .unattended
             ? String(localized: "The Mac is going to sleep.") : String(localized: "The Mac can sleep now.")
         announce(String.sentences(reason.turnedOffText, outcome))
@@ -894,6 +918,7 @@ public final class ClamDownController: ObservableObject {
 
     private func requestSleep() {
         sleepRequests += 1
+        modeLog.notice("asked macOS to sleep: nobody is at the Mac (request \(self.sleepRequests))")
         pendingWakeReport?.forced = true
         sleeper?.sleepNow()
     }
@@ -947,6 +972,7 @@ public final class ClamDownController: ObservableObject {
         case .none:
             break
         case .show(let line, let notify):
+            fanLog.notice("told the user: \(line, privacy: .public)")
             fanControlLine = line
             if notify, settings.notificationsEnabled {
                 notifier.post(title: String(localized: "ClamDown"), body: line)
@@ -1083,7 +1109,7 @@ public final class ClamDownController: ObservableObject {
             try await askHelper { try await $0.setFanPolicy(policy) }
             return true
         } catch {
-            turnOnLog.info("fan-only session: \(Self.describe(error), privacy: .public)")
+            fanLog.error("fan-only session: the helper did not take the policy: \(Self.describe(error), privacy: .public)")
             return false
         }
     }
@@ -1146,10 +1172,10 @@ public final class ClamDownController: ObservableObject {
             do {
                 try registrar.register()
                 registeredThisTurnOn = true
-                turnOnLog.info("registered")
+                turnOnLog.notice("registered")
             } catch {
                 let afterAttempt = registrar.availability()
-                turnOnLog.info("registration refused: \((error as NSError).code, privacy: .public), availability \(String(describing: afterAttempt), privacy: .public)")
+                turnOnLog.error("registration refused: \((error as NSError).code, privacy: .public), availability \(String(describing: afterAttempt), privacy: .public)")
                 // Registering can throw when approval is pending; that is not a failure.
                 // An unavailable helper keeps its own message below, which says more than the registration error.
                 if afterAttempt != .requiresApproval, !afterAttempt.isUnavailable {
@@ -1210,7 +1236,7 @@ public final class ClamDownController: ObservableObject {
     /// Moves a running Turn On to its next step. Preparing the helper for the setup assistant is not a Turn On.
     private func advance(to step: TurnOnStep) {
         guard turnOnStep != nil else { return }
-        turnOnLog.info("step \(String(describing: step), privacy: .public)")
+        turnOnLog.notice("step \(String(describing: step), privacy: .public)")
         turnOnStep = step
     }
 
@@ -1241,10 +1267,10 @@ public final class ClamDownController: ObservableObject {
             await pause(quietTime)
             do {
                 try registrar.register()
-                turnOnLog.info("registered again after \(String(describing: quietTime), privacy: .public)")
+                turnOnLog.notice("registered again after \(String(describing: quietTime), privacy: .public)")
                 return
             } catch {
-                turnOnLog.info("registration refused: \((error as NSError).code, privacy: .public)")
+                turnOnLog.error("registration refused: \((error as NSError).code, privacy: .public)")
                 if registrar.availability() == .requiresApproval { return }
                 refusal = error
             }
