@@ -1,5 +1,6 @@
 public enum Identifiers {
-    /// The system log's subsystem for the app and the helper: `log show --predicate 'subsystem == "app.clamdown"'`.
+    /// The system log's subsystem for the app and the helper:
+    /// `/usr/bin/log show --predicate 'subsystem == "app.clamdown"'`.
     /// Fixed, not the bundle identifier, so one predicate finds every build's entries.
     public static let logSubsystem = "app.clamdown"
 
