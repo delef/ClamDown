@@ -18,7 +18,11 @@ import ClamDownShared
     }
 
     static func load(_ name: String) throws -> [Sample] {
-        let url = try #require(Bundle.module.url(forResource: name, withExtension: "csv", subdirectory: "Fixtures"))
+        try load(contentsOf: #require(Bundle.module.url(forResource: name, withExtension: "csv", subdirectory: "Fixtures")))
+    }
+
+    /// A recording, or a trace the helper wrote (`FanTraceFile`), which starts with the same columns.
+    static func load(contentsOf url: URL) throws -> [Sample] {
         let lines = try String(contentsOf: url, encoding: .utf8).split(whereSeparator: \.isNewline)
         let header = try #require(lines.first).split(separator: ",", omittingEmptySubsequences: false).map(String.init)
         return lines.dropFirst().map { line in
@@ -37,18 +41,19 @@ import ClamDownShared
     }
 
     /// Two fans with the range of a 14-inch MacBook Pro.
-    private static let fanRange = (minimum: 1350.0, maximum: 5350.0)
+    static let fanRange = (minimum: 1350.0, maximum: 5350.0)
 
     /// Replays `samples` through a helper that drives two fans with `policy`, one reading a second, and hands each
     /// second's sample, the helper's status and the fan targets to `check`.
-    private static func replay(_ samples: [Sample], policy: FanPolicy,
-                               check: (Int, Sample, CoolingStatus, [Double]) throws -> Void) async throws {
+    static func replay(_ samples: [Sample], policy: FanPolicy, journal: HelperJournal? = nil,
+                       check: (Int, Sample, CoolingStatus, [Double]) throws -> Void) async throws {
         let fans = FakeFans(fans: (0..<2).map {
             FanReading(rpm: fanRange.minimum, minimum: fanRange.minimum, maximum: fanRange.maximum, index: $0)
         })
         fans.followsTargets = true
         let t0 = SuspendingClock.now
-        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans, fanStepDown: 150)
+        let core = HelperCore(runner: FakeRunner(), store: FakeStore(), originals: FakeOriginalStore(), fans: fans,
+                              fanStepDown: 150, journal: journal)
         try await core.enable(lowPowerOnBattery: false, now: t0)
         for (second, sample) in samples.enumerated() {
             for group in SensorGroup.allCases {

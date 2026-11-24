@@ -282,3 +282,23 @@ final class FakeFans: FanHardware, @unchecked Sendable {
         }
     }
 }
+
+/// Keeps every journal entry, as "<topic> <change|failure>: <message>".
+final class RecordingJournal: HelperJournal, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [String] = []
+    private var recordedTicks: [FanTick] = []
+
+    var entries: [String] { lock.withLock { recorded } }
+    var ticks: [FanTick] { lock.withLock { recordedTicks } }
+
+    func change(_ topic: JournalTopic, _ message: String) {
+        lock.withLock { recorded.append("\(topic.rawValue) change: \(message)") }
+    }
+
+    func failure(_ topic: JournalTopic, _ message: String) {
+        lock.withLock { recorded.append("\(topic.rawValue) failure: \(message)") }
+    }
+
+    func record(_ tick: FanTick) { lock.withLock { recordedTicks.append(tick) } }
+}

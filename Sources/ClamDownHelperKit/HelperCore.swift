@@ -38,6 +38,8 @@ public actor HelperCore {
     /// How far a fan's target may fall per `fanStepInterval`, in rpm (`FanDecision.fallStep`; tests set their own).
     private let fanStepDown: Double
     private let fanStepInterval: Duration
+    /// Where every change and failure is written down. Nil writes nothing (tests).
+    private let journal: HelperJournal?
 
     private var enabled = false
     /// The app connection that switched the mode on, while it is on.
@@ -96,7 +98,8 @@ public actor HelperCore {
         thermal: ThermalStateReading? = nil,
         watchdogTimeout: Duration = .seconds(90),
         fanStepDown: Double = FanDecision.fallStep,
-        fanStepInterval: Duration = FanDecision.fallInterval
+        fanStepInterval: Duration = FanDecision.fallInterval,
+        journal: HelperJournal? = nil
     ) {
         self.runner = runner
         self.store = store
@@ -108,6 +111,7 @@ public actor HelperCore {
         self.watchdogTimeout = watchdogTimeout
         self.fanStepDown = fanStepDown
         self.fanStepInterval = fanStepInterval
+        self.journal = journal
     }
 
     public var isEnabled: Bool { enabled }
@@ -119,6 +123,7 @@ public actor HelperCore {
         // A new Turn On: fan control starts afresh.
         health.restart()
         if enabled {
+            if owner != self.owner { journal?.change(.mode, "still on, now for another app connection") }
             lastHeartbeat = now
             self.owner = owner
             try applyLowPower(lowPowerOnBattery)
@@ -140,7 +145,7 @@ public actor HelperCore {
         }
         let clean = pending?.sleepDisabled == nil
         // The mode brings its own policy; a fan-only session's must not drive the mode's fans if that one never comes.
-        endFanOnlySession()
+        endFanOnlySession(because: "the mode switches on with its own policy")
         do {
             // Persist what to restore before anything changes, so a crash cannot lose it.
             let state = SavedState(batteryLowPowerMode: prior, sleepDisabled: priorSleep, fansManual: fansHeld ? true : nil)
@@ -150,8 +155,12 @@ public actor HelperCore {
             try exec(.setSleepDisabled(true))
             if lowPowerOnBattery, prior != nil { try exec(.setBatteryLowPowerMode(true)) }
         } catch {
-            try? exec(.setSleepDisabled(priorSleep))
-            if let prior { try? exec(.setBatteryLowPowerMode(prior)) }
+            journal?.failure(.mode, "could not switch on: \(error); putting back sleep disabled \(priorSleep)"
+                + (prior.map { ", Low Power Mode on battery \($0)" } ?? ""))
+            noting(.mode, "put back sleep disabled \(priorSleep)") { try exec(.setSleepDisabled(priorSleep)) }
+            if let prior {
+                noting(.mode, "put back Low Power Mode on battery \(prior)") { try exec(.setBatteryLowPowerMode(prior)) }
+            }
             // A session left by a failed recovery stays on disk, so its values are still put back later; fans whose
             // hand-back failed earlier are still held, and the next start must know that too.
             var state = pending.map { SavedState(batteryLowPowerMode: $0.batteryLowPowerMode, sleepDisabled: $0.sleepDisabled) }
@@ -162,6 +171,9 @@ public actor HelperCore {
         }
         priorSleepDisabled = priorSleep
         priorBatteryLowPower = prior
+        journal?.change(.mode, "on; before it sleep disabled was \(priorSleep), Low Power Mode on battery "
+            + (prior.map { "\($0)" } ?? "unreadable") + (clean ? "" : " (from a session never undone)")
+            + "; Low Power Mode on battery while on: \(lowPowerOnBattery && prior != nil)")
         enabled = true
         self.owner = owner
         lastHeartbeat = now
@@ -173,16 +185,16 @@ public actor HelperCore {
     public func connectionClosed(_ connection: UUID) throws {
         if enabled, let owner, owner != connection { return }
         if !enabled, let fanOwner, fanOwner != connection { return }
-        endFanOnlySession()
-        try disable()
+        endFanOnlySession(because: "the app's connection closed")
+        try switchOff(because: "the app's connection closed")
     }
 
     /// launchd is stopping the helper. Nothing may take the fans again after this, whatever the switch-off does.
     public func shutdown() throws {
         terminating = true
         // The process exits after this whatever the switch-off does, so the fans go back first.
-        releaseFansIfHeld()
-        try disable()
+        releaseFansIfHeld(because: "launchd is stopping the helper")
+        try switchOff(because: "launchd is stopping the helper")
     }
 
     /// Always tries every step. On any sleep or Low Power Mode failure the state is kept, so a retry can finish the job;
@@ -192,6 +204,11 @@ public actor HelperCore {
     /// While the mode is off the sleep setting and Low Power Mode are the user's own and stay untouched; only a
     /// session left on disk by a failed recovery is put back, which makes this a retry of that recovery.
     public func disable() throws {
+        try switchOff(because: "the app asked")
+    }
+
+    /// `disable()`, with the cause the journal gives.
+    private func switchOff(because cause: String) throws {
         guard enabled else {
             try recoverOnStart()
             return
@@ -201,7 +218,12 @@ public actor HelperCore {
         if let prior = priorBatteryLowPower {
             do { try exec(.setBatteryLowPowerMode(prior)) } catch { firstError = firstError ?? error }
         }
-        if let firstError { throw firstError }
+        if let firstError {
+            journal?.failure(.mode, "could not switch off (\(cause)): \(firstError); the mode stays on")
+            throw firstError
+        }
+        journal?.change(.mode, "off: \(cause); sleep disabled back to \(priorSleepDisabled ?? false)"
+            + (priorBatteryLowPower.map { ", Low Power Mode on battery back to \($0)" } ?? ""))
         markSwitchedOff()
     }
 
@@ -210,11 +232,16 @@ public actor HelperCore {
     /// An unreadable record counts as none and is deleted with the switch-off: it can never be put back.
     /// A fan-only session ends here too: the helper is about to go.
     public func restoreOriginalSettings() throws {
-        endFanOnlySession()
-        guard let original = (try? originals.load()) ?? nil else {
-            releaseFansIfHeld()
-            try disable()
-            try? originals.delete()
+        endFanOnlySession(because: "the helper is being removed")
+        let original: OriginalSettings?
+        do { original = try originals.load() } catch {
+            journal?.failure(.storage, "the settings from before ClamDown cannot be read and are dropped: \(error)")
+            original = nil
+        }
+        guard let original else {
+            releaseFansIfHeld(because: "the helper is being removed")
+            try switchOff(because: "the helper is being removed")
+            noting(.storage, "delete the settings from before ClamDown") { try originals.delete() }
             return
         }
         // Every step is tried. If the fans stay with ClamDown, the record and the saved state stay too, so a retry hands them back.
@@ -223,16 +250,22 @@ public actor HelperCore {
         if let lowPower = original.batteryLowPowerMode {
             do { try exec(.setBatteryLowPowerMode(lowPower)) } catch { firstError = firstError ?? error }
         }
-        releaseFansIfHeld()
+        releaseFansIfHeld(because: "the helper is being removed")
         if fansHeld { firstError = firstError ?? HelperError.fansStillHeld }
-        if let firstError { throw firstError }
+        if let firstError {
+            journal?.failure(.mode, "could not put back the settings from before ClamDown: \(firstError)")
+            throw firstError
+        }
+        journal?.change(.mode, "off for the helper's removal; sleep disabled back to \(original.sleepDisabled ?? false)"
+            + (original.batteryLowPowerMode.map { ", Low Power Mode on battery back to \($0)" } ?? "")
+            + ", as before ClamDown")
         markSwitchedOff()
         try originals.delete()
     }
 
     /// The state once the mode is off: the session's values are forgotten, and the saved state is kept only while fans are held.
     private func markSwitchedOff() {
-        releaseFansIfHeld()
+        releaseFansIfHeld(because: "the mode is off")
         // A stale file would only cause one needless restore on the next start.
         writeSaved(SavedState(fansManual: fansHeld ? true : nil))
         priorSleepDisabled = nil
@@ -262,14 +295,14 @@ public actor HelperCore {
     public func checkWatchdog(now: SuspendingClock.Instant = .now) -> Bool {
         guard enabled else {
             if fanPolicy != nil, let last = lastFanPolicy, last.duration(to: now) > watchdogTimeout {
-                endFanOnlySession()
+                endFanOnlySession(because: "no word from the app for \(watchdogTimeout)")
             }
             sleepIfOwed(now: now)
             return false
         }
         guard lastHeartbeat.duration(to: now) > watchdogTimeout else { return false }
         do {
-            try disable()
+            try switchOff(because: "no heartbeat from the app for \(watchdogTimeout)")
         } catch {
             return false
         }
@@ -298,17 +331,24 @@ public actor HelperCore {
     private func sleepIfOwed(now: SuspendingClock.Instant) {
         guard var owed = owedSleep else { return }
         guard owed.since.duration(to: now) <= Self.owedSleepLifetime else {
+            journal?.change(.sleep, "no longer owed: the switch-off was \(Self.owedSleepLifetime) ago")
             owedSleep = nil
             return
         }
         switch Attendance(lid: lid?.lid(), idle: idle?.idleTime(), externalDisplay: false) {
         case .attended:
+            journal?.change(.sleep, "no longer owed: someone is at the Mac")
             owedSleep = nil
         case .leaving:
             break
         case .unattended:
             if let last = owed.lastRequest, last.duration(to: now) < Self.sleepRequestGap { return }
-            _ = try? runner.run(.sleepNow)
+            do {
+                _ = try runner.run(.sleepNow)
+                journal?.change(.sleep, "asked macOS to sleep the abandoned Mac (request \(owed.requests + 1))")
+            } catch {
+                journal?.failure(.sleep, "macOS refused to sleep the abandoned Mac (request \(owed.requests + 1)): \(error)")
+            }
             owed.requests += 1
             owed.lastRequest = now
             owedSleep = owed.requests < Self.sleepRequestLimit ? owed : nil
@@ -329,6 +369,7 @@ public actor HelperCore {
             saved = try store.load()
             unreadable = false
         } catch {
+            journal?.failure(.recovery, "the saved state cannot be read (\(error)); handing the fans back and allowing sleep")
             saved = nil
             unreadable = true
         }
@@ -359,11 +400,19 @@ public actor HelperCore {
         fansHeld = fansStillHeld  // lets `updateFans` keep trying to hand them back
         fanTargets = nil
         if let firstError {
+            journal?.failure(.recovery, "could not put back what an earlier run left: \(firstError)"
+                + (fansStillHeld ? "; the fans stay held, and every tick tries to hand them back" : ""))
             // The file stays as it is, for a retry; memory follows it, so a fan take-over is added to it, not written over it.
             self.saved = saved
             throw firstError
         }
-        try? store.clear()
+        if let saved {
+            journal?.change(.recovery, "put back what an earlier run left:"
+                + (saved.fansManual == true ? " fans handed back to macOS," : "")
+                + (saved.batteryLowPowerMode.map { " Low Power Mode on battery \($0)," } ?? "")
+                + (session ? " sleep disabled \(saved.sleepDisabled ?? false)" : " sleep setting untouched"))
+        }
+        noting(.storage, "delete the saved state after the recovery") { try store.clear() }
         self.saved = nil
     }
 
@@ -378,22 +427,25 @@ public actor HelperCore {
         let repaired = policy.repaired()
         if !enabled {
             guard !repaired.isOff else {
-                endFanOnlySession()
+                endFanOnlySession(because: "the app ended it")
                 updateFans(now: now)
                 return
             }
+            if fanPolicy == nil { journal?.change(.fans, "fan-only session started: the app asks for the curve while the mode is off") }
             fanOwner = owner
             lastFanPolicy = now
         }
         guard repaired != fanPolicy else { return }
+        journal?.change(.fans, "policy: \(Self.describe(repaired))")
         fanPolicy = repaired
         health.restart()
         updateFans(now: now)
     }
 
     /// Forgets a fan-only session. The fans go back to macOS on the next fan tick.
-    private func endFanOnlySession() {
+    private func endFanOnlySession(because cause: String) {
         guard !enabled else { return }
+        if fanPolicy != nil { journal?.change(.fans, "fan-only session ended: \(cause)") }
         fanPolicy = nil
         fanOwner = nil
         lastFanPolicy = nil
@@ -409,12 +461,12 @@ public actor HelperCore {
         guard !terminating else { return }
         guard let policy = fanPolicy, !policy.isOff else {
             decision = FanDecision()
-            stopDriving()
+            stopDriving(because: fanPolicy == nil ? "nothing asks ClamDown to drive them" : "fan control is off")
             return
         }
         guard let hardware, hardware.supportsControl else {
             // `coolingStatus` reports why; there is nothing to retry.
-            stopDriving()
+            stopDriving(because: "this Mac does not let ClamDown set the fan speed")
             return
         }
         let reading: HardwareReading
@@ -425,21 +477,26 @@ public actor HelperCore {
             if health.mayTry(now: now) {
                 fault("Could not read the sensors: \(error)", now: now)
             } else {
-                releaseFansIfHeld()
+                releaseFansIfHeld(because: "a retry after a fault is waiting")
             }
             return
         }
         // Kept up while the lid is open too, so closing it finds the averages and the watches already right.
         let observation = decision.observe(Self.sensors(reading), now: now)
+        // Every return below leaves this tick in the trace with what it got to.
+        var tick = FanTick(reading: reading, followed: observation.temperature, outcome: .fault)
+        defer { journal?.record(tick) }
         if policy.onlyWhenLidClosed, reading.lidClosed != true {
-            stopDriving()
+            tick.outcome = .lidOpen
+            stopDriving(because: "the lid is open, and they follow the curve only with it closed")
             return
         }
         fanIdle = false
         // While a retry waits, a hand-back that failed is tried again on every tick.
         guard health.mayTry(now: now) else {
+            tick.outcome = .waiting
             fanOverride = nil
-            releaseFansIfHeld()
+            releaseFansIfHeld(because: "a retry after a fault is waiting")
             return
         }
         // `setTargets` writes by position and every fan needs a target, so every fan the hardware has must be
@@ -476,20 +533,56 @@ public actor HelperCore {
         let maxDrop = FanDecision.allowedDrop(after: fanTargetsWritten.map { $0.duration(to: now) },
                                               step: fanStepDown, interval: fanStepInterval)
         let targets = FanDecision.targets(percent: percent, fans: reading.fans, previous: fanTargets, maxDrop: maxDrop)
+        tick.percent = percent
+        tick.override = override
         do {
             if !fansHeld {
                 // Record the take-over before touching the fans, so a crash cannot leave them stuck.
                 try recordFansHeld(true)
                 fansHeld = true
+                journal?.change(.fans, "took the fans from macOS at \(Self.celsius(temperature)) followed, "
+                    + "\(Self.rounded(percent)) % of their range")
             }
             try hardware.setTargets(targets)
+            if override != fanOverride {
+                journal?.change(.fans, describe(override, reading: reading, followed: temperature))
+            }
             fanTargets = targets
             fanTargetsWritten = now
             fanOverride = override
             health.tickHeld(now: now)
+            tick.targets = targets
+            tick.outcome = .set
         } catch {
             fault("Could not set the fan speed: \(error)", now: now)
         }
+    }
+
+    /// The journal's words for a change of the full-speed override.
+    private func describe(_ override: FanOverride?, reading: HardwareReading, followed: Double) -> String {
+        switch override {
+        case nil:
+            "full speed ended: back to the curve at \(Self.celsius(followed)) followed"
+        case .hotCore:
+            "full speed: a CPU core is at its limit (hottest core \(Self.celsius(reading.hottestCPUTemperature)))"
+        case .hotBattery:
+            "full speed: the battery is hot (\(Self.celsius(reading.groupTemperatures[.battery])))"
+        case .system:
+            "full speed: macOS reports the Mac as \(thermal?.thermalLevel().name ?? "hot")"
+        }
+    }
+
+    private static func describe(_ policy: FanPolicy) -> String {
+        policy.points.map { "\($0.temperature) °C \($0.speed) %" }.joined(separator: ", ")
+            + (policy.onlyWhenLidClosed ? "; only with the lid closed" : "")
+    }
+
+    private static func celsius(_ value: Double?) -> String {
+        value.map { String(format: "%.1f °C", $0) } ?? "unknown"
+    }
+
+    private static func rounded(_ value: Double) -> String {
+        String(format: "%.0f", value)
     }
 
     /// The values `FanDecision` needs from a reading.
@@ -532,19 +625,20 @@ public actor HelperCore {
     }
 
     /// Not asked to drive the fans (not a fault): hand them back and wait.
-    private func stopDriving() {
+    private func stopDriving(because cause: String) {
         fanIdle = true
         fanOverride = nil
         health.pause()
-        releaseFansIfHeld()
+        releaseFansIfHeld(because: cause)
     }
 
     /// Hands the fans to macOS after a fault; `health` decides when to take them again.
     private func fault(_ reason: String, now: SuspendingClock.Instant) {
         fanOverride = nil
         lagWatch = LagWatch()
-        releaseFansIfHeld()
         health.fault(reason, now: now)
+        journal?.failure(.fans, "\(reason) → macOS drives the fans; control is \(health.state.rawValue)")
+        releaseFansIfHeld(because: "of a fault")
     }
 
     /// True when the reading holds every fan the hardware has, each at its own SMC index.
@@ -556,20 +650,24 @@ public actor HelperCore {
     /// Hands the fans back to macOS. A failure keeps `fansHeld`, so the next call tries again, and runs the
     /// fans at full speed meanwhile: nothing drives them while ClamDown is not in control, and a fan left at
     /// its last target could stay slow on a Mac that is heating up.
-    private func releaseFansIfHeld() {
+    private func releaseFansIfHeld(because cause: String) {
         guard fansHeld, let hardware else { return }
         do {
             try hardware.releaseFans()
         } catch {
-            releaseProblem = "Could not hand the fans back to macOS: \(error)"
+            let problem = "Could not hand the fans back to macOS: \(error)"
+            // Tried on every tick: only a new problem is written down.
+            if problem != releaseProblem { journal?.failure(.fans, "\(problem); running them at full speed meanwhile") }
+            releaseProblem = problem
             runHeldFansAtMaximum(hardware)
             return
         }
+        journal?.change(.fans, "handed the fans back to macOS because \(cause)")
         releaseProblem = nil
         fansHeld = false
         fanTargets = nil
         lagWatch = LagWatch()
-        try? recordFansHeld(false)
+        noting(.storage, "record that macOS has the fans back") { try recordFansHeld(false) }
     }
 
     /// Best effort: sets every fan still in manual mode to its maximum. A fan macOS already has is left to macOS:
@@ -614,13 +712,15 @@ public actor HelperCore {
     /// Writes `state`, or clears the file when it holds nothing. Best effort: used on paths that are already failing
     /// or finishing.
     private func writeSaved(_ state: SavedState) {
-        if state == SavedState() {
-            try? store.clear()
-            saved = nil
-        } else {
-            try? store.save(state)
-            saved = state
+        saved = state == SavedState() ? nil : state
+        noting(.storage, "write the saved state") {
+            if state == SavedState() { try store.clear() } else { try store.save(state) }
         }
+    }
+
+    /// Runs a step whose failure changes nothing the caller does next, and writes the failure down.
+    private func noting(_ topic: JournalTopic, _ step: String, _ body: () throws -> Void) {
+        do { try body() } catch { journal?.failure(topic, "could not \(step): \(error)") }
     }
 
     private func applyLowPower(_ on: Bool) throws {

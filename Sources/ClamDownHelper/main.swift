@@ -6,36 +6,42 @@ import ClamDownShared
 /// Skipped ticks in a row after which the helper gives up on its stuck actor and exits.
 private let stuckTickLimit = 20
 
-private func log(_ message: String) {
-    FileHandle.standardError.write(Data("ClamDownHelper: \(message)\n".utf8))
-}
+/// launchd sends a daemon's own output nowhere, so everything worth keeping goes here; see `SystemJournal`.
+/// The fan trace sits with the system's logs, where an admin user and Console can read it.
+private let journal = SystemJournal(trace: FanTraceFile(directory: URL(fileURLWithPath: "/Library/Logs/ClamDown")))
 
 /// Refuses to run (fail closed) when it cannot tell exactly who may talk to it.
 private func fail(_ message: String) -> Never {
-    log(message)
+    journal.failure(.process, "refusing to serve, exiting: \(message)")
     exit(1)
 }
 
 /// Runs for the life of the process. It never returns, which keeps the listener,
 /// its delegate and the watchdog timer alive.
 private func runHelper() async -> Never {
+    // <App>.app/Contents/MacOS/ClamDownHelper -> three levels up is the app bundle.
+    let executableURL = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
+    let appURL = executableURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let info = Bundle(url: appURL)?.infoDictionary
+    journal.change(.process, "started, version \(info?["CFBundleShortVersionString"] as? String ?? "unknown")"
+        + " (build \(info?["CFBundleVersion"] as? String ?? "unknown"))")
+    let fans = SMCFanHardware()
+    if fans == nil { journal.failure(.fans, "cannot open the SMC; macOS keeps the fans") }
     // Recovery runs before any check that can exit, so a helper that refuses to serve
     // still puts the user's sleep setting back.
     let core = HelperCore(
         runner: SystemPmsetRunner(),
         store: FileSavedStateStore(url: URL(fileURLWithPath: "/var/db/clamdown/state.json")),
         originals: FileOriginalSettingsStore(url: URL(fileURLWithPath: "/var/db/clamdown/original.json")),
-        fans: SMCFanHardware(),
+        fans: fans,
         lid: SystemLid(),
         idle: SystemIdle(),
-        thermal: SystemThermalState()
+        thermal: SystemThermalState(),
+        journal: journal
     )
-    // A failure here must not stop the helper from serving.
-    do { try await core.recoverOnStart() } catch { log("recovery on start failed: \(error)") }
+    // A failure here must not stop the helper from serving. The core has written it down.
+    do { try await core.recoverOnStart() } catch {}
 
-    // <App>.app/Contents/MacOS/ClamDownHelper -> three levels up is the app bundle.
-    let executableURL = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
-    let appURL = executableURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     guard let appBundleID = Bundle(url: appURL)?.bundleIdentifier else {
         fail("cannot read the app bundle identifier from \(appURL.path)")
     }
@@ -54,7 +60,8 @@ private func runHelper() async -> Never {
         let source = DispatchSource.makeSignalSource(signal: sig, queue: .global(qos: .utility))
         source.setEventHandler {
             Task {
-                do { try await core.shutdown() } catch { log("switch-off on signal failed: \(error)") }
+                do { try await core.shutdown() } catch {}  // the core has written it down
+                journal.change(.process, "exiting on signal \(sig)")
                 exit(0)
             }
         }
@@ -81,7 +88,7 @@ private func runHelper() async -> Never {
         // A tick stuck this long (20 ticks, a minute) means the helper's actor is stuck, and with it the watchdog
         // and the fans. Exit, so launchd starts a fresh helper whose recovery puts sleep and the fans back.
         if !started, tickGate.skippedInARow >= stuckTickLimit {
-            log("a tick has been running for over a minute; exiting so launchd starts the helper again")
+            journal.failure(.process, "a tick has been running for over a minute; exiting so launchd starts the helper again")
             exit(1)
         }
     }
