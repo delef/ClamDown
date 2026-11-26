@@ -74,12 +74,9 @@ ClamDown checks GitHub for updates once a day, sends nothing about you or your M
 
 ## Uninstall
 
-Switch ClamDown off, use Remove Helper in Settings > Helper (it puts back the sleep and Low Power Mode settings you had before ClamDown first switched on), quit it, then delete the app and, if you like, its logs in `/Library/Logs/ClamDown`. If the fans stay at a fixed speed afterwards, restart the Mac: the fans go back to macOS control on restart. If the Mac refuses to sleep afterwards, or Low Power Mode is wrong, put them back by hand:
-
-```
-sudo pmset disablesleep 0
-sudo pmset -b lowpowermode 0   # or 1, whichever you had before
-```
+1. **Remove the helper.** In Settings > Helper, click Remove. ClamDown switches off, puts back the sleep and Low Power Mode settings you had before it first switched on, and gives the fans back to macOS. If any of that fails, it says so and keeps the helper, so you can try again.
+2. **Delete the app.** Quit ClamDown and move it to the Trash.
+3. **Delete the logs**, if you like: the folder `/Library/Logs/ClamDown`.
 
 ## License
 
