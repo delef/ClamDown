@@ -14,7 +14,8 @@ let package = Package(
         // The ClamDown look: tokens, glass-or-classic components and building blocks for Settings and setup.
         // SwiftUI and AppKit only; it knows nothing about settings, the helper or the controller.
         .target(name: "ClamDownUI"),
-        .testTarget(name: "ClamDownUITests", dependencies: ["ClamDownUI"]),
+        .testTarget(name: "ClamDownUITests", dependencies: ["ClamDownUI"],
+                    exclude: ["Snapshots"]),  // read by path (#filePath), not from the bundle
         .testTarget(name: "ClamDownSharedTests", dependencies: ["ClamDownShared"]),
         .target(name: "ClamDownSensors", dependencies: ["ClamDownShared"]),
         .testTarget(name: "ClamDownSensorsTests", dependencies: ["ClamDownSensors", "ClamDownShared"],
