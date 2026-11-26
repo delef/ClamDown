@@ -4,7 +4,7 @@ import ClamDownShared
 
 public enum HelperError: Error, Equatable, CustomStringConvertible {
     case notEnabled
-    /// `pmset -g` did not show a `SleepDisabled` value, so the user's setting cannot be restored later.
+    /// `pmset -g` showed a `SleepDisabled` value that is neither 0 nor 1, so the user's setting cannot be restored later.
     case unreadableSleepSetting
     /// The fans could not be handed back to macOS, so the original settings are not put back yet.
     case fansStillHeld

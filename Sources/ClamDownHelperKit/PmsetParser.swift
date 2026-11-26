@@ -1,5 +1,6 @@
 public enum PmsetParser {
-    /// Value of the `SleepDisabled` line in `pmset -g` output, or nil when absent.
+    /// Value of the `SleepDisabled` line in `pmset -g` output. macOS prints that line only once `disablesleep` has been
+    /// set, so a missing line is the default, off. Nil when the line is there but its value is neither 0 nor 1.
     public static func sleepDisabled(fromGlobal output: String) -> Bool? {
         for line in output.split(whereSeparator: \.isNewline) {
             let fields = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
@@ -7,7 +8,7 @@ public enum PmsetParser {
                 return flag(fields[1])
             }
         }
-        return nil
+        return false
     }
 
     /// Value of `lowpowermode` in the "Battery Power:" section of `pmset -g custom` output.
