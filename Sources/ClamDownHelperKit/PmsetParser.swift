@@ -1,11 +1,11 @@
 public enum PmsetParser {
     /// Value of the `SleepDisabled` line in `pmset -g` output. macOS prints that line only once `disablesleep` has been
-    /// set, so a missing line is the default, off. Nil when the line is there but its value is neither 0 nor 1.
+    /// set, so a missing line is the default, off. Nil when the line is there but is not exactly `SleepDisabled 0` or `SleepDisabled 1`.
     public static func sleepDisabled(fromGlobal output: String) -> Bool? {
         for line in output.split(whereSeparator: \.isNewline) {
             let fields = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
-            if fields.count == 2, fields[0] == "SleepDisabled" {
-                return flag(fields[1])
+            if fields.first == "SleepDisabled" {
+                return fields.count == 2 ? flag(fields[1]) : nil
             }
         }
         return false

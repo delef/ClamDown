@@ -14,12 +14,15 @@ final class FakeRunner: PmsetRunning, @unchecked Sendable {
     private var failures: [Failure] = []
     private let batteryLowPower: Bool?
     private let sleepDisabled: Bool?
+    private let sleepLine: String?
 
     /// `batteryLowPower` nil means the `lowpowermode` key is missing from the Battery Power section.
     /// `sleepDisabled` nil means the `SleepDisabled` line is missing from `pmset -g`.
-    init(batteryLowPower: Bool? = false, sleepDisabled: Bool? = false) {
+    /// `sleepLine` replaces the whole `SleepDisabled` line, for output the helper cannot read.
+    init(batteryLowPower: Bool? = false, sleepDisabled: Bool? = false, sleepLine: String? = nil) {
         self.batteryLowPower = batteryLowPower
         self.sleepDisabled = sleepDisabled
+        self.sleepLine = sleepLine
     }
 
     var commands: [PmsetCommand] { lock.withLock { recorded } }
@@ -38,7 +41,7 @@ final class FakeRunner: PmsetRunning, @unchecked Sendable {
             }
             switch command {
             case .readCustom: return customOutput()
-            case .readGlobal: return sleepDisabled.map { " SleepDisabled\t\t\($0 ? 1 : 0)\n" } ?? ""
+            case .readGlobal: return sleepLine ?? sleepDisabled.map { " SleepDisabled\t\t\($0 ? 1 : 0)\n" } ?? ""
             default: return ""
             }
         }

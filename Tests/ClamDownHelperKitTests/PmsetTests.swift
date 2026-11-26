@@ -39,6 +39,8 @@ AC Power:
 
     @Test func sleepDisabledWithUnknownValueIsNil() {
         #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\t\tmaybe\n") == nil)
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\t\t1 (set by someone)\n") == nil)
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\n") == nil)
     }
 
     @Test func parsesBatteryLowPowerFromCustom() {

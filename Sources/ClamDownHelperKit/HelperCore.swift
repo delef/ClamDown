@@ -4,7 +4,7 @@ import ClamDownShared
 
 public enum HelperError: Error, Equatable, CustomStringConvertible {
     case notEnabled
-    /// `pmset -g` showed a `SleepDisabled` value that is neither 0 nor 1, so the user's setting cannot be restored later.
+    /// `pmset -g` showed a `SleepDisabled` line that is not exactly 0 or 1, so the user's setting cannot be restored later.
     case unreadableSleepSetting
     /// The fans could not be handed back to macOS, so the original settings are not put back yet.
     case fansStillHeld
@@ -15,7 +15,7 @@ public enum HelperError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .notEnabled: "The mode is not on"
-        case .unreadableSleepSetting: "pmset did not report the sleep setting"
+        case .unreadableSleepSetting: "pmset reported a sleep setting ClamDown cannot read"
         case .fansStillHeld: "ClamDown could not hand the fans back to macOS"
         case .fansUnreachable: "ClamDown cannot reach the fans to hand them back to macOS"
         }
