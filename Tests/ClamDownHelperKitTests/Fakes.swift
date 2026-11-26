@@ -41,10 +41,16 @@ final class FakeRunner: PmsetRunning, @unchecked Sendable {
             }
             switch command {
             case .readCustom: return customOutput()
-            case .readGlobal: return sleepLine ?? sleepDisabled.map { " SleepDisabled\t\t\($0 ? 1 : 0)\n" } ?? ""
+            case .readGlobal: return globalOutput()
             default: return ""
             }
         }
+    }
+
+    /// A real `pmset -g` listing; the `SleepDisabled` line is left out when `sleepDisabled` is nil.
+    private func globalOutput() -> String {
+        let line = sleepLine ?? sleepDisabled.map { " SleepDisabled\t\t\($0 ? 1 : 0)\n" } ?? ""
+        return "System-wide power settings:\n\(line)Currently in use:\n standby              1\n"
     }
 
     private func customOutput() -> String {

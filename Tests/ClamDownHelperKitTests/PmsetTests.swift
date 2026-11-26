@@ -32,9 +32,13 @@ AC Power:
     }
 
     /// macOS prints no `SleepDisabled` line until `disablesleep` has been set once; absent means the default, off.
-    @Test func sleepDisabledMissingIsOff() {
-        #expect(PmsetParser.sleepDisabled(fromGlobal: " lowpowermode 0\n") == false)
-        #expect(PmsetParser.sleepDisabled(fromGlobal: "") == false)
+    @Test func sleepDisabledMissingFromACompleteListingIsOff() {
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " lowpowermode 0\nCurrently in use:\n standby 1\n") == false)
+    }
+
+    @Test func sleepDisabledInOutputThatIsNotAListingIsNil() {
+        #expect(PmsetParser.sleepDisabled(fromGlobal: "") == nil)
+        #expect(PmsetParser.sleepDisabled(fromGlobal: "pmset: some error\n") == nil)
     }
 
     @Test func sleepDisabledWithUnknownValueIsNil() {
