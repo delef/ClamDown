@@ -74,7 +74,7 @@ ClamDown checks GitHub for updates once a day, sends nothing about you or your M
 
 ## Uninstall
 
-1. **Remove the helper.** In Settings > Helper, click Remove. ClamDown switches off, puts back the sleep and Low Power Mode settings you had before it first switched on, and gives the fans back to macOS. If any of that fails, it says so and keeps the helper, so you can try again.
+1. **Remove the helper.** In Settings > Helper, click Remove. ClamDown switches off, puts back the sleep and Low Power Mode settings you had before it switched on, and gives the fans back to macOS. If any of that fails, it says so and keeps the helper, so you can try again.
 2. **Delete the app.** Quit ClamDown and move it to the Trash.
 3. **Delete the logs**, if you like: the folder `/Library/Logs/ClamDown`.
 
