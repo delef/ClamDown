@@ -69,11 +69,22 @@ import Testing
     }
 
     @Test func enableFailsWhenSleepSettingIsUnreadableAndChangesNothing() async {
-        let (core, runner, store) = make(sleep: nil)
+        let runner = FakeRunner(sleepLine: " SleepDisabled\t\tmaybe\n")
+        let store = FakeStore(initial: nil, loadFails: false)
+        let core = HelperCore(runner: runner, store: store, originals: FakeOriginalStore())
         await #expect(throws: HelperError.unreadableSleepSetting) { try await core.enable(lowPowerOnBattery: true) }
         #expect(runner.commands == [.readGlobal])
         #expect(store.saved == nil)
         #expect(await core.isEnabled == false)
+    }
+
+    /// A fresh Mac prints no `SleepDisabled` line until `disablesleep` was set once (issue #2): that is the default, off.
+    @Test func enableTreatsAMissingSleepSettingAsOff() async throws {
+        let (core, runner, store) = make(sleep: nil)
+        try await core.enable(lowPowerOnBattery: false)
+        #expect(runner.commands == [.readGlobal, .readCustom, .setSleepDisabled(true)])
+        #expect(store.saved == SavedState(batteryLowPowerMode: false, sleepDisabled: false))
+        #expect(await core.isEnabled)
     }
 
     @Test func disableRestoresPriorValueAndClearsState() async throws {

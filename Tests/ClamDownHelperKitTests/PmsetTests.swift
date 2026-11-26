@@ -31,8 +31,20 @@ AC Power:
         #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\t\t0\n") == false)
     }
 
-    @Test func sleepDisabledMissingIsNil() {
-        #expect(PmsetParser.sleepDisabled(fromGlobal: " lowpowermode 0\n") == nil)
+    /// macOS prints no `SleepDisabled` line until `disablesleep` has been set once; absent means the default, off.
+    @Test func sleepDisabledMissingFromACompleteListingIsOff() {
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " lowpowermode 0\nCurrently in use:\n standby 1\n") == false)
+    }
+
+    @Test func sleepDisabledInOutputThatIsNotAListingIsNil() {
+        #expect(PmsetParser.sleepDisabled(fromGlobal: "") == nil)
+        #expect(PmsetParser.sleepDisabled(fromGlobal: "pmset: some error\n") == nil)
+    }
+
+    @Test func sleepDisabledWithUnknownValueIsNil() {
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\t\tmaybe\n") == nil)
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\t\t1 (set by someone)\n") == nil)
+        #expect(PmsetParser.sleepDisabled(fromGlobal: " SleepDisabled\n") == nil)
     }
 
     @Test func parsesBatteryLowPowerFromCustom() {
