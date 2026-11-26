@@ -84,6 +84,7 @@ enum SettingsLiveShot {
     }
 }
 
+@MainActor
 private func firstTable(in view: NSView?) -> NSTableView? {
     guard let view else { return nil }
     if let table = view as? NSTableView { return table }
